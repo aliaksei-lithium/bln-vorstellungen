@@ -1,5 +1,7 @@
 # BLN Vorstellungen
 
+<p align="center"><img src="docs/images/design-programme-list.png" alt="Design example: public event list, direction A &quot;Programme&quot;" width="360"></p>
+
 A personal, AI-assisted overview of events in Berlin: concerts, theatre, opera, clubs, talks, exhibitions and
 whatever else is worth leaving the flat for.
 
