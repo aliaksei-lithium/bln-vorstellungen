@@ -28,6 +28,16 @@ Format: date · decision · why · alternatives rejected. Newer entries supersed
   constantly. Manual photo/text input only.
 - **2026-10-02 · Telegram via `t.me/s/<channel>` HTML preview.** No bot or API credentials; works for public
   channels. Rejected: MTProto client (needs a phone session; not free-tier friendly on Workers).
+- **2026-10-30 · Design direction D ("strict cards", Moss accent, TV-tower background).** Chosen by the owner
+  over A–C after a clickable mockup (`design/mockup-d`, deployed as the separate Worker
+  `bln-vorstellungen-mockup`). Square 1px ink frames, Figtree, see-through rows over the tower; shadcn tokens are
+  mapped onto D's palette in `apps/web/src/index.css`.
+- **2026-10-30 · Phase 0 tooling, verified while scaffolding.** `@cloudflare/vitest-pool-workers` is deprecated and
+  renamed to `@cloudflare/vitest-plugin` (Vitest 4; `env`/`exports` now come from `cloudflare:workers`); CLAUDE.md's
+  mention means this package. TypeScript pinned to 6.0 because typescript-eslint does not support 7 yet. Node 25 no
+  longer ships corepack, so pnpm is installed globally. better-auth core tables are created up front with plural
+  names (`users`, `sessions`, `accounts`, `verifications`); configure better-auth with `usePlural: true` in phase 2.
+  FTS5 (`events_fts`) is maintained by the resolve step, not by triggers, because it needs venue and performer names.
 - **2026-10-02 · React + Vite + TanStack + Tailwind + shadcn/ui.** Best coverage by design tools and implementing
   models. Rejected: SvelteKit (good, but weaker design-tool output), Next.js on Workers via OpenNext (heavier than
   needed; no SSR requirement since public pages can be cached JSON + client render; revisit if SEO matters).

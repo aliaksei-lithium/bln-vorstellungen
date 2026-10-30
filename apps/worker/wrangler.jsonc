@@ -1,0 +1,47 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "bln-vorstellungen",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true },
+
+  // The SPA build. The Worker runs first only for API, MCP and auth routes.
+  "assets": {
+    "directory": "../web/dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*", "/mcp", "/mcp/*"],
+  },
+
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "bln-vorstellungen",
+      "database_id": "efa94f54-6bc6-4592-bf88-df8b7884c7bb",
+      "migrations_dir": "migrations",
+    },
+  ],
+  "r2_buckets": [{ "binding": "MEDIA", "bucket_name": "bln-vorstellungen-media" }],
+  "kv_namespaces": [{ "binding": "CACHE", "id": "2ce0a82133f54d078f430e0b7d44fc2b" }],
+  "ai": { "binding": "AI", "remote": true },
+
+  "workflows": [
+    { "name": "source-run", "binding": "SOURCE_RUN", "class_name": "SourceRunWorkflow" },
+    { "name": "extract-item", "binding": "EXTRACT_ITEM", "class_name": "ExtractItemWorkflow" },
+    { "name": "enrich-event", "binding": "ENRICH_EVENT", "class_name": "EnrichEventWorkflow" },
+    { "name": "score-events", "binding": "SCORE_EVENTS", "class_name": "ScoreEventsWorkflow" },
+    { "name": "photo-ingest", "binding": "PHOTO_INGEST", "class_name": "PhotoIngestWorkflow" },
+  ],
+
+  "durable_objects": {
+    "bindings": [{ "name": "MCP_AGENT", "class_name": "McpAgent" }],
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["McpAgent"] }],
+
+  "triggers": { "crons": ["*/15 * * * *"] },
+
+  "vars": {
+    "APP_ENV": "production",
+  },
+}
