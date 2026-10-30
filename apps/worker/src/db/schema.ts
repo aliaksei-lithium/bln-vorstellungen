@@ -152,6 +152,10 @@ export const events = sqliteTable(
     mergedInto: text('merged_into'),
     firstStartAt: text('first_start_at'),
     lastStartAt: text('last_start_at'),
+    /** Next non-cancelled date from now, kept fresh by resolve and the cron sweep; drives the public list. */
+    nextStartUtc: text('next_start_utc'),
+    nextStartLocal: text('next_start_local'),
+    upcomingCount: integer('upcoming_count').notNull().default(0),
     dedupKey: text('dedup_key').notNull(),
     createdBy: text('created_by').notNull(),
     createdAt: createdAt(),
@@ -161,6 +165,8 @@ export const events = sqliteTable(
     index('events_status_first_idx').on(t.status, t.firstStartAt),
     index('events_dedup_idx').on(t.dedupKey),
     index('events_venue_idx').on(t.venueId),
+    index('events_next_idx').on(t.nextStartUtc),
+    index('events_category_next_idx').on(t.category, t.nextStartUtc),
   ],
 );
 
@@ -326,7 +332,10 @@ export const rawItems = sqliteTable(
       .notNull()
       .default('pending'),
   },
-  (t) => [uniqueIndex('raw_items_source_hash_uq').on(t.sourceId, t.contentHash)],
+  (t) => [
+    uniqueIndex('raw_items_source_hash_uq').on(t.sourceId, t.contentHash),
+    index('raw_items_source_status_idx').on(t.sourceId, t.extractionStatus),
+  ],
 );
 
 export const eventSources = sqliteTable(

@@ -9,7 +9,7 @@ export default defineConfig(async () => {
       cloudflareTest({
         remoteBindings: false,
         wrangler: { configPath: './wrangler.jsonc' },
-        miniflare: { bindings: { TEST_MIGRATIONS: migrations } },
+        miniflare: { bindings: { TEST_MIGRATIONS: migrations, ADMIN_TOKEN: 'test-admin-token' } },
       }),
     ],
     test: { setupFiles: ['./test/apply-migrations.ts'] },

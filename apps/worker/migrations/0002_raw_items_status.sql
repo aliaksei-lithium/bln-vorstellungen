@@ -1,0 +1,1 @@
+CREATE INDEX `raw_items_source_status_idx` ON `raw_items` (`source_id`,`extraction_status`);
