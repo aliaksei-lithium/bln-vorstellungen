@@ -146,6 +146,45 @@ export const SourceConfig = z.object({
 });
 export type SourceConfig = z.infer<typeof SourceConfig>;
 
+/** Admin API: create a source. The schedule defaults to the adapter's own interval. */
+export const SourceCreate = SourceConfig.extend({ scheduleMinutes: SourceConfig.shape.scheduleMinutes.optional() });
+export type SourceCreate = z.infer<typeof SourceCreate>;
+
+/** Partial update; no defaults here, so omitted fields stay as they are. */
+export const SourceUpdate = z.object({
+  name: z.string().min(1).optional(),
+  config: z.record(z.string(), z.unknown()).optional(),
+  scheduleMinutes: SourceConfig.shape.scheduleMinutes.optional(),
+  enabled: z.boolean().optional(),
+  visibility: SourceVisibility.optional(),
+});
+export type SourceUpdate = z.infer<typeof SourceUpdate>;
+
+export const SourceView = SourceConfig.extend({
+  id: z.string(),
+  cursor: z.string().nullable(),
+  nextRunAt: UtcInstant.nullable(),
+  lastRunAt: UtcInstant.nullable(),
+  lastStatus: z.string().nullable(),
+  lastError: z.string().nullable(),
+  stats: z.record(z.string(), z.number()),
+});
+export type SourceView = z.infer<typeof SourceView>;
+
+export const SourceRunView = z.object({
+  id: z.string(),
+  workflowId: z.string().nullable(),
+  startedAt: UtcInstant,
+  finishedAt: UtcInstant.nullable(),
+  status: z.enum(['running', 'ok', 'error']),
+  fetched: z.number(),
+  newItems: z.number(),
+  eventsCreated: z.number(),
+  eventsUpdated: z.number(),
+  error: z.string().nullable(),
+});
+export type SourceRunView = z.infer<typeof SourceRunView>;
+
 /* ---------- API payloads ---------- */
 
 export const HealthResponse = z.object({
@@ -162,6 +201,8 @@ export const EventsQuery = z.object({
   category: Category.optional(),
   district: z.string().optional(),
   q: z.string().max(100).optional(),
+  /** Opaque, from the previous page's `nextCursor`. */
+  cursor: z.string().max(100).optional(),
 });
 export type EventsQuery = z.infer<typeof EventsQuery>;
 
@@ -180,7 +221,7 @@ export const EventListItem = z.object({
 });
 export type EventListItem = z.infer<typeof EventListItem>;
 
-export const EventsResponse = z.object({ items: z.array(EventListItem) });
+export const EventsResponse = z.object({ items: z.array(EventListItem), nextCursor: z.string().nullable() });
 export type EventsResponse = z.infer<typeof EventsResponse>;
 
 export const EventDetail = Event.extend({

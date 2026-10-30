@@ -1,8 +1,9 @@
 import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from 'cloudflare:workers';
 
 /**
- * Workflow classes bound in wrangler.jsonc. Each is a placeholder until its phase lands:
- * SourceRun (phase 1), ScoreEvents (phase 2), ExtractItem and PhotoIngest (phase 3), EnrichEvent (phase 4).
+ * Workflow classes bound in wrangler.jsonc that are still placeholders until their phase lands:
+ * ScoreEvents (phase 2), ExtractItem and PhotoIngest (phase 3), EnrichEvent (phase 4). SourceRun lives in
+ * pipeline/source-run.ts.
  */
 
 abstract class Placeholder<P> extends WorkflowEntrypoint<Env, P> {
@@ -10,10 +11,6 @@ abstract class Placeholder<P> extends WorkflowEntrypoint<Env, P> {
   override async run(_event: WorkflowEvent<P>, step: WorkflowStep) {
     return step.do('not implemented', async () => ({ skipped: true, phase: this.phase }));
   }
-}
-
-export class SourceRunWorkflow extends Placeholder<{ sourceId: string }> {
-  protected readonly phase = 1;
 }
 
 export class ExtractItemWorkflow extends Placeholder<{ rawItemId: string }> {

@@ -38,6 +38,41 @@ Format: date · decision · why · alternatives rejected. Newer entries supersed
   longer ships corepack, so pnpm is installed globally. better-auth core tables are created up front with plural
   names (`users`, `sessions`, `accounts`, `verifications`); configure better-auth with `usePlural: true` in phase 2.
   FTS5 (`events_fts`) is maintained by the resolve step, not by triggers, because it needs venue and performer names.
+- **2026-10-31 · Resolve matches on title + venue, not on the first date.** docs/04's `dedup_key` includes the
+  first date, which would split a production whose 12 Vorstellungen arrive as 12 feed items (Gorki publishes it
+  that way). The key keeps the docs/04 format, but resolve looks up its `title|venue|` prefix and merges into the
+  most recent such event if its last date is at most 90 days ago. A band returning to the same club after a
+  longer gap becomes a new event. The 0.6–0.9 similarity review (`possible_duplicate`) is deferred to phase 3,
+  where LLM-extracted titles make it worth it.
+- **2026-10-31 · Public list pages through `events.next_start_*`.** Scanning occurrences cost up to 2,400 rows
+  per page (measured, 120 events × 6 dates). `events` now carries `next_start_utc`, `next_start_local` and
+  `upcoming_count`, refreshed by resolve and by a sweep in the 15-min cron (only events whose next date passed).
+  "All upcoming" pages through `events_next_idx` with a cursor; date windows (today/weekend/week) still scan
+  occurrences, with the index forced (`INDEXED BY` + `CROSS JOIN`) because the planner otherwise starts from all
+  events. Measured rows read per page: 82 default, 80 category, 160 district, 120 search, 164 week window
+  (`test/list-budget.test.ts` fails above 500). Rejected: a plain `GROUP BY event` over occurrences.
+- **2026-10-31 · Workers Caching instead of the Cache API.** The Cache API does nothing on `workers.dev`. Workers
+  Caching (`cache.enabled` in wrangler.jsonc) caches by `Cache-Control`, also on `workers.dev`, keyed by Worker
+  version. Public event responses: `public, max-age=60, s-maxage=120` + `Cache-Tag: events`; every other `/api`
+  response defaults to `no-store` (otherwise heuristic caching would apply). Trade-off: with caching on, static
+  asset requests count as Worker requests (fine against 100k/day at hobby volume). A purge after each source run
+  needs a call from the fetch entrypoint (purges are per entrypoint); not worth it at a 2-min TTL.
+- **2026-10-31 · Admin API gated by `Authorization: Bearer <ADMIN_TOKEN>`** until owner sign-in (phase 2). The
+  `Authorization` header also makes Workers Caching bypass, so admin responses are never cached.
+- **2026-10-31 · Structured adapters, no LLM.** `ical` (minimal RRULE: DAILY/WEEKLY with COUNT/UNTIL/BYDAY/EXDATE
+  on wall-clock time; DTSTAMP/SEQUENCE dropped before hashing so unchanged events stay unchanged) and `jsonld`
+  (indexOf scan for blocks, so 1 MB pages stay cheap; tolerant of sloppy offsets like `+1:00` and of raw line
+  breaks in JSON). Both send `If-None-Match`/`If-Modified-Since` from the cursor. Category: item type → title
+  keywords → source default → description keywords → `other`. `rss` stores entries as `pending` raw items for
+  LLM extraction in phase 3. Closing-day placeholders ("HEUTE GESCHLOSSEN") are skipped.
+- **2026-10-31 · Starter sources (`apps/worker/seed/sources.sql`).** Verified on this date: The Left Berlin
+  (iCal), Luma Berlin discover feed (iCal), Maxim Gorki Theater, A-Trane, Privatclub, Bar jeder Vernunft
+  (JSON-LD). Checked and not usable without the `html` adapter: berlin-buehnen.de (403), Berliner Ensemble,
+  Staatsoper, Deutsches Theater, Volksbühne, Konzerthaus, SO36, Berghain, Lido, Astra and others (no feed, no
+  JSON-LD). Komische Oper links one `.ics` per performance; a `sitemap`-style adapter could follow those.
+- **2026-10-31 · Workflow step budget.** Workers Free allows 3,000 Workflow steps per day and 1,024 per instance.
+  A SourceRun is start + fetch + one step per 8 new items + finish; unchanged feeds cost 3 steps (most answer
+  304). Six sources at 6–12 h intervals use well under 100 steps a day after the first import (~50 steps).
 - **2026-10-02 · React + Vite + TanStack + Tailwind + shadcn/ui.** Best coverage by design tools and implementing
   models. Rejected: SvelteKit (good, but weaker design-tool output), Next.js on Workers via OpenNext (heavier than
   needed; no SSR requirement since public pages can be cached JSON + client render; revisit if SEO matters).

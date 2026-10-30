@@ -2,6 +2,7 @@ import { EventsResponse, HealthResponse, EventDetail } from '@bln/shared';
 import { env, exports } from 'cloudflare:workers';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { ftsQuery } from '../src/api/events';
+import { refreshAllNextDates } from '../src/pipeline/next-dates';
 
 const inDays = (n: number, time: string) => {
   const d = new Date(Date.now() + n * 86_400_000);
@@ -29,6 +30,7 @@ beforeAll(async () => {
     ),
     env.DB.prepare(`INSERT INTO events_fts (event_id, title, venue) VALUES ('e1', 'Hamlet', 'Deutsches Theater')`),
   ]);
+  await refreshAllNextDates(env.DB);
 });
 
 describe('api', () => {

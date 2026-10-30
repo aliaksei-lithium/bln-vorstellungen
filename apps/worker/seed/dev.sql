@@ -37,3 +37,9 @@ FROM d;
 
 INSERT INTO events_fts (event_id, title, description, venue)
 SELECT e.id, e.title, e.description, v.name FROM events e LEFT JOIN venues v ON v.id = e.venue_id;
+
+-- Denormalized next date per event (normally kept by resolve and the cron sweep).
+UPDATE events SET
+  next_start_utc = (SELECT MIN(o.start_utc) FROM occurrences o WHERE o.event_id = events.id AND o.start_utc >= strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  next_start_local = (SELECT o.start_local FROM occurrences o WHERE o.event_id = events.id AND o.start_utc >= strftime('%Y-%m-%dT%H:%M:%fZ', 'now') ORDER BY o.start_utc LIMIT 1),
+  upcoming_count = (SELECT COUNT(*) FROM occurrences o WHERE o.event_id = events.id AND o.start_utc >= strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));

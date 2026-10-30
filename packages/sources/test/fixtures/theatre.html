@@ -1,0 +1,80 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Spielplan</title>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": ["Organization", "PerformingArtsTheater"],
+            "@id": "https://theatre.example/#org",
+            "name": "Example Theater"
+          }
+        ]
+      }
+    </script>
+  </head>
+  <body>
+    <h1>Spielplan</h1>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "TheaterEvent",
+            "name": "Prinz Friedrich von Homburg",
+            "description": "Die Arbeit bespielt das ehemalige Foyer und den großen Saal. Ein Abend über Gehorsam und Traum.",
+            "url": "https://theatre.example/de/homburg",
+            "startDate": "{{ISO+2}}T18:30:00.000Z",
+            "endDate": "{{ISO+2}}T20:45:00.000Z",
+            "eventStatus": "https://schema.org/EventScheduled",
+            "location": [{ "@type": "Place", "name": "Bühne" }],
+            "performer": [
+              { "@type": "Person", "name": "Anna Example" },
+              { "@type": "Person", "name": "Anna Example" }
+            ],
+            "offers": { "@type": "Offer", "price": "16", "priceCurrency": "EUR" }
+          },
+          {
+            "@type": "TheaterEvent",
+            "name": "Prinz Friedrich von Homburg",
+            "url": "https://theatre.example/de/homburg",
+            "startDate": "{{ISO+9}}T18:30:00.000Z",
+            "location": [{ "@type": "Place", "name": "Bühne" }],
+            "offers": [
+              {
+                "@type": "Offer",
+                "lowPrice": "16",
+                "highPrice": "38",
+                "priceCurrency": "EUR",
+                "url": "https://tickets.example/homburg"
+              }
+            ]
+          },
+          {
+            "@type": "TheaterEvent",
+            "name": "Noise als Strategie — Workshop",
+            "url": "https://theatre.example/de/noise",
+            "startDate": "{{ISO+4}}T15:00:00.000Z",
+            "location": { "@type": "Place", "name": "Studio" },
+            "offers": { "@type": "Offer", "price": "0", "priceCurrency": "EUR" }
+          },
+          {
+            "@type": "TheaterEvent",
+            "name": "Abgesagt",
+            "url": "https://theatre.example/de/abgesagt",
+            "startDate": "{{ISO+5}}T18:00:00.000Z",
+            "eventStatus": "https://schema.org/EventCancelled"
+          },
+          {
+            "@type": "TheaterEvent",
+            "name": "Vergangen",
+            "url": "https://theatre.example/de/alt",
+            "startDate": "2020-03-01T18:00:00.000Z"
+          }
+        ]
+      }
+    </script>
+  </body>
+</html>

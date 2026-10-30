@@ -1,18 +1,23 @@
 import type { HealthResponse } from '@bln/shared';
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
+import { adminApi } from './api/admin';
 import { eventsApi } from './api/events';
+import { sweepPassedDates } from './pipeline/next-dates';
+import { dispatchDueSources } from './pipeline/scheduler';
 
 export { McpAgent } from './mcp';
-export {
-  EnrichEventWorkflow,
-  ExtractItemWorkflow,
-  PhotoIngestWorkflow,
-  ScoreEventsWorkflow,
-  SourceRunWorkflow,
-} from './workflows';
+export { SourceRunWorkflow } from './pipeline/source-run';
+export { EnrichEventWorkflow, ExtractItemWorkflow, PhotoIngestWorkflow, ScoreEventsWorkflow } from './workflows';
 
 const app = new Hono<{ Bindings: Env }>();
+
+// Workers Caching stores any GET without an explicit policy (heuristically, for hours). Only routes that opt in
+// with their own Cache-Control are cacheable; everything else under /api is no-store.
+app.use('/api/*', async (c, next) => {
+  await next();
+  if (!c.res.headers.has('Cache-Control')) c.res.headers.set('Cache-Control', 'no-store');
+});
 
 app.get('/api/health', async (c) => {
   const t0 = Date.now();
@@ -27,6 +32,7 @@ app.get('/api/health', async (c) => {
 });
 
 app.route('/api/events', eventsApi);
+app.route('/api/admin', adminApi);
 
 app.all('/mcp/*', (c) => c.env.MCP_AGENT.get(c.env.MCP_AGENT.idFromName('default')).fetch(c.req.raw));
 app.all('/mcp', (c) => c.env.MCP_AGENT.get(c.env.MCP_AGENT.idFromName('default')).fetch(c.req.raw));
@@ -43,13 +49,11 @@ app.onError((err, c) => {
 
 export default {
   fetch: app.fetch,
-  /** Every 15 min. Phase 1: select due sources and start a SourceRun workflow per source. */
+  /** Every 15 min: move events past their next date on, then start a SourceRun workflow per due source. */
   async scheduled(controller, env) {
-    const due = await env.DB.prepare(
-      'SELECT COUNT(*) AS n FROM sources WHERE enabled = 1 AND (next_run_at IS NULL OR next_run_at <= ?)',
-    )
-      .bind(new Date(controller.scheduledTime).toISOString())
-      .first<{ n: number }>();
-    console.log('cron', { cron: controller.cron, dueSources: due?.n ?? 0 });
+    const now = new Date(controller.scheduledTime);
+    const swept = await sweepPassedDates(env.DB, now);
+    const started = await dispatchDueSources(env, now);
+    console.log('cron', { cron: controller.cron, swept, started: started.length });
   },
 } satisfies ExportedHandler<Env>;

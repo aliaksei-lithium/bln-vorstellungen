@@ -5,6 +5,9 @@
   "compatibility_date": "2026-10-01",
   "compatibility_flags": ["nodejs_compat"],
   "observability": { "enabled": true },
+  // Workers Caching: GET responses are cached per their Cache-Control (public API: 5 min; everything else under
+  // /api is no-store). Keyed by Worker version, so a deploy starts with a fresh cache.
+  "cache": { "enabled": true },
 
   // The SPA build. The Worker runs first only for API, MCP and auth routes.
   "assets": {

@@ -1,0 +1,52 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Venue - ECPv6//NONSGML v1.0//EN
+X-WR-CALNAME:Example Left Venue
+BEGIN:VTIMEZONE
+TZID:Europe/Berlin
+BEGIN:STANDARD
+TZOFFSETFROM:+0200
+TZOFFSETTO:+0100
+DTSTART:20261025T010000
+END:STANDARD
+END:VTIMEZONE
+BEGIN:VEVENT
+DTSTART;TZID=Europe/Berlin:{{D+3}}T190000
+DTEND;TZID=Europe/Berlin:{{D+3}}T210000
+DTSTAMP:20261031T000523
+UID:1001-a@example.org
+SUMMARY:Book Launch: Housing\, Rent and the City
+DESCRIPTION:A discussion with the authors about rent\, housing and what the
+  city could do. Free entry\, donations welcome.\nDoors 18:30.
+LOCATION:Buchladen Rote Zora, Weichselstraße 12, 12045 Berlin
+URL:https://example.org/event/book-launch-housing/
+ATTACH;FMTTYPE=image/jpeg:https://example.org/uploads/housing.jpg
+BEGIN:VALARM
+ACTION:DISPLAY
+DESCRIPTION:Reminder
+END:VALARM
+END:VEVENT
+BEGIN:VEVENT
+DTSTART;TZID=Europe/Berlin:20200101T190000
+DTEND;TZID=Europe/Berlin:20200101T210000
+DTSTAMP:20261031T000523
+UID:900-old@example.org
+SUMMARY:An event long gone
+END:VEVENT
+BEGIN:VEVENT
+DTSTART;TZID=Europe/Berlin:{{D+1}}T200000
+DTEND;TZID=Europe/Berlin:{{D+1}}T220000
+DTSTAMP:20261031T000523
+UID:1002-jam@example.org
+SUMMARY:Weekly Jazz Jam
+RRULE:FREQ=WEEKLY;COUNT=3
+LOCATION:Example Bar, Pannierstraße 2, 12047 Berlin
+END:VEVENT
+BEGIN:VEVENT
+DTSTART;TZID=Europe/Berlin:{{D+5}}T190000
+DTSTAMP:20261031T000523
+UID:1003-cancel@example.org
+SUMMARY:Cancelled Lecture
+STATUS:CANCELLED
+END:VEVENT
+END:VCALENDAR
