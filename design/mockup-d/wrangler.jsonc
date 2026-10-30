@@ -1,0 +1,7 @@
+{
+  // Clickable mockup of design direction D, served as static assets only.
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "bln-vorstellungen-mockup",
+  "compatibility_date": "2026-10-01",
+  "assets": { "directory": "./public" }
+}
