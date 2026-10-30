@@ -1,0 +1,10 @@
+pnpm-lock.yaml
+**/dist
+**/.wrangler
+**/worker-configuration.d.ts
+apps/web/src/routeTree.gen.ts
+apps/worker/migrations
+design
+docs
+*.md
+.claude

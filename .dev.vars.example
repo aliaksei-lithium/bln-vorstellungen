@@ -1,0 +1,7 @@
+# Copy to apps/worker/.dev.vars for local development. Real values go in via `wrangler secret put`.
+# Phase 0 needs no secrets. Later phases add:
+# ADMIN_TOKEN=change-me                 # phase 1: temporary owner gate for the sources admin API
+# BETTER_AUTH_SECRET=change-me          # phase 2
+# GOOGLE_CLIENT_ID= / GOOGLE_CLIENT_SECRET=
+# GITHUB_CLIENT_ID= / GITHUB_CLIENT_SECRET=
+# ANTHROPIC_API_KEY=                    # phase 3, routed through AI Gateway
