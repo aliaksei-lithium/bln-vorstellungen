@@ -1,6 +1,6 @@
 import type { SourceAdapter } from './types';
 
-/** Adapters register here; the SourceRun workflow looks them up by `sources.type`. Phase 1 adds ical, rss, jsonld. */
+/** Adapters register here; the SourceRun workflow looks them up by `sources.type`. Built-ins: see builtin.ts. */
 const adapters = new Map<string, SourceAdapter<unknown>>();
 
 export function registerAdapter<C>(adapter: SourceAdapter<C>): void {
@@ -13,5 +13,7 @@ export function getAdapter(type: string): SourceAdapter<unknown> {
   if (!a) throw new Error(`No adapter for source type "${type}"`);
   return a;
 }
+
+export const hasAdapter = (type: string): boolean => adapters.has(type);
 
 export const adapterTypes = (): string[] => [...adapters.keys()].sort();

@@ -1,0 +1,53 @@
+<html>
+  <head>
+    <script type="application/ld+json">
+      [
+        {
+          "@context": "http://schema.org",
+          "@type": "MusicEvent",
+          "name": "ANCHORS &#038; HEARTS",
+          "description": "Konzert am Abend im Privatclub",
+          "url": "https://club.example/event/anchors-hearts/",
+          "startDate": "{{ISO+6}}T20:00",
+          "doorTime": "19:00",
+          "location": {
+            "@type": "Place",
+            "name": "Privatclub Berlin",
+            "address": {
+              "@type": "PostalAddress",
+              "streetAddress": "Skalitzer Straße 85-86",
+              "addressLocality": "Berlin",
+              "postalCode": "10997",
+              "addressCountry": "DE"
+            }
+          },
+          "offers": [{ "@type": "Offer", "url": "https://tickets.example/anchors" }],
+          "performer": "Anchors & Hearts"
+        }
+      ]
+    </script>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "ItemList",
+        "itemListElement": [
+          {
+            "@type": "ListItem",
+            "position": 1,
+            "item": {
+              "@type": "Event",
+              "name": "Community Run",
+              "url": "https://club.example/event/run/",
+              "startDate": "{{ISO+7}}T10:00:00+02:00",
+              "location": {
+                "@type": "Place",
+                "name": "Café TonTon",
+                "address": { "@type": "PostalAddress", "streetAddress": "Tieckstraße 1", "addressLocality": "Berlin" }
+              }
+            }
+          }
+        ]
+      }
+    </script>
+  </head>
+</html>

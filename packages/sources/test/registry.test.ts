@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { adapterTypes, getAdapter, registerAdapter } from './registry';
-import { contentHash } from './hash';
+import { adapterTypes, getAdapter, registerAdapter } from '../src/registry';
+import { contentHash } from '../src/hash';
 
 describe('registry', () => {
   it('registers and looks up adapters by type', () => {

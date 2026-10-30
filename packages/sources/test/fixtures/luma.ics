@@ -1,0 +1,19 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Luma//What‘s Happening in Berlin//EN
+BEGIN:VEVENT
+DTSTART:{{D+2}}T190000Z
+DTEND:{{D+3}}T010000Z
+DTSTAMP:20261030T230708Z
+ORGANIZER;CN="Julia: Host":MAILTO:calendar-invite@example.com
+UID:evt-abc@events.example.com
+SUMMARY:Pierogi Social Club | Halloween Party
+DESCRIPTION:Get up-to-date information at: https://luma.example/ih5k9mmr\n\nAd
+ dress:\nClub of Polish Losers\n\nJOIN US FOR OUR FIRST PARTY with DJs and
+  costumes.
+LOCATION:Club of Polish Losers, Ackerstraße 168, 10115 Berlin, Germany
+GEO:52.5298;13.3972
+SEQUENCE:215564828
+STATUS:TENTATIVE
+END:VEVENT
+END:VCALENDAR
