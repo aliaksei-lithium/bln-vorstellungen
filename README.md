@@ -10,8 +10,8 @@ poster, a pasted text), **normalized** into one event model, **enriched** with d
 **scored** against each user's taste profile. A public, non-personalized view lists everything; signed-in users
 get a ranked "for you" feed. An MCP server exposes the same data to Claude and other agents.
 
-> Status: **phase 0 deployed** (skeleton: Worker, D1 schema, public list UI in design direction D).
-> Live: https://bln-vorstellungen.aliaksei-zhynhiarouski.workers.dev · Mockup:
+> Status: **phase 1** (public list from structured sources: iCal and JSON-LD adapters, scheduled source runs,
+> admin API). Live: https://bln-vorstellungen.aliaksei-zhynhiarouski.workers.dev · Mockup:
 > https://bln-vorstellungen-mockup.aliaksei-zhynhiarouski.workers.dev
 
 ## Development
@@ -27,6 +27,23 @@ pnpm deploy                                  # build web + wrangler deploy
 ```
 
 Remote schema changes: `pnpm --filter @bln/worker db:generate`, then `db:migrate:remote` before deploying.
+
+### Sources
+
+Sources live in the `sources` table and run every 6–12 h from the 15-min cron. Starter set:
+`pnpm --filter @bln/worker db:seed-sources:local` (or `:remote`). Manage them through the admin API, gated by a
+shared secret until sign-in exists (local value in `apps/worker/.dev.vars`, remote via
+`wrangler secret put ADMIN_TOKEN`):
+
+```bash
+curl -H "authorization: Bearer $ADMIN_TOKEN" https://…/api/admin/sources              # list with last status
+curl -X POST -H "authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
+  -d '{"name":"My venue","type":"jsonld","config":{"url":"https://venue.example/programm","category":"concert"}}' \
+  https://…/api/admin/sources                                                             # add; runs on the next tick
+curl -X POST -H "authorization: Bearer $ADMIN_TOKEN" https://…/api/admin/sources/<id>/run  # run now
+```
+
+Adapter types so far: `ical`, `jsonld` (mapped directly) and `rss` (stored for LLM extraction in phase 3).
 
 ## Documents
 

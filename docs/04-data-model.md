@@ -30,8 +30,9 @@ usage_counters
 **events**
 `id`, `slug`, `title`, `title_en`, `description`, `description_en`, `lang`, `category`, `genres` (json), `venue_id`,
 `price_min`, `price_max`, `is_free`, `price_note`, `url_official`, `url_tickets`, `image_key` (R2), `status`
-(`draft|published|cancelled|merged_into:<id>`), `first_start_at`, `last_start_at` (denormalized for list queries),
-`dedup_key`, `created_by` (`source|user:<id>|mcp`), `created_at`, `updated_at`.
+(`draft|published|cancelled|merged_into:<id>`), `first_start_at`, `last_start_at`, `next_start_utc`,
+`next_start_local`, `upcoming_count` (denormalized for list queries; see 09, 2026-10-31), `dedup_key`,
+`created_by` (`source|user:<id>|mcp`), `created_at`, `updated_at`.
 
 **occurrences**
 `id`, `event_id`, `start_local` (ISO, Europe/Berlin), `start_utc`, `end_local?`, `doors_local?`, `note`,
