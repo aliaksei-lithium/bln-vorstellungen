@@ -10,7 +10,23 @@ poster, a pasted text), **normalized** into one event model, **enriched** with d
 **scored** against each user's taste profile. A public, non-personalized view lists everything; signed-in users
 get a ranked "for you" feed. An MCP server exposes the same data to Claude and other agents.
 
-> Status: **planning**. This repo currently contains the functional and technical plan; implementation follows.
+> Status: **phase 0 deployed** (skeleton: Worker, D1 schema, public list UI in design direction D).
+> Live: https://bln-vorstellungen.aliaksei-zhynhiarouski.workers.dev · Mockup:
+> https://bln-vorstellungen-mockup.aliaksei-zhynhiarouski.workers.dev
+
+## Development
+
+```bash
+pnpm install
+pnpm --filter @bln/worker db:migrate:local   # create the local D1 database
+pnpm --filter @bln/worker db:seed:local      # optional sample events for UI work
+pnpm dev                                     # builds the web app, then serves Worker + app on :8787
+pnpm dev:web                                 # Vite with hot reload on :5173, API proxied to :8787
+pnpm typecheck && pnpm lint && pnpm test
+pnpm deploy                                  # build web + wrangler deploy
+```
+
+Remote schema changes: `pnpm --filter @bln/worker db:generate`, then `db:migrate:remote` before deploying.
 
 ## Documents
 
