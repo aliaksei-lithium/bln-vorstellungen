@@ -1,0 +1,237 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import 'shadcn/tailwind.css';
+
+/* Dark when chosen explicitly, or when the system is dark and light was not chosen. */
+@custom-variant dark {
+  &:where([data-theme='dark'], [data-theme='dark'] *) {
+    @slot;
+  }
+  @media (prefers-color-scheme: dark) {
+    &:where(:root:not([data-theme='light']), :root:not([data-theme='light']) *) {
+      @slot;
+    }
+  }
+}
+
+/*
+ * Direction D: strict 1px ink frames, square corners, Moss as the only accent, the TV tower behind everything.
+ * D tokens first, then shadcn's names mapped onto them so shadcn primitives pick up the look.
+ */
+:root {
+  --bg: #eeede8;
+  --surface: #ffffff;
+  --surface-a: rgb(255 255 255 / 0.72);
+  --ink: #1b1b25;
+  --on-ink: #ffffff;
+  --sub: #5e6070;
+  --line: #dcdcd8;
+  --chip: #edeef1;
+  --moss: #4f6b4e;
+  --on-moss: #ffffff;
+  --moss-soft: rgb(79 107 78 / 0.1);
+  --cal: #7a5c3a;
+  --danger: #8f3f3a;
+  --warn: #8a4b00;
+  --hatch-1: #dae1e1;
+  --hatch-2: #f1f1f2;
+  --ring-line: rgb(27 27 37 / 0.2);
+  --tower-stroke: rgb(27 27 37 / 0.78);
+  --tower-fill: rgb(238 237 232 / 0.55);
+  --cat-theatre: #c2410c;
+  --cat-opera: #7e22ce;
+  --cat-concert: #0f766e;
+  --cat-cinema: #3b5b8c;
+  --cat-club: #9f1239;
+  --cat-exhibition: #a16207;
+  --cat-talk: #475569;
+  --cat-dance: #be185d;
+  --cat-other: #6b7280;
+
+  --background: var(--bg);
+  --foreground: var(--ink);
+  --card: var(--surface);
+  --card-foreground: var(--ink);
+  --popover: var(--surface);
+  --popover-foreground: var(--ink);
+  --primary: var(--moss);
+  --primary-foreground: var(--on-moss);
+  --secondary: var(--chip);
+  --secondary-foreground: var(--ink);
+  --muted: var(--chip);
+  --muted-foreground: var(--sub);
+  --accent: var(--chip);
+  --accent-foreground: var(--ink);
+  --destructive: var(--danger);
+  --border: var(--ink);
+  --input: var(--ink);
+  --ring: var(--moss);
+  --radius: 0rem;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --bg: #14151a;
+    --surface: #1d1e25;
+    --surface-a: rgb(29 30 37 / 0.72);
+    --ink: #e9e8e2;
+    --on-ink: #14151a;
+    --sub: #a4a6b2;
+    --line: #31323b;
+    --chip: #2a2b34;
+    --moss: #8dae8a;
+    --on-moss: #0f1510;
+    --moss-soft: rgb(141 174 138 / 0.12);
+    --cal: #c49a6a;
+    --danger: #d27a72;
+    --warn: #e3a458;
+    --hatch-1: #2a3031;
+    --hatch-2: #22232a;
+    --ring-line: rgb(233 232 226 / 0.14);
+    --tower-stroke: rgb(233 232 226 / 0.62);
+    --tower-fill: rgb(20 21 26 / 0.55);
+    --cat-theatre: #f07a45;
+    --cat-opera: #b78af0;
+    --cat-concert: #3fbfaf;
+    --cat-cinema: #7fa2d6;
+    --cat-club: #f06b8c;
+    --cat-exhibition: #e0b04a;
+    --cat-talk: #9aa8bc;
+    --cat-dance: #f472b6;
+    --cat-other: #9ca3af;
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme='dark'] {
+  --bg: #14151a;
+  --surface: #1d1e25;
+  --surface-a: rgb(29 30 37 / 0.72);
+  --ink: #e9e8e2;
+  --on-ink: #14151a;
+  --sub: #a4a6b2;
+  --line: #31323b;
+  --chip: #2a2b34;
+  --moss: #8dae8a;
+  --on-moss: #0f1510;
+  --moss-soft: rgb(141 174 138 / 0.12);
+  --cal: #c49a6a;
+  --danger: #d27a72;
+  --warn: #e3a458;
+  --hatch-1: #2a3031;
+  --hatch-2: #22232a;
+  --ring-line: rgb(233 232 226 / 0.14);
+  --tower-stroke: rgb(233 232 226 / 0.62);
+  --tower-fill: rgb(20 21 26 / 0.55);
+  --cat-theatre: #f07a45;
+  --cat-opera: #b78af0;
+  --cat-concert: #3fbfaf;
+  --cat-cinema: #7fa2d6;
+  --cat-club: #f06b8c;
+  --cat-exhibition: #e0b04a;
+  --cat-talk: #9aa8bc;
+  --cat-dance: #f472b6;
+  --cat-other: #9ca3af;
+  color-scheme: dark;
+}
+
+@theme inline {
+  --font-sans: 'Figtree', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-heading: var(--font-sans);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-ink: var(--ink);
+  --color-on-ink: var(--on-ink);
+  --color-sub: var(--sub);
+  --color-line: var(--line);
+  --color-chip: var(--chip);
+  --color-surface: var(--surface);
+  --color-surface-a: var(--surface-a);
+  --color-moss: var(--moss);
+  --color-on-moss: var(--on-moss);
+  --color-moss-soft: var(--moss-soft);
+  --color-warn: var(--warn);
+  --color-danger: var(--danger);
+  --radius-sm: 0;
+  --radius-md: 0;
+  --radius-lg: 0;
+  --radius-xl: 0;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring;
+  }
+  html,
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+  body {
+    font-size: 15px;
+    line-height: 1.35;
+  }
+  :focus-visible {
+    outline: 2px solid var(--moss);
+    outline-offset: 2px;
+  }
+}
+
+@utility eyebrow {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+@utility hatch {
+  background: repeating-linear-gradient(var(--hatch-angle, 135deg), var(--hatch-1) 0 6px, var(--hatch-2) 6px 12px);
+}
+
+@utility gutter {
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+
+@keyframes ringfade {
+  0% {
+    opacity: 0;
+  }
+  25% {
+    opacity: 1;
+  }
+  60% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+.tower-ring {
+  opacity: 0;
+  animation: ringfade 9s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tower-ring {
+    animation: none;
+  }
+  .tower-ring:first-child {
+    opacity: 1;
+  }
+}
