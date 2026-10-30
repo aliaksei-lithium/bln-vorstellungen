@@ -1,5 +1,5 @@
-import { CATEGORY_LABELS, Category, berlinToday, formatDay, type EventListItem } from '@bln/shared';
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { CATEGORY_LABELS, Category, DISTRICTS, berlinToday, formatDay, type EventListItem } from '@bln/shared';
+import { keepPreviousData, useInfiniteQuery } from '@tanstack/react-query';
 import { Check, Search, SlidersHorizontal, X } from 'lucide-react';
 import { useDeferredValue, useMemo, useState } from 'react';
 import { TopBar } from '@/components/AppShell';
@@ -11,16 +11,6 @@ import { Sheet, SheetContent, SheetFooter, SheetHeader, SheetTitle } from '@/com
 import { api } from '@/lib/api';
 import { WHEN_LABELS, relativeDay, whenRange, type When } from '@/lib/dates';
 
-const DISTRICTS = [
-  'Mitte',
-  'Kreuzberg',
-  'Friedrichshain',
-  'Prenzlauer Berg',
-  'Neukölln',
-  'Charlottenburg',
-  'Schöneberg',
-  'Tiergarten',
-];
 const LIST_CATEGORIES = Category.options.filter((c) => c !== 'other');
 
 type Filters = { when: When; category?: Category; district?: string };
@@ -47,12 +37,15 @@ export function BrowsePage() {
     district: filters.district,
     q: query || undefined,
   };
-  const events = useQuery({
+  const events = useInfiniteQuery({
     queryKey: ['events', params],
-    queryFn: () => api.events(params),
+    queryFn: ({ pageParam }) => api.events({ ...params, cursor: pageParam }),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (last) => last.nextCursor ?? undefined,
     placeholderData: keepPreviousData,
   });
-  const groups = useMemo(() => groupByDay(events.data?.items ?? []), [events.data]);
+  const items = useMemo(() => events.data?.pages.flatMap((p) => p.items) ?? [], [events.data]);
+  const groups = useMemo(() => groupByDay(items), [items]);
 
   const active: { key: keyof Filters; label: string }[] = [];
   if (filters.when !== 'all') active.push({ key: 'when', label: WHEN_LABELS[filters.when] });
@@ -143,6 +136,16 @@ export function BrowsePage() {
             </section>
           ))
         )}
+        {events.hasNextPage && (
+          <Button
+            size="lg"
+            className="w-full bg-surface"
+            disabled={events.isFetchingNextPage}
+            onClick={() => events.fetchNextPage()}
+          >
+            {events.isFetchingNextPage ? 'Loading…' : 'Show more events'}
+          </Button>
+        )}
       </div>
 
       <FilterSheet
@@ -150,7 +153,7 @@ export function BrowsePage() {
         onOpenChange={setSheetOpen}
         filters={filters}
         onChange={setFilters}
-        count={events.data?.items.length}
+        count={events.isPending ? undefined : { n: items.length, more: events.hasNextPage }}
       />
     </>
   );
@@ -176,7 +179,7 @@ function FilterSheet({
   onOpenChange: (o: boolean) => void;
   filters: Filters;
   onChange: (f: Filters) => void;
-  count: number | undefined;
+  count: { n: number; more: boolean } | undefined;
 }) {
   const label = 'mb-2.5 mt-5 text-xs font-extrabold tracking-[.1em] text-sub uppercase';
   return (
@@ -225,7 +228,11 @@ function FilterSheet({
             Reset
           </Button>
           <Button size="lg" variant="default" className="flex-1" onClick={() => onOpenChange(false)}>
-            {count === undefined ? 'Show events' : count === 0 ? 'No events match' : `Show ${count} events`}
+            {count === undefined
+              ? 'Show events'
+              : count.n === 0
+                ? 'No events match'
+                : `Show ${count.n}${count.more ? '+' : ''} events`}
           </Button>
         </SheetFooter>
       </SheetContent>

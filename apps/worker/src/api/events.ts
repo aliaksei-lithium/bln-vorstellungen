@@ -1,55 +1,114 @@
-import { EventDetail, EventsQuery, type EventListItem, berlinLocalToUtc, berlinToday } from '@bln/shared';
+import {
+  EventDetail,
+  EventsQuery,
+  berlinLocalToUtc,
+  berlinToday,
+  type EventListItem,
+  type EventsResponse,
+} from '@bln/shared';
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 
 /**
  * Public, read-only event API. One row per event at its next occurrence in range (an event is never repeated
- * per date). Plain SQL keeps rows read per request predictable for the D1 budget.
+ * per date). Plain SQL keeps rows read per request predictable for the D1 budget. Responses carry
+ * `Cache-Control` with `s-maxage`, which Workers Caching honours (wrangler.jsonc `cache.enabled`).
  */
 export const eventsApi = new Hono<{ Bindings: Env }>();
 
 const DAY_MS = 86_400_000;
+/**
+ * Workers Caching keeps public responses 2 min at the edge, browsers 1 min, so a fresh import shows up within a
+ * couple of minutes. Tagged so a later purge (`ctx.cache.purge({ tags: ['events'] })`) can drop them at once.
+ */
+const CACHE_CONTROL = 'public, max-age=60, s-maxage=120';
+const CACHE_TAG = 'events';
+export const PAGE_SIZE = 40;
+/** A show that started a few minutes ago still counts as "next" until the cron sweep moves the event on. */
+const GRACE_MS = 20 * 60_000;
 
+/**
+ * Two plans, both paging with a cursor and listing each event once at its next date in range:
+ *  - no date window ("All upcoming"): pages through the events index on the denormalized next date, so rows
+ *    read ≈ page size, however many dates the events have;
+ *  - a date window (today, weekend, week): scans that window's occurrences in time order and keeps each event's
+ *    first date in it. Windows are a few days, so the scan stays small.
+ */
 eventsApi.get('/', async (c) => {
   const q = EventsQuery.safeParse(c.req.query());
   if (!q.success) throw new HTTPException(400, { message: q.error.issues[0]?.message ?? 'Invalid query' });
-  const from = q.data.from ?? berlinToday();
+  const today = berlinToday();
+  const from = q.data.from ?? today;
   const to = q.data.to ?? new Date(Date.parse(from) + 60 * DAY_MS).toISOString().slice(0, 10);
-  const fromUtc = q.data.from ? berlinLocalToUtc(`${from}T00:00`) : new Date().toISOString();
+  const now = Math.floor(Date.now() / 60_000) * 60_000 - GRACE_MS;
+  const fromUtc = from <= today ? new Date(now).toISOString() : berlinLocalToUtc(`${from}T00:00`);
   const toUtc = berlinLocalToUtc(`${to}T23:59`);
+  const windowed = q.data.from !== undefined || q.data.to !== undefined;
+  const cursor = parseCursor(q.data.cursor, windowed ? 'o' : 'e');
 
-  const where = ['e.status = ?', 'o.start_utc >= ?', 'o.start_utc <= ?', "o.status != 'cancelled'"];
-  const args: unknown[] = ['published', fromUtc, toUtc];
+  const filters: string[] = [];
+  const filterArgs: unknown[] = [];
   if (q.data.category) {
-    where.push('e.category = ?');
-    args.push(q.data.category);
+    filters.push('e.category = ?');
+    filterArgs.push(q.data.category);
   }
   if (q.data.district) {
-    where.push('v.district = ?');
-    args.push(q.data.district);
+    filters.push('v.district = ?');
+    filterArgs.push(q.data.district);
   }
   if (q.data.q) {
-    where.push('e.id IN (SELECT event_id FROM events_fts WHERE events_fts MATCH ?)');
-    args.push(ftsQuery(q.data.q));
+    filters.push('e.id IN (SELECT event_id FROM events_fts WHERE events_fts MATCH ?)');
+    filterArgs.push(ftsQuery(q.data.q));
   }
 
-  const { results } = await c.env.DB.prepare(
-    `SELECT e.slug, e.title, e.category, e.price_min, e.price_max, e.is_free, v.name AS venue_name, v.district,
-            -- SQLite takes bare columns from the row that holds the MIN()
-            MIN(o.start_utc) AS next_utc, o.start_local AS next_local,
-            (SELECT COUNT(*) FROM occurrences WHERE event_id = e.id AND start_utc >= ?) - 1 AS more_dates
-       FROM events e
-       JOIN occurrences o ON o.event_id = e.id
-       LEFT JOIN venues v ON v.id = e.venue_id
-      WHERE ${where.join(' AND ')}
-      GROUP BY e.id
-      ORDER BY next_utc
-      LIMIT 300`,
-  )
-    .bind(fromUtc, ...args)
-    .all<Record<string, unknown>>();
+  const select = `e.slug, e.title, e.category, e.price_min, e.price_max, e.is_free, v.name AS venue_name, v.district`;
+  let stmt: D1PreparedStatement;
+  if (!windowed) {
+    const where = ["e.status = 'published'", 'e.next_start_utc >= ?', 'e.next_start_utc <= ?', ...filters];
+    const args: unknown[] = [fromUtc, toUtc, ...filterArgs];
+    if (cursor) {
+      where.push('(e.next_start_utc > ? OR (e.next_start_utc = ? AND e.rowid > ?))');
+      args.push(cursor.utc, cursor.utc, cursor.rowid);
+    }
+    stmt = c.env.DB.prepare(
+      `SELECT e.rowid AS cur_rowid, e.next_start_utc AS next_utc, e.next_start_local AS next_local,
+              MAX(e.upcoming_count - 1, 0) AS more_dates, ${select}
+         FROM events e INDEXED BY ${q.data.category ? 'events_category_next_idx' : 'events_next_idx'}
+         LEFT JOIN venues v ON v.id = e.venue_id
+        WHERE ${where.join(' AND ')}
+        ORDER BY e.next_start_utc, e.rowid
+        LIMIT ?`,
+    ).bind(...args, PAGE_SIZE + 1);
+  } else {
+    const where = ['o.start_utc >= ?', 'o.start_utc <= ?', "o.status != 'cancelled'", "e.status = 'published'"];
+    const args: unknown[] = [fromUtc, toUtc];
+    if (cursor) {
+      where.push('(o.start_utc > ? OR (o.start_utc = ? AND o.rowid > ?))');
+      args.push(cursor.utc, cursor.utc, cursor.rowid);
+    }
+    where.push(...filters);
+    args.push(...filterArgs);
+    // Keyed on e.id so SQLite runs it after the cheaper event filters, not for every scanned date.
+    where.push(`NOT EXISTS (SELECT 1 FROM occurrences o2 WHERE o2.event_id = e.id AND o2.start_utc >= ?
+                  AND o2.start_utc < o.start_utc AND o2.status != 'cancelled')`);
+    args.push(fromUtc);
+    stmt = c.env.DB.prepare(
+      `SELECT o.rowid AS cur_rowid, o.start_utc AS next_utc, o.start_local AS next_local,
+              MAX(e.upcoming_count - 1, 0) AS more_dates, ${select}
+         -- Occurrences by start_utc as the outer loop, so LIMIT stops the scan early.
+         FROM occurrences o INDEXED BY occurrences_start_idx
+         CROSS JOIN events e ON e.id = o.event_id
+         LEFT JOIN venues v ON v.id = e.venue_id
+        WHERE ${where.join(' AND ')}
+        ORDER BY o.start_utc, o.rowid
+        LIMIT ?`,
+    ).bind(...args, PAGE_SIZE + 1);
+  }
 
-  const items: EventListItem[] = results.map((r) => ({
+  const res = await stmt.all<Record<string, unknown>>();
+  const rows = res.results.slice(0, PAGE_SIZE);
+  const last = rows.at(-1);
+  const items: EventListItem[] = rows.map((r) => ({
     slug: String(r.slug),
     title: String(r.title),
     category: r.category as EventListItem['category'],
@@ -59,11 +118,30 @@ eventsApi.get('/', async (c) => {
     priceMax: (r.price_max as number | null) ?? null,
     isFree: Boolean(r.is_free),
     next: { startLocal: String(r.next_local), startUtc: String(r.next_utc) },
-    moreDates: Math.max(0, Number(r.more_dates)),
+    moreDates: Number(r.more_dates),
   }));
-  c.header('Cache-Control', 'public, max-age=300');
-  return c.json({ items });
+  const body: EventsResponse = {
+    items,
+    nextCursor:
+      res.results.length > PAGE_SIZE && last
+        ? `${windowed ? 'o' : 'e'}|${String(last.next_utc)}|${String(last.cur_rowid)}`
+        : null,
+  };
+  c.header('Cache-Control', CACHE_CONTROL);
+  c.header('Cache-Tag', CACHE_TAG);
+  c.header('X-D1-Rows-Read', String(res.meta.rows_read ?? ''));
+  return c.json(body);
 });
+
+function parseCursor(raw: string | undefined, mode: 'e' | 'o'): { utc: string; rowid: number } | null {
+  if (!raw) return null;
+  const [m, utc, id] = raw.split('|');
+  const rowid = Number(id);
+  if (m !== mode || !utc || !Number.isInteger(rowid) || Number.isNaN(Date.parse(utc))) {
+    throw new HTTPException(400, { message: 'Invalid cursor' });
+  }
+  return { utc, rowid };
+}
 
 eventsApi.get('/:slug', async (c) => {
   const db = c.env.DB;
@@ -135,7 +213,8 @@ eventsApi.get('/:slug', async (c) => {
     })),
     performers: perf?.results ?? [],
   });
-  c.header('Cache-Control', 'public, max-age=300');
+  c.header('Cache-Control', CACHE_CONTROL);
+  c.header('Cache-Tag', CACHE_TAG);
   return c.json(detail);
 });
 
