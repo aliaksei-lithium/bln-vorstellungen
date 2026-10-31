@@ -1,6 +1,8 @@
 import { berlinToday } from '@bln/shared';
 import { getAdapter, registerBuiltinAdapters, type RawItem, type SourceContext } from '@bln/sources';
 import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from 'cloudflare:workers';
+import { extractEvents } from '../ai/extract';
+import { BudgetExhausted } from '../ai/models';
 import { resolveEvent, VenueIndex } from './resolve';
 
 registerBuiltinAdapters();
@@ -11,6 +13,8 @@ registerBuiltinAdapters();
  */
 
 export const RESOLVE_BATCH = 8;
+/** LLM extractions per run; the rest stay pending for the next run (and the daily neuron budget). */
+export const EXTRACT_PER_RUN = 12;
 const STRUCTURED_VERSION = 1;
 
 type SourceRow = {
@@ -60,7 +64,15 @@ export async function startRun(env: Env, sourceId: string, workflowId: string): 
   return runId;
 }
 
-export type FetchStepResult = { itemIds: string[]; fetched: number; newItems: number; cursor: string | null };
+export type FetchStepResult = {
+  /** Items the adapter maps itself (structured sources). */
+  itemIds: string[];
+  /** Items that need LLM extraction. */
+  extractIds: string[];
+  fetched: number;
+  newItems: number;
+  cursor: string | null;
+};
 
 /**
  * Runs the adapter and stores new raw items. Returns ids of new items that the adapter can map without an LLM;
@@ -73,18 +85,17 @@ export async function fetchAndStore(env: Env, sourceId: string): Promise<FetchSt
   const ctx = sourceContext(env, (m, d) => console.log(`[${source.name}] ${m}`, d ?? ''));
   const result = await adapter.fetch(ctx, config, source.cursor);
   const ids = await storeRawItems(env.DB, sourceId, result.items);
-  // Also picks up items a crashed earlier run stored but never resolved.
-  const pending = adapter.mapItem
-    ? (
-        await env.DB.prepare(
-          `SELECT id FROM raw_items WHERE source_id = ? AND extraction_status = 'pending' ORDER BY fetched_at LIMIT 400`,
-        )
-          .bind(sourceId)
-          .all<{ id: string }>()
-      ).results.map((r) => r.id)
-    : [];
+  // Also picks up items an earlier run stored but did not finish (crash, or the AI budget ran out).
+  const pending = (
+    await env.DB.prepare(
+      `SELECT id FROM raw_items WHERE source_id = ? AND extraction_status = 'pending' ORDER BY fetched_at LIMIT ?`,
+    )
+      .bind(sourceId, adapter.mapItem ? 400 : EXTRACT_PER_RUN)
+      .all<{ id: string }>()
+  ).results.map((r) => r.id);
   return {
-    itemIds: pending,
+    itemIds: adapter.mapItem ? pending : [],
+    extractIds: adapter.mapItem ? [] : pending,
     fetched: result.stats.fetched,
     newItems: ids.length,
     cursor: result.cursor,
@@ -188,6 +199,60 @@ export async function resolveItems(env: Env, sourceId: string, itemIds: string[]
   return out;
 }
 
+export type ExtractStepResult = ResolveStepResult & { budgetExhausted?: boolean; neurons?: number };
+
+/**
+ * LLM path for one raw item: extract, then resolve each candidate with the model's provenance. A budget stop
+ * leaves the item pending for the next run; other failures mark it failed so it is not retried forever.
+ */
+export async function extractItem(env: Env, sourceId: string, rawItemId: string): Promise<ExtractStepResult> {
+  const source = await loadSource(env, sourceId);
+  const config = JSON.parse(source.config) as { venue?: { name: string; address?: string } };
+  const row = await env.DB.prepare(
+    `SELECT id, content, url, published_at FROM raw_items WHERE id = ? AND extraction_status = 'pending'`,
+  )
+    .bind(rawItemId)
+    .first<{ id: string; content: string; url: string | null; published_at: string | null }>();
+  const out: ExtractStepResult = { created: 0, updated: 0, failed: 0 };
+  if (!row) return out;
+  const mark = (status: string) =>
+    env.DB.prepare('UPDATE raw_items SET extraction_status = ? WHERE id = ?').bind(status, row.id).run();
+  try {
+    const r = await extractEvents(env, {
+      content: row.content,
+      sourceName: source.name,
+      ...(row.url ? { url: row.url } : {}),
+      ...(config.venue ? { venue: [config.venue.name, config.venue.address].filter(Boolean).join(', ') } : {}),
+      ...(row.published_at ? { publishedAt: row.published_at } : {}),
+    });
+    out.neurons = Math.round(r.neurons);
+    const venues = await VenueIndex.load(env.DB);
+    for (const ev of r.events) {
+      // A single-venue source knows its venue better than the model does; the model's venue is then usually the
+      // room ("Großes Haus"), which becomes the per-date note.
+      const room = config.venue && ev.venue && ev.venue.name !== config.venue.name ? ev.venue.name : undefined;
+      const candidate = config.venue
+        ? { ...ev, venue: config.venue, occurrences: ev.occurrences.map((o) => ({ ...o, note: o.note ?? room })) }
+        : ev;
+      const res = await resolveEvent(env.DB, venues, candidate, {
+        rawItemId: row.id,
+        model: r.model,
+        promptVersion: r.promptVersion,
+        createdBy: 'source',
+      });
+      if (res.created) out.created++;
+      else out.updated++;
+    }
+    await mark('done');
+  } catch (err) {
+    if (err instanceof BudgetExhausted) return { ...out, budgetExhausted: true };
+    console.error('extract failed', { rawItemId, err: String(err) });
+    await mark('failed');
+    out.failed++;
+  }
+  return out;
+}
+
 export type FinishInput = {
   status: 'ok' | 'error';
   cursor?: string | null;
@@ -246,6 +311,16 @@ export class SourceRunWorkflow extends WorkflowEntrypoint<Env, SourceRunParams> 
         );
         created += r.created;
         updated += r.updated;
+      }
+      for (const [i, id] of fetched.extractIds.entries()) {
+        const r = await step.do(
+          `extract ${i + 1}`,
+          { retries: { limit: 1, delay: '30 seconds' }, timeout: '3 minutes' },
+          () => extractItem(this.env, sourceId, id),
+        );
+        created += r.created;
+        updated += r.updated;
+        if (r.budgetExhausted) break;
       }
       await step.do('finish', () =>
         finishRun(this.env, runId, sourceId, {
