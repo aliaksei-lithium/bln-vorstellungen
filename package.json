@@ -10,7 +10,7 @@
     "dev": "pnpm --filter @bln/web build && pnpm --filter @bln/worker dev",
     "dev:web": "pnpm --filter @bln/web dev",
     "build": "pnpm --filter @bln/web build",
-    "deploy": "pnpm build && pnpm --filter @bln/worker deploy",
+    "deploy": "pnpm build && pnpm --filter @bln/worker run deploy",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
     "lint": "eslint .",
