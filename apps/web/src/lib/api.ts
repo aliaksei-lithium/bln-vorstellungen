@@ -1,4 +1,4 @@
-import { EventDetail, EventsResponse, HealthResponse, type EventsQuery } from '@bln/shared';
+import { EventDetail, EventsList, EventsResponse, HealthResponse, type EventsQuery } from '@bln/shared';
 import type { ZodType } from 'zod';
 
 export class ApiError extends Error {
@@ -29,4 +29,6 @@ export const api = {
     return getJson(`/api/events?${params}`, EventsResponse);
   },
   event: (slug: string) => getJson(`/api/events/${encodeURIComponent(slug)}`, EventDetail),
+  similar: (slug: string) => getJson(`/api/events/${encodeURIComponent(slug)}/similar`, EventsList),
+  searchByMeaning: (q: string) => getJson(`/api/events/search?${new URLSearchParams({ q })}`, EventsList),
 };

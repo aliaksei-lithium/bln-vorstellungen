@@ -1,6 +1,7 @@
 import {
   EventDetail,
   EventsQuery,
+  type EventsList,
   berlinLocalToUtc,
   berlinToday,
   type EventListItem,
@@ -8,6 +9,10 @@ import {
 } from '@bln/shared';
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
+import { z } from 'zod';
+import { embedTexts } from '../ai/embed';
+import { neuronsLeft } from '../ai/models';
+import { loadIndex, nearest, vectorOf } from '../ai/vector-index';
 
 /**
  * Public, read-only event API. One row per event at its next occurrence in range (an event is never repeated
@@ -142,6 +147,84 @@ function parseCursor(raw: string | undefined, mode: 'e' | 'o'): { utc: string; r
   }
   return { utc, rowid };
 }
+
+/** List rows for given event ids, in the given order (for ranked results). */
+async function listItemsByIds(db: D1Database, ids: string[]): Promise<EventListItem[]> {
+  if (!ids.length) return [];
+  const { results } = await db
+    .prepare(
+      `SELECT e.id, e.slug, e.title, e.category, e.price_min, e.price_max, e.is_free, e.next_start_utc,
+              e.next_start_local, MAX(e.upcoming_count - 1, 0) AS more_dates, v.name AS venue_name, v.district
+         FROM events e LEFT JOIN venues v ON v.id = e.venue_id
+        WHERE e.id IN (${ids.map(() => '?').join(',')}) AND e.status = 'published' AND e.next_start_utc IS NOT NULL`,
+    )
+    .bind(...ids)
+    .all<Record<string, unknown>>();
+  const byId = new Map(results.map((r) => [String(r.id), r]));
+  return ids.flatMap((id) => {
+    const r = byId.get(id);
+    return r
+      ? [
+          {
+            slug: String(r.slug),
+            title: String(r.title),
+            category: r.category as EventListItem['category'],
+            venueName: (r.venue_name as string | null) ?? null,
+            district: (r.district as string | null) ?? null,
+            priceMin: (r.price_min as number | null) ?? null,
+            priceMax: (r.price_max as number | null) ?? null,
+            isFree: Boolean(r.is_free),
+            next: { startLocal: String(r.next_start_local), startUtc: String(r.next_start_utc) },
+            moreDates: Number(r.more_dates),
+          },
+        ]
+      : [];
+  });
+}
+
+const SearchQuery = z.object({ q: z.string().trim().min(2).max(200) });
+/**
+ * Below these cosines, matches are noise for bge-m3 on short event texts. Checked by hand on the starter sources:
+ * related events score 0.45–0.6 (same house, same theme), unrelated ones below 0.4.
+ */
+const MIN_SEARCH = 0.45;
+const MIN_SIMILAR = 0.45;
+
+/** Search by meaning: embeds the query and ranks upcoming events by cosine. Complements keyword search (FTS). */
+eventsApi.get('/search', async (c) => {
+  const q = SearchQuery.safeParse(c.req.query());
+  if (!q.success) throw new HTTPException(400, { message: 'Query must be 2–200 characters.' });
+  const index = await loadIndex(c.env.CACHE);
+  let items: EventListItem[] = [];
+  // A query costs ~0.01 neurons; the check only matters if someone hammers the public endpoint.
+  if (index?.ids.length && (await neuronsLeft(c.env.DB)) > 50) {
+    const [vec] = await embedTexts(c.env, [q.data.q]);
+    const hits = nearest(index, vec!, 20, { min: MIN_SEARCH });
+    items = await listItemsByIds(
+      c.env.DB,
+      hits.map((h) => h.id),
+    );
+  }
+  c.header('Cache-Control', 'public, max-age=300, s-maxage=600');
+  return c.json({ items } satisfies EventsList);
+});
+
+/** Events close in meaning to this one ("More like this"). Reads one KV value and at most 6 event rows. */
+eventsApi.get('/:slug/similar', async (c) => {
+  const ev = await c.env.DB.prepare('SELECT id FROM events WHERE slug = ?')
+    .bind(c.req.param('slug'))
+    .first<{ id: string }>();
+  if (!ev) throw new HTTPException(404, { message: 'Event not found' });
+  const index = await loadIndex(c.env.CACHE);
+  const vec = index && vectorOf(index, ev.id);
+  const hits = index && vec ? nearest(index, vec, 6, { exclude: ev.id, min: MIN_SIMILAR }) : [];
+  const items = await listItemsByIds(
+    c.env.DB,
+    hits.map((h) => h.id),
+  );
+  c.header('Cache-Control', 'public, max-age=300, s-maxage=1800');
+  return c.json({ items } satisfies EventsList);
+});
 
 eventsApi.get('/:slug', async (c) => {
   const db = c.env.DB;

@@ -3,6 +3,8 @@ import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { adminApi } from './api/admin';
 import { eventsApi } from './api/events';
+import { embedMissing } from './ai/embed';
+import { markIndexStale, rebuildIndex } from './ai/vector-index';
 import { sweepPassedDates } from './pipeline/next-dates';
 import { dispatchDueSources } from './pipeline/scheduler';
 
@@ -49,11 +51,24 @@ app.onError((err, c) => {
 
 export default {
   fetch: app.fetch,
-  /** Every 15 min: move events past their next date on, then start a SourceRun workflow per due source. */
+  /**
+   * Every 15 min: move events past their next date on, start a SourceRun workflow per due source, embed new
+   * events and refresh the vector index.
+   */
   async scheduled(controller, env) {
     const now = new Date(controller.scheduledTime);
     const swept = await sweepPassedDates(env.DB, now);
     const started = await dispatchDueSources(env, now);
-    console.log('cron', { cron: controller.cron, swept, started: started.length });
+    // AI housekeeping is best effort: a failure here must not stop the sources from running.
+    let embedded = 0;
+    let indexed: number | null = null;
+    try {
+      embedded = await embedMissing(env, now);
+      if (embedded) await markIndexStale(env.CACHE);
+      indexed = await rebuildIndex(env, now);
+    } catch (err) {
+      console.error('embeddings', String(err));
+    }
+    console.log('cron', { cron: controller.cron, swept, started: started.length, embedded, indexed });
   },
 } satisfies ExportedHandler<Env>;

@@ -1,4 +1,4 @@
-import { formatPrice, formatTime, type EventListItem } from '@bln/shared';
+import { formatDay, formatPrice, formatTime, type EventListItem } from '@bln/shared';
 import { Link } from '@tanstack/react-router';
 import { CategoryChip } from './CategoryChip';
 
@@ -11,8 +11,11 @@ export function hatchAngle(slug: string): string {
   return `${ANGLES[Math.abs(h) % ANGLES.length]}deg`;
 }
 
-/** time · title · venue · price · category. The event appears once; "+N" counts its further dates. */
-export function EventRow({ item }: { item: EventListItem }) {
+/**
+ * time · title · venue · price · category. The event appears once; "+N" counts its further dates. `showDay` adds
+ * the weekday and date for lists that are not grouped by day (similar events, search by meaning).
+ */
+export function EventRow({ item, showDay = false }: { item: EventListItem; showDay?: boolean }) {
   const price = formatPrice(item);
   return (
     <Link
@@ -24,7 +27,10 @@ export function EventRow({ item }: { item: EventListItem }) {
       <div className="min-w-0 flex-1">
         <div className="truncate text-[15.5px] leading-5 font-bold">{item.title}</div>
         <div className="mt-[3px] flex h-5 items-center text-[12.5px] text-sub">
-          <span className="flex w-16 shrink-0 items-baseline gap-1 font-bold text-ink tabular-nums">
+          <span
+            className={`flex shrink-0 items-baseline gap-1 font-bold text-ink tabular-nums ${showDay ? 'w-[124px]' : 'w-16'}`}
+          >
+            {showDay && `${formatDay(item.next.startLocal)} `}
             {formatTime(item.next.startLocal)}
             {item.moreDates > 0 && <small className="text-[11px] font-semibold text-sub">+{item.moreDates}</small>}
           </span>

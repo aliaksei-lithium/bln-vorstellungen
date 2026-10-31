@@ -1,5 +1,12 @@
 import { SourceCreate, SourceRunView, SourceUpdate, SourceView } from '@bln/shared';
-import { adapterTypes, getAdapter, hasAdapter, registerBuiltinAdapters } from '@bln/sources';
+import { adapterTypes, getAdapter, hasAdapter, HtmlConfig, htmlAdapter, registerBuiltinAdapters } from '@bln/sources';
+import { z } from 'zod';
+import { extractEvents } from '../ai/extract';
+import { embedMissing } from '../ai/embed';
+import { BudgetExhausted, DAILY_NEURON_BUDGET } from '../ai/models';
+import { rebuildIndex } from '../ai/vector-index';
+import { sourceContext } from '../pipeline/source-run';
+import { usageToday } from '../usage';
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { startSourceRun } from '../pipeline/scheduler';
@@ -189,4 +196,80 @@ adminApi.get('/workflows/:instanceId', async (c) => {
   } catch {
     throw new HTTPException(404, { message: 'Workflow instance not found' });
   }
+});
+
+const ExtractPreview = z.union([
+  z.object({
+    text: z.string().min(1).max(60_000),
+    sourceName: z.string().default('manual'),
+    venue: z.string().optional(),
+  }),
+  z.object({
+    url: z.url(),
+    cssSelector: z.string().optional(),
+    venue: z.string().optional(),
+    chunk: z.number().int().min(1).max(20).default(1),
+  }),
+]);
+
+/**
+ * Dry run of the LLM path: page (or text) → Markdown → extracted events, nothing stored. For tuning a new `html`
+ * source's selector and checking what the model makes of it before adding the source.
+ */
+adminApi.post('/extract', async (c) => {
+  const parsed = ExtractPreview.safeParse(await readJson(c));
+  if (!parsed.success) throw new HTTPException(400, { message: parsed.error.issues[0]?.message ?? 'Invalid input' });
+  const p = parsed.data;
+  let content: string;
+  let chunks = 1;
+  let url: string | undefined;
+  if ('text' in p) content = p.text;
+  else {
+    url = p.url;
+    const config = HtmlConfig.parse({ url: p.url, ...(p.cssSelector ? { cssSelector: p.cssSelector } : {}) });
+    const r = await htmlAdapter
+      .fetch(
+        sourceContext(c.env, () => {}),
+        config,
+        null,
+      )
+      .catch((err: unknown) => {
+        throw new HTTPException(502, {
+          message: `Could not read the page: ${err instanceof Error ? err.message : err}`,
+        });
+      });
+    chunks = r.stats.fetched;
+    const item = r.items[p.chunk - 1];
+    if (!item) throw new HTTPException(422, { message: `The page has ${r.items.length} chunk(s), not ${p.chunk}.` });
+    content = item.content;
+  }
+  try {
+    const r = await extractEvents(c.env, {
+      content,
+      sourceName: 'text' in p ? p.sourceName : new URL(p.url).hostname,
+      ...(url ? { url } : {}),
+      ...(p.venue ? { venue: p.venue } : {}),
+    });
+    return c.json({ chunks, markdownChars: content.length, markdownHead: content.slice(0, 600), ...r });
+  } catch (err) {
+    if (err instanceof BudgetExhausted) throw new HTTPException(429, { message: err.message });
+    throw err;
+  }
+});
+
+adminApi.get('/usage', async (c) => {
+  const today = await usageToday(c.env.DB);
+  return c.json({ day: new Date().toISOString().slice(0, 10), neuronBudget: DAILY_NEURON_BUDGET, ...today });
+});
+
+/** Embeds every upcoming event that has no vector yet (in rounds of 32), then rebuilds the vector index. */
+adminApi.post('/ai/reindex', async (c) => {
+  let embedded = 0;
+  for (let round = 0; round < 20; round++) {
+    const n = await embedMissing(c.env);
+    embedded += n;
+    if (n === 0) break;
+  }
+  const indexed = await rebuildIndex(c.env, new Date(), true);
+  return c.json({ embedded, indexed });
 });
