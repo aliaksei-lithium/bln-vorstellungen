@@ -46,5 +46,9 @@
 
   "vars": {
     "APP_ENV": "production",
+    // Extraction model: "workers-ai" (free) or a Claude id such as "anthropic/claude-haiku-5.5". Claude needs an
+    // Anthropic key stored on the `default` AI Gateway (Provider Keys, alias "default"); without it, it falls back.
+    "EXTRACT_MODEL": "workers-ai",
+    "CLAUDE_DAILY_USD": "0.5",
   },
 }

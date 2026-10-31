@@ -10,3 +10,6 @@ dist/
 .DS_Store
 coverage/
 .turbo/
+
+# Personal Claude Code settings (deploy permissions)
+.claude/settings.local.json

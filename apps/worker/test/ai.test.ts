@@ -190,3 +190,54 @@ describe('similar events', () => {
     expect(EventsList.parse(await res.json()).items.map((i) => i.slug)).toEqual(['jazz-b']);
   });
 });
+
+describe('Claude provider', () => {
+  it('sends a closed schema for structured outputs', async () => {
+    const { strictSchema } = await import('../src/ai/prompts/extract');
+    const s = strictSchema as {
+      additionalProperties: boolean;
+      properties: { events: { items: Record<string, unknown> } };
+    };
+    expect(s.additionalProperties).toBe(false);
+    expect(s.properties.events.items.additionalProperties).toBe(false);
+  });
+
+  it('meters Claude in dollars and falls back to Workers AI when the gateway refuses', async () => {
+    const { extractEvents } = await import('../src/ai/extract');
+    const calls: string[] = [];
+    const ai = {
+      ...env,
+      AI: {
+        run: async (model: string) => {
+          calls.push(model);
+          if (model.startsWith('anthropic/')) throw new Error('2021: Insufficient AI Gateway credits');
+          return {
+            choices: [{ message: { content: JSON.stringify({ events: [] }) } }],
+            usage: { neurons: 1 },
+          };
+        },
+      },
+    } as unknown as Env;
+    await env.DB.prepare(`DELETE FROM usage_counters`).run();
+    const r = await extractEvents(ai, { content: 'x', sourceName: 't' }, { provider: 'anthropic/claude-haiku-5.5' });
+    expect(calls).toEqual(['anthropic/claude-haiku-5.5', MODELS.extract.id]);
+    expect(r.model).toBe(MODELS.extract.id);
+
+    const claude = {
+      ...env,
+      AI: {
+        run: async () => ({
+          content: [{ type: 'text', text: '{"events":[]}' }],
+          stop_reason: 'end_turn',
+          usage: { input_tokens: 1_000_000, output_tokens: 0 },
+        }),
+      },
+    } as unknown as Env;
+    const c = await extractEvents(
+      claude,
+      { content: 'x', sourceName: 't' },
+      { provider: 'anthropic/claude-haiku-5.5' },
+    );
+    expect(c).toMatchObject({ model: 'anthropic/claude-haiku-5.5', usd: 0.1, neurons: 0 });
+  });
+});

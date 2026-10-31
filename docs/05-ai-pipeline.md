@@ -1,7 +1,8 @@
 # 05 AI pipeline
 
 > Current state (2026-10-31, see 09): extraction and embeddings run on Workers AI (Gemma 4 26B, bge-m3) because
-> no Claude key is configured yet. The Claude stages below remain the target where quality needs it.
+> no Claude key is configured yet. Claude Haiku 5.5 is wired in through AI Gateway (BYOK) and switched on with
+> `EXTRACT_MODEL`; the Claude stages below remain the target where quality needs it.
 
 Principle: cheap models for volume, a strong model only where a wrong answer is visible to a human. All calls go
 through **AI Gateway** (logs, caching, spend per model) and every stored output records `model` and

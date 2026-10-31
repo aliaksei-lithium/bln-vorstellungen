@@ -5,7 +5,7 @@
 
 const utcDay = (now = new Date()) => now.toISOString().slice(0, 10);
 
-export type Metric = 'ai_neurons' | 'ai_extract_calls' | 'ai_embed_texts';
+export type Metric = 'ai_neurons' | 'ai_extract_calls' | 'ai_embed_texts' | 'claude_microusd' | 'claude_calls';
 
 export const bumpUsage = (db: D1Database, metric: Metric, by: number, now = new Date()): D1PreparedStatement =>
   db

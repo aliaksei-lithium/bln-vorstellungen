@@ -96,6 +96,15 @@ Format: date · decision · why · alternatives rejected. Newer entries supersed
   images and empty links stripped → chunks of 16k characters at paragraph boundaries, at most `maxChunks` per
   page. With a single-venue source the venue comes from the config; the model's venue (often the room) becomes
   the date's note. Starter html sources: Berliner Ensemble, Deutsches Theater, Staatsoper (daily).
+- **2026-10-31 · Claude goes through AI Gateway with a stored key (BYOK), not a Worker secret.** The same `env.AI`
+  binding calls `anthropic/claude-haiku-5.5` in Anthropic Messages format; AI Gateway takes the Anthropic key
+  stored under Provider Keys with alias `default`, so the Worker never holds it, and adds logs, cost analytics,
+  caching, retries and dollar spend limits for free. Without a stored key the gateway answers "Insufficient AI
+  Gateway credits" (verified), so extraction falls back to Workers AI per item. Opt-in via `EXTRACT_MODEL` in
+  wrangler.jsonc vars; our own cap `CLAUDE_DAILY_USD` (default $0.50) is metered in `usage_counters`. Haiku 5.5
+  ($0.10/$0.50 per M tokens, cheaper than the Haiku 4.5 docs/05 planned for) uses structured outputs
+  (`output_config.format`, closed schema), effort `low`, thinking off, cacheable system prompt. Rejected: a
+  `ANTHROPIC_API_KEY` Worker secret calling api.anthropic.com directly (no gateway logs/limits, key in the Worker).
 - **2026-10-02 · React + Vite + TanStack + Tailwind + shadcn/ui.** Best coverage by design tools and implementing
   models. Rejected: SvelteKit (good, but weaker design-tool output), Next.js on Workers via OpenNext (heavier than
   needed; no SSR requirement since public pages can be cached JSON + client render; revisit if SEO matters).
