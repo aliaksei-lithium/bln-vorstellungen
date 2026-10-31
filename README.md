@@ -23,7 +23,7 @@ pnpm --filter @bln/worker db:seed:local      # optional sample events for UI wor
 pnpm dev                                     # builds the web app, then serves Worker + app on :8787
 pnpm dev:web                                 # Vite with hot reload on :5173, API proxied to :8787
 pnpm typecheck && pnpm lint && pnpm test
-pnpm deploy                                  # build web + wrangler deploy
+pnpm run deploy                              # build web + wrangler deploy (`pnpm deploy` is a pnpm built-in)
 ```
 
 Remote schema changes: `pnpm --filter @bln/worker db:generate`, then `db:migrate:remote` before deploying.
@@ -56,6 +56,13 @@ curl -X POST -H "authorization: Bearer $ADMIN_TOKEN" -H 'content-type: applicati
 curl -X POST -H "authorization: Bearer $ADMIN_TOKEN" https://…/api/admin/ai/reindex                  # embed now
 RUN_AI_TESTS=1 pnpm --filter @bln/worker golden      # golden extraction examples against a running dev server
 ```
+
+**Claude (optional, your Anthropic key):** in the Cloudflare dashboard, AI → AI Gateway → `default` → Provider
+Keys → add an Anthropic key with alias `default`. Then set `"EXTRACT_MODEL": "anthropic/claude-haiku-5.5"` in
+`apps/worker/wrangler.jsonc` and deploy. The Worker never sees the key; spend shows in the gateway's analytics,
+our cap is `CLAUDE_DAILY_USD`, and you can add a dollar spend limit on the gateway too. Compare models first with
+`"provider": "anthropic/claude-haiku-5.5"` in a `POST /api/admin/extract` body, or
+`PROVIDER=anthropic/claude-haiku-5.5` for the golden script.
 
 ## Documents
 
