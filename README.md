@@ -10,8 +10,8 @@ poster, a pasted text), **normalized** into one event model, **enriched** with d
 **scored** against each user's taste profile. A public, non-personalized view lists everything; signed-in users
 get a ranked "for you" feed. An MCP server exposes the same data to Claude and other agents.
 
-> Status: **phase 1** (public list from structured sources: iCal and JSON-LD adapters, scheduled source runs,
-> admin API). Live: https://bln-vorstellungen.aliaksei-zhynhiarouski.workers.dev · Mockup:
+> Status: **phase 1 + AI from phase 3/5** (iCal, JSON-LD and LLM-read programme pages; "more like this" and
+> search by meaning on Workers AI embeddings). Live: https://bln-vorstellungen.aliaksei-zhynhiarouski.workers.dev · Mockup:
 > https://bln-vorstellungen-mockup.aliaksei-zhynhiarouski.workers.dev
 
 ## Development
@@ -43,7 +43,19 @@ curl -X POST -H "authorization: Bearer $ADMIN_TOKEN" -H 'content-type: applicati
 curl -X POST -H "authorization: Bearer $ADMIN_TOKEN" https://…/api/admin/sources/<id>/run  # run now
 ```
 
-Adapter types so far: `ical`, `jsonld` (mapped directly) and `rss` (stored for LLM extraction in phase 3).
+Adapter types so far: `ical`, `jsonld` (mapped directly), `html` (page → Markdown → Workers AI extraction) and
+`rss` (entries go through the same extraction).
+
+### AI
+
+Workers AI only, within the free 10k neurons a day (our code stops at 8k; see `GET /api/admin/usage`).
+
+```bash
+curl -X POST -H "authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
+  -d '{"url":"https://venue.example/spielplan","cssSelector":"main"}' https://…/api/admin/extract   # dry run
+curl -X POST -H "authorization: Bearer $ADMIN_TOKEN" https://…/api/admin/ai/reindex                  # embed now
+RUN_AI_TESTS=1 pnpm --filter @bln/worker golden      # golden extraction examples against a running dev server
+```
 
 ## Documents
 

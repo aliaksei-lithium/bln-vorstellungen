@@ -73,6 +73,29 @@ Format: date · decision · why · alternatives rejected. Newer entries supersed
 - **2026-10-31 · Workflow step budget.** Workers Free allows 3,000 Workflow steps per day and 1,024 per instance.
   A SourceRun is start + fetch + one step per 8 new items + finish; unchanged feeds cost 3 steps (most answer
   304). Six sources at 6–12 h intervals use well under 100 steps a day after the first import (~50 steps).
+- **2026-10-31 · Extraction runs on Workers AI until a Claude key exists.** docs/05 names Claude Haiku 4.5 for
+  extraction; there is no Anthropic key yet, and Workers AI is free within 10k neurons a day. Model:
+  `@cf/google/gemma-4-26b-a4b-it` with thinking off (`chat_template_kwargs.enable_thinking=false`: 2 s and
+  3 neurons instead of 16 s and 18 on the same answer). Output via `json_object` mode with the schema in the
+  prompt: strict `json_schema` mode looped on whitespace until max_tokens in 2 of 12 golden runs and tripled
+  output tokens. Requiring every schema field made the model invent end times and doors, so only essentials are
+  required and `extract.ts` backfills doors, single prices and free entry from the quoted text. Costs measured
+  on real pages: ~65–200 neurons per 16k-character chunk, ~60 s. Spend is metered in `usage_counters` and capped
+  at 8,000 neurons/day (`DAILY_NEURON_BUDGET`); items left over stay `pending` for the next run. All calls go
+  through the auto-created `default` AI Gateway. Swapping in Claude later = a second provider in `ai/models.ts`.
+- **2026-10-31 · Golden examples run through the dev server, not Vitest.** The Worker tests have no remote
+  bindings, so `pnpm --filter @bln/worker golden` (with `RUN_AI_TESTS=1`) posts `test/ai/extract.golden.json` to
+  the admin dry-run endpoint and checks titles, categories, date counts, doors and prices. ~80 neurons per run.
+- **2026-10-31 · Embeddings: bge-m3, int8, one KV index.** `@cf/baai/bge-m3` (multilingual, ~0.01 neurons per
+  event). Vectors are L2-normalized and quantized to int8 (1 KB per event) in `event_embeddings`; the cron embeds
+  new upcoming events and packs all upcoming vectors into one KV value, rebuilt when stale or every 6 h. "More
+  like this" and search by meaning scan it in memory: zero D1 rows, one KV read per isolate per 10 min. Floors
+  checked by hand: related events score 0.45–0.6, unrelated below 0.4. Revisit (Vectorize on a paid plan, or
+  per-category shards) past ~5k upcoming events.
+- **2026-10-31 · `html` adapter = Markdown chunks.** Page → `env.AI.toMarkdown` (optional `cssSelector`) →
+  images and empty links stripped → chunks of 16k characters at paragraph boundaries, at most `maxChunks` per
+  page. With a single-venue source the venue comes from the config; the model's venue (often the room) becomes
+  the date's note. Starter html sources: Berliner Ensemble, Deutsches Theater, Staatsoper (daily).
 - **2026-10-02 · React + Vite + TanStack + Tailwind + shadcn/ui.** Best coverage by design tools and implementing
   models. Rejected: SvelteKit (good, but weaker design-tool output), Next.js on Workers via OpenNext (heavier than
   needed; no SSR requirement since public pages can be cached JSON + client render; revisit if SEO matters).
