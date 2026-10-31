@@ -127,3 +127,11 @@ export function finalize(candidate: unknown): ExtractedEvent | null {
   const r = ExtractedEvent.safeParse(candidate);
   return r.success ? r.data : null;
 }
+
+/** "A-TRANE PRÄSENTIERT · Kat Eaton" → "Kat Eaton" when the source's own venue opens every title. */
+export function stripPresenter(title: string, venueName: string | undefined): string {
+  if (!venueName) return title;
+  const v = venueName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const stripped = title.replace(new RegExp(`^${v}\\s+(präsentiert|presents|pres\\.)\\s*[:·–-]?\\s*`, 'iu'), '');
+  return stripped.length >= 3 ? stripped : title;
+}
