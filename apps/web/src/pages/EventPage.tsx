@@ -4,7 +4,7 @@ import { Link, useRouter } from '@tanstack/react-router';
 import { ChevronDown, ChevronLeft, ExternalLink, MapPin, Ticket } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { CategoryChip } from '@/components/CategoryChip';
-import { hatchAngle } from '@/components/EventRow';
+import { EventRow, hatchAngle } from '@/components/EventRow';
 import { EmptyState, ErrorState } from '@/components/States';
 import { Button } from '@/components/ui/button';
 import { ApiError, api } from '@/lib/api';
@@ -199,10 +199,29 @@ export function EventPage({ slug }: { slug: string }) {
 
         {e.description && (
           <Box title="About">
-            <p className="p-3 leading-[21px]">{e.description}</p>
+            <p className="p-3 leading-[21px] whitespace-pre-line">{e.description}</p>
           </Box>
         )}
+
+        <Similar slug={slug} />
       </div>
     </>
+  );
+}
+
+/** "More like this", ranked by embedding similarity. Hidden when there is nothing close enough. */
+function Similar({ slug }: { slug: string }) {
+  const similar = useQuery({ queryKey: ['similar', slug], queryFn: () => api.similar(slug), retry: false });
+  const items = similar.data?.items ?? [];
+  if (!items.length) return null;
+  return (
+    <section className="border border-ink bg-surface-a" aria-label="Similar events">
+      <div className="flex h-9 items-center bg-ink px-3 text-xs font-extrabold tracking-[.1em] text-on-ink uppercase">
+        More like this
+      </div>
+      {items.map((it) => (
+        <EventRow key={it.slug} item={it} showDay />
+      ))}
+    </section>
   );
 }

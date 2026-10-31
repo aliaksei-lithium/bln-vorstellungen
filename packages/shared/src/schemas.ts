@@ -224,6 +224,10 @@ export type EventListItem = z.infer<typeof EventListItem>;
 export const EventsResponse = z.object({ items: z.array(EventListItem), nextCursor: z.string().nullable() });
 export type EventsResponse = z.infer<typeof EventsResponse>;
 
+/** Similar events and search by meaning: a short ranked list, no paging. */
+export const EventsList = z.object({ items: z.array(EventListItem) });
+export type EventsList = z.infer<typeof EventsList>;
+
 export const EventDetail = Event.extend({
   venue: Venue.nullable(),
   occurrences: z.array(Occurrence),

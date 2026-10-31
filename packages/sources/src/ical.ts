@@ -10,6 +10,7 @@ import {
   pickCategory,
   pickLang,
   safeUrl,
+  stripPresenter,
   type LocalTime,
 } from './common';
 import { contentHash } from './hash';
@@ -195,7 +196,7 @@ export const icalAdapter: SourceAdapter<IcalConfig> = {
     const start = icalDate(first(props, 'DTSTART'));
     if (!start) return [];
     const end = icalDate(first(props, 'DTEND'));
-    const title = cleanTitle(text(props, 'SUMMARY'));
+    const title = stripPresenter(cleanTitle(text(props, 'SUMMARY')), config.venue?.name);
     if (isPlaceholder(title)) return [];
     const description = truncate(htmlToText(text(props, 'DESCRIPTION')), 4000);
     const location = text(props, 'LOCATION');

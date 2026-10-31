@@ -1,5 +1,5 @@
 import { CATEGORY_LABELS, Category, DISTRICTS, berlinToday, formatDay, type EventListItem } from '@bln/shared';
-import { keepPreviousData, useInfiniteQuery } from '@tanstack/react-query';
+import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { Check, Search, SlidersHorizontal, X } from 'lucide-react';
 import { useDeferredValue, useMemo, useState } from 'react';
 import { TopBar } from '@/components/AppShell';
@@ -45,6 +45,17 @@ export function BrowsePage() {
     placeholderData: keepPreviousData,
   });
   const items = useMemo(() => events.data?.pages.flatMap((p) => p.items) ?? [], [events.data]);
+  // Search by meaning complements keyword search: "jazz tonight" also finds a quartet that never says "jazz".
+  const meaning = useQuery({
+    queryKey: ['meaning', query],
+    queryFn: () => api.searchByMeaning(query),
+    enabled: query.length >= 3,
+    retry: false,
+  });
+  const related = useMemo(() => {
+    const shown = new Set(items.map((i) => i.slug));
+    return (meaning.data?.items ?? []).filter((i) => !shown.has(i.slug)).slice(0, 8);
+  }, [meaning.data, items]);
   const groups = useMemo(() => groupByDay(items), [items]);
 
   const active: { key: keyof Filters; label: string }[] = [];
@@ -135,6 +146,17 @@ export function BrowsePage() {
               ))}
             </section>
           ))
+        )}
+        {query.length >= 3 && related.length > 0 && (
+          <section className="border border-ink bg-surface-a" aria-label="Related by meaning">
+            <div className="flex h-8 items-center justify-between bg-moss px-3 text-xs font-extrabold tracking-[.08em] text-on-moss uppercase">
+              <span>Related by meaning</span>
+              <span className="tabular-nums">{related.length}</span>
+            </div>
+            {related.map((it) => (
+              <EventRow key={it.slug} item={it} showDay />
+            ))}
+          </section>
         )}
         {events.hasNextPage && (
           <Button

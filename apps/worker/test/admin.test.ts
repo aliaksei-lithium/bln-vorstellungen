@@ -21,7 +21,7 @@ describe('admin api', () => {
 
   it('lists the built-in adapters', async () => {
     const body = (await (await call('/adapters')).json()) as { adapters: { type: string }[] };
-    expect(body.adapters.map((a) => a.type)).toEqual(['ical', 'jsonld', 'rss']);
+    expect(body.adapters.map((a) => a.type)).toEqual(['html', 'ical', 'jsonld', 'rss']);
   });
 
   it('validates the adapter config on create', async () => {

@@ -10,6 +10,7 @@ import {
   pickCategory,
   pickLang,
   safeUrl,
+  stripPresenter,
   toBerlinLocal,
 } from './common';
 import { contentHash } from './hash';
@@ -166,7 +167,7 @@ export const jsonldAdapter: SourceAdapter<JsonLdConfig> = {
     const start = toBerlinLocal(str(n.startDate));
     if (!start) return [];
     const end = toBerlinLocal(str(n.endDate));
-    const title = cleanTitle(str(n.name));
+    const title = stripPresenter(cleanTitle(str(n.name)), config.venue?.name);
     if (isPlaceholder(title)) return [];
     const description = truncate(htmlToText(str(n.description)), 4000);
     const all = `${title}\n${description}`;
