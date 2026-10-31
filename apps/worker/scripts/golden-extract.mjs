@@ -1,6 +1,7 @@
 // Golden examples for the extraction prompt (docs/05). Runs against the real model through a running dev server:
 //   pnpm --filter @bln/worker dev          (in one terminal)
 //   RUN_AI_TESTS=1 pnpm --filter @bln/worker golden
+//   RUN_AI_TESTS=1 PROVIDER=anthropic/claude-haiku-5.5 pnpm --filter @bln/worker golden   (compare models)
 // Costs about 100 neurons of the daily Workers AI allowance. Token from apps/worker/.dev.vars.
 import { readFileSync } from 'node:fs';
 
@@ -34,15 +35,24 @@ const fill = (s) =>
 
 let failed = 0;
 let neurons = 0;
+let usd = 0;
+let model = '';
 for (const c of cases) {
   const res = await fetch(`${base}/api/admin/extract`, {
     method: 'POST',
     headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
-    body: JSON.stringify({ text: fill(c.text), sourceName: 'golden', ...(c.venue ? { venue: c.venue } : {}) }),
+    body: JSON.stringify({
+      text: fill(c.text),
+      sourceName: 'golden',
+      ...(c.venue ? { venue: c.venue } : {}),
+      ...(process.env.PROVIDER ? { provider: process.env.PROVIDER } : {}),
+    }),
   });
   const out = await res.json();
   if (!res.ok) throw new Error(`${c.name}: ${out.error}`);
   neurons += out.neurons;
+  usd += out.usd ?? 0;
+  model = out.model;
   const problems = [];
   if (out.events.length !== c.expect.length)
     problems.push(`expected ${c.expect.length} events, got ${out.events.length}`);
@@ -64,5 +74,7 @@ for (const c of cases) {
   if (problems.length)
     console.log('    got:', JSON.stringify(out.events.map((e) => [e.title, e.category, e.occurrences.length])));
 }
-console.log(`\n${cases.length - failed}/${cases.length} passed · ${neurons.toFixed(1)} neurons`);
+console.log(
+  `\n${model}: ${cases.length - failed}/${cases.length} passed · ${neurons.toFixed(1)} neurons · $${usd.toFixed(4)}`,
+);
 process.exit(failed ? 1 : 0);

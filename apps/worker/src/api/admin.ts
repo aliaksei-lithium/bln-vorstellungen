@@ -1,9 +1,9 @@
 import { SourceCreate, SourceRunView, SourceUpdate, SourceView } from '@bln/shared';
 import { adapterTypes, getAdapter, hasAdapter, HtmlConfig, htmlAdapter, registerBuiltinAdapters } from '@bln/sources';
 import { z } from 'zod';
-import { extractEvents } from '../ai/extract';
+import { configuredProvider, extractEvents } from '../ai/extract';
 import { embedMissing } from '../ai/embed';
-import { BudgetExhausted, DAILY_NEURON_BUDGET } from '../ai/models';
+import { BudgetExhausted, CLAUDE, DAILY_NEURON_BUDGET } from '../ai/models';
 import { rebuildIndex } from '../ai/vector-index';
 import { sourceContext } from '../pipeline/source-run';
 import { usageToday } from '../usage';
@@ -198,17 +198,22 @@ adminApi.get('/workflows/:instanceId', async (c) => {
   }
 });
 
+/** `provider` compares models on the same input: "workers-ai" or a Claude id; default = the configured one. */
+const Provider = z.enum(['workers-ai', ...(Object.keys(CLAUDE) as [keyof typeof CLAUDE])]).optional();
+
 const ExtractPreview = z.union([
   z.object({
     text: z.string().min(1).max(60_000),
     sourceName: z.string().default('manual'),
     venue: z.string().optional(),
+    provider: Provider,
   }),
   z.object({
     url: z.url(),
     cssSelector: z.string().optional(),
     venue: z.string().optional(),
     chunk: z.number().int().min(1).max(20).default(1),
+    provider: Provider,
   }),
 ]);
 
@@ -244,12 +249,16 @@ adminApi.post('/extract', async (c) => {
     content = item.content;
   }
   try {
-    const r = await extractEvents(c.env, {
-      content,
-      sourceName: 'text' in p ? p.sourceName : new URL(p.url).hostname,
-      ...(url ? { url } : {}),
-      ...(p.venue ? { venue: p.venue } : {}),
-    });
+    const r = await extractEvents(
+      c.env,
+      {
+        content,
+        sourceName: 'text' in p ? p.sourceName : new URL(p.url).hostname,
+        ...(url ? { url } : {}),
+        ...(p.venue ? { venue: p.venue } : {}),
+      },
+      { provider: p.provider ?? configuredProvider(c.env) },
+    );
     return c.json({ chunks, markdownChars: content.length, markdownHead: content.slice(0, 600), ...r });
   } catch (err) {
     if (err instanceof BudgetExhausted) throw new HTTPException(429, { message: err.message });
@@ -259,7 +268,14 @@ adminApi.post('/extract', async (c) => {
 
 adminApi.get('/usage', async (c) => {
   const today = await usageToday(c.env.DB);
-  return c.json({ day: new Date().toISOString().slice(0, 10), neuronBudget: DAILY_NEURON_BUDGET, ...today });
+  return c.json({
+    day: new Date().toISOString().slice(0, 10),
+    neuronBudget: DAILY_NEURON_BUDGET,
+    extractModel: configuredProvider(c.env),
+    claudeDailyUsd: Number(c.env.CLAUDE_DAILY_USD ?? '0.5'),
+    claudeUsd: (today.claude_microusd ?? 0) / 1e6,
+    ...today,
+  });
 });
 
 /** Embeds every upcoming event that has no vector yet (in rounds of 32), then rebuilds the vector index. */

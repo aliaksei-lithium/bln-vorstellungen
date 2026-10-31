@@ -14,6 +14,34 @@ export const MODELS = {
   embed: { id: '@cf/baai/bge-m3', neuronsPerMIn: 1075, dims: 1024 },
 } as const;
 
+/**
+ * Claude through AI Gateway (`anthropic/…` ids on the same binding). The gateway supplies the Anthropic key stored
+ * under Provider Keys with alias `default` (BYOK), so the Worker holds no Anthropic secret. Prices per million
+ * tokens (prompts up to 100k), from the AI Gateway model catalog, 2026-10-31.
+ */
+export const CLAUDE = {
+  'anthropic/claude-haiku-5.5': { inPerM: 0.1, outPerM: 0.5 },
+  'anthropic/claude-sonnet-5.5': { inPerM: 2, outPerM: 10 },
+} as const;
+export type ClaudeModel = keyof typeof CLAUDE;
+export const isClaudeModel = (m: string): m is ClaudeModel => m in CLAUDE;
+
+export class ClaudeBudgetExhausted extends Error {
+  constructor() {
+    super('Daily Claude budget used up; extraction falls back to Workers AI until tomorrow.');
+  }
+}
+
+/** Dollars our code may spend on Claude per UTC day (`CLAUDE_DAILY_USD`, default 0.50). */
+export async function claudeUsdLeft(env: Env): Promise<number> {
+  const cap = Number(env.CLAUDE_DAILY_USD ?? '0.5');
+  const spent = ((await usageToday(env.DB)).claude_microusd ?? 0) / 1e6;
+  return (Number.isFinite(cap) ? cap : 0.5) - spent;
+}
+
+export const claudeUsd = (model: ClaudeModel, u: { input_tokens?: number; output_tokens?: number } | undefined) =>
+  ((u?.input_tokens ?? 0) * CLAUDE[model].inPerM + (u?.output_tokens ?? 0) * CLAUDE[model].outPerM) / 1e6;
+
 /** What our own code may spend per UTC day; the rest of the 10k stays as headroom. */
 export const DAILY_NEURON_BUDGET = 8000;
 
