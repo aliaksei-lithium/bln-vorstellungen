@@ -1,4 +1,4 @@
-import type { MyStates, UserState } from '@bln/shared';
+import type { Category, MyStates, UserState } from '@bln/shared';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback } from 'react';
 import { api } from './api';
@@ -53,5 +53,20 @@ export function useMark() {
       toast(opts.message ?? (state ? MESSAGES[state] : 'Removed from Agenda'), () => void save(slug, prev));
     },
     [qc, save],
+  );
+}
+
+/**
+ * Whether a list row shows for this user: never an event they hid, and not a category they switched off on the Me
+ * page, unless they picked that category in the filter themselves. Signed out, everything shows.
+ */
+export function useListFilter(picked?: Category) {
+  const { signedIn, states } = useMyStates();
+  const profile = useQuery({ queryKey: ['profile'], queryFn: api.profile, enabled: signedIn, staleTime: 60_000 });
+  const off = profile.data?.prefs.categoriesOff ?? [];
+  return useCallback(
+    (e: { slug: string; category: Category }) =>
+      states[e.slug] !== 'hidden' && (e.category === picked || !off.includes(e.category)),
+    [states, off, picked],
   );
 }

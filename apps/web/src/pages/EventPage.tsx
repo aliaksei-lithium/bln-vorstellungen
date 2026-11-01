@@ -22,6 +22,7 @@ import { EmptyState, ErrorState } from '@/components/States';
 import { Button } from '@/components/ui/button';
 import { ApiError, api } from '@/lib/api';
 import { useMe } from '@/lib/auth';
+import { useListFilter } from '@/lib/marks';
 import { relativeDay } from '@/lib/dates';
 import { cn } from '@/lib/utils';
 
@@ -316,7 +317,8 @@ export function EventPage({ slug }: { slug: string }) {
 /** "More like this", ranked by embedding similarity. Hidden when there is nothing close enough. */
 function Similar({ slug }: { slug: string }) {
   const similar = useQuery({ queryKey: ['similar', slug], queryFn: () => api.similar(slug), retry: false });
-  const items = similar.data?.items ?? [];
+  const shows = useListFilter();
+  const items = (similar.data?.items ?? []).filter(shows);
   if (!items.length) return null;
   return (
     <section className="border border-ink bg-surface" aria-label="Similar events">
