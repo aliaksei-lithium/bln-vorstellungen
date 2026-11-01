@@ -202,12 +202,7 @@ function TasteForm() {
             <div key={c} className="grid gap-2 border-b border-line px-3 py-2.5 last:border-b-0">
               <span className="flex items-center gap-2.5">
                 <CategoryDot category={c} className="size-2.5" />
-                <span>
-                  {CATEGORY_LABELS[c]}
-                  {OPT_IN_CATEGORIES.includes(c) && (
-                    <span className="block text-xs text-sub">Hidden unless you turn it on. 18+.</span>
-                  )}
-                </span>
+                <span>{CATEGORY_LABELS[c]}</span>
               </span>
               <div className="grid grid-cols-4" role="radiogroup" aria-label={`${CATEGORY_LABELS[c]}: how often`}>
                 {LEVELS.map((l) => (
