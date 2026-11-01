@@ -336,6 +336,11 @@ export const Prefs = z.object({
   maxPrice: z.number().int().min(0).max(1000).nullable().default(null),
   /** Opt-in categories (OPT_IN_CATEGORIES) the user switched on; all others in that list stay hidden. */
   categoriesOn: z.array(Category).default([]),
+  /**
+   * How often a category should come up in the inbox and picks; missing means often. Off is `categoriesOff` (or not
+   * being in `categoriesOn` for opt-in ones). See FREQUENCY_MIN_SCORE.
+   */
+  frequency: z.partialRecord(Category, z.enum(['less', 'rarely'])).default({}),
 });
 export type Prefs = z.infer<typeof Prefs>;
 

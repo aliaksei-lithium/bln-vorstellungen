@@ -68,11 +68,14 @@ export function MePage() {
   );
 }
 
+type Level = 'often' | 'less' | 'rarely' | 'off';
+const LEVELS: Level[] = ['often', 'less', 'rarely', 'off'];
+
 function TasteForm() {
   const qc = useQueryClient();
   const profile = useQuery({ queryKey: ['profile'], queryFn: api.profile });
   const [taste, setTaste] = useState('');
-  const [prefs, setPrefs] = useState<Prefs>({ categoriesOff: [], maxPrice: null, categoriesOn: [] });
+  const [prefs, setPrefs] = useState<Prefs>({ categoriesOff: [], maxPrice: null, categoriesOn: [], frequency: {} });
   const [dirty, setDirty] = useState(false);
 
   useEffect(() => {
@@ -94,17 +97,31 @@ function TasteForm() {
     fn();
     setDirty(true);
   };
-  const flip = (list: Category[], c: Category) => (list.includes(c) ? list.filter((x) => x !== c) : [...list, c]);
-  // Opt-in categories are off until switched on; every other one is on until switched off.
-  const isOn = (c: Category) =>
-    OPT_IN_CATEGORIES.includes(c) ? prefs.categoriesOn.includes(c) : !prefs.categoriesOff.includes(c);
-  const toggleCat = (c: Category) =>
+  // Off is categoriesOff (categoriesOn for opt-in ones); less and rarely live in frequency; often is neither.
+  const levelOf = (c: Category): Level => {
+    const off = OPT_IN_CATEGORIES.includes(c) ? !prefs.categoriesOn.includes(c) : prefs.categoriesOff.includes(c);
+    return off ? 'off' : (prefs.frequency[c] ?? 'often');
+  };
+  const setLevel = (c: Category, level: Level) =>
     edit(() =>
-      setPrefs((p) =>
-        OPT_IN_CATEGORIES.includes(c)
-          ? { ...p, categoriesOn: flip(p.categoriesOn, c) }
-          : { ...p, categoriesOff: flip(p.categoriesOff, c) },
-      ),
+      setPrefs((p) => {
+        const without = <T,>(list: T[]) => list.filter((x) => x !== c);
+        const frequency = { ...p.frequency };
+        delete frequency[c];
+        if (level === 'less' || level === 'rarely') frequency[c] = level;
+        return {
+          ...p,
+          frequency,
+          categoriesOff:
+            !OPT_IN_CATEGORIES.includes(c) && level === 'off'
+              ? [...without(p.categoriesOff), c]
+              : without(p.categoriesOff),
+          categoriesOn:
+            OPT_IN_CATEGORIES.includes(c) && level !== 'off'
+              ? [...without(p.categoriesOn), c]
+              : without(p.categoriesOn),
+        };
+      }),
     );
 
   return (
@@ -147,16 +164,14 @@ function TasteForm() {
 
       <Box title="Categories">
         <p className="m-0 border-b border-line px-3 py-2.5 text-sm text-sub">
-          Switched off: left out of your picks, Browse and similar events. Picking one in the Browse filter still shows
-          it.
+          <b className="text-ink">Less</b> and <b className="text-ink">Rarely</b> keep a category in your picks only for
+          strong matches, and Inbox never lets one category take more than a third of the places.{' '}
+          <b className="text-ink">Off</b> also leaves it out of Browse, unless you pick it in the filter.
         </p>
         {[...Category.options.filter((c) => !OPT_IN_CATEGORIES.includes(c)), ...OPT_IN_CATEGORIES].map((c) => {
-          const on = isOn(c);
+          const level = levelOf(c);
           return (
-            <div
-              key={c}
-              className="flex min-h-12 items-center justify-between border-b border-line px-3 last:border-b-0"
-            >
+            <div key={c} className="grid gap-2 border-b border-line px-3 py-2.5 last:border-b-0">
               <span className="flex items-center gap-2.5">
                 <CategoryDot category={c} className="size-2.5" />
                 <span>
@@ -166,19 +181,27 @@ function TasteForm() {
                   )}
                 </span>
               </span>
-              <button
-                type="button"
-                role="switch"
-                aria-checked={on}
-                aria-label={CATEGORY_LABELS[c]}
-                onClick={() => toggleCat(c)}
-                className={cn(
-                  'h-8 w-16 border border-ink text-xs font-extrabold tracking-[.08em] uppercase',
-                  on ? 'bg-moss text-on-moss' : 'bg-surface text-sub',
-                )}
-              >
-                {on ? 'On' : 'Off'}
-              </button>
+              <div className="grid grid-cols-4" role="radiogroup" aria-label={`${CATEGORY_LABELS[c]}: how often`}>
+                {LEVELS.map((l) => (
+                  <button
+                    key={l}
+                    type="button"
+                    role="radio"
+                    aria-checked={level === l}
+                    onClick={() => setLevel(c, l)}
+                    className={cn(
+                      '-ml-px h-8 border border-ink text-[11px] font-extrabold tracking-[.06em] uppercase first:ml-0',
+                      level === l
+                        ? l === 'off'
+                          ? 'bg-ink text-on-ink'
+                          : 'bg-moss text-on-moss'
+                        : 'bg-surface text-sub',
+                    )}
+                  >
+                    {l}
+                  </button>
+                ))}
+              </div>
             </div>
           );
         })}
