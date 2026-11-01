@@ -1,6 +1,7 @@
 import type { SpotifyStatus } from '@bln/shared';
 import { HTTPException } from 'hono/http-exception';
 import { embedTexts } from './ai/embed';
+import { callJson, providerFrom } from './ai/llm';
 import { loadIndex, nearest } from './ai/vector-index';
 import { newToken, sha256 } from './auth';
 
@@ -76,17 +77,72 @@ type ArtistObj = { name: string; genres?: string[] };
 /** Top artists (about the last six months), then followed ones; first mention wins. */
 export async function fetchArtists(access: string, f: Fetch): Promise<Artist[]> {
   const top = await api<{ items: ArtistObj[] }>('/me/top/artists?limit=50&time_range=medium_term', access, f);
+  // Best effort: Spotify keeps reshaping follow endpoints for development-mode apps (2026); top artists suffice.
   const followed: ArtistObj[] = [];
   let next: string | null = '/me/following?type=artist&limit=50';
-  for (let page = 0; next && page < 4; page++) {
-    const r: { artists: { items: ArtistObj[]; next: string | null } } = await api(next, access, f);
-    followed.push(...r.artists.items);
-    next = r.artists.next ? r.artists.next.replace(API, '') : null;
+  try {
+    for (let page = 0; next && page < 4; page++) {
+      const r: { artists: { items: ArtistObj[]; next: string | null } } = await api(next, access, f);
+      followed.push(...r.artists.items);
+      next = r.artists.next ? r.artists.next.replace(API, '') : null;
+    }
+  } catch (err) {
+    console.warn('spotify followed artists unavailable', String(err));
   }
   const seen = new Set<string>();
   return [...top.items, ...followed]
     .filter((a) => a.name?.trim() && !seen.has(a.name.toLowerCase()) && !!seen.add(a.name.toLowerCase()))
     .map((a) => ({ name: a.name.trim(), genres: (a.genres ?? []).slice(0, 5) }));
+}
+
+/**
+ * Spotify marks artist `genres` deprecated and may return them empty. When most are missing, one cheap model call
+ * names them (2-4 per artist, only for artists it knows; empty when unsure).
+ */
+export async function fillGenres(env: Env, artists: Artist[]): Promise<Artist[]> {
+  const missing = artists.filter((a) => !a.genres.length);
+  if (!artists.length || missing.length < artists.length / 2) return artists;
+  const names = missing.slice(0, 60).map((a) => a.name);
+  try {
+    const r = await callJson(env, {
+      provider: providerFrom(env.SCORE_MODEL),
+      system:
+        'You name music genres for artists. For each artist give 2-4 common genre names in lower case ' +
+        '(e.g. "shoegaze", "post-punk", "crust punk"). If you do not know an artist, give an empty list. Never guess.',
+      user: `<artists>\n${names.join('\n')}\n</artists>`,
+      schema: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          artists: {
+            type: 'array',
+            items: {
+              type: 'object',
+              additionalProperties: false,
+              properties: { name: { type: 'string' }, genres: { type: 'array', items: { type: 'string' } } },
+              required: ['name', 'genres'],
+            },
+          },
+        },
+        required: ['artists'],
+      },
+      parse: (out) => {
+        try {
+          const v = (typeof out === 'string' ? JSON.parse(out) : out) as { artists?: Artist[] };
+          return Array.isArray(v?.artists) ? v.artists : null;
+        } catch {
+          return null;
+        }
+      },
+      maxTokens: 3000,
+      metric: 'ai_score_calls',
+    });
+    const byName = new Map(r.value.map((a) => [a.name.toLowerCase(), (a.genres ?? []).slice(0, 4)]));
+    return artists.map((a) => (a.genres.length ? a : { ...a, genres: byName.get(a.name.toLowerCase()) ?? [] }));
+  } catch (err) {
+    console.warn('genre fill failed', String(err));
+    return artists;
+  }
 }
 
 /** Replaces the user's Spotify artists and makes their scores stale, so the next run ranks with them. */
@@ -111,7 +167,7 @@ export async function finishConnect(env: Env, userId: string, code: string, stat
     throw new HTTPException(400, { message: 'That Spotify sign-in expired. Try connecting again.' });
   }
   const t = await token(env, { grant_type: 'authorization_code', code, redirect_uri: redirectUri(env) }, f);
-  const artists = await fetchArtists(t.access_token, f);
+  const artists = await fillGenres(env, await fetchArtists(t.access_token, f));
   await env.DB.batch([
     env.DB.prepare(`DELETE FROM accounts WHERE user_id = ? AND provider_id = ?`).bind(userId, PROVIDER),
     env.DB.prepare(
@@ -129,7 +185,7 @@ export async function syncArtists(env: Env, userId: string, f: Fetch = fetch): P
     .first<{ id: string; refresh_token: string | null }>();
   if (!acc?.refresh_token) throw new HTTPException(409, { message: 'Spotify is not connected.' });
   const t = await token(env, { grant_type: 'refresh_token', refresh_token: acc.refresh_token }, f);
-  const artists = await fetchArtists(t.access_token, f);
+  const artists = await fillGenres(env, await fetchArtists(t.access_token, f));
   await env.DB.prepare(
     `UPDATE accounts SET refresh_token = COALESCE(?, refresh_token), updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
       WHERE id = ?`,

@@ -68,6 +68,17 @@ describe('spotify', () => {
     expect(await spotifyStatus(env.DB, uid)).toEqual({ connected: false, syncedAt: null, artists: [], genres: [] });
   });
 
+  it('still connects when followed artists are unavailable', async () => {
+    const uid = await user('Ivo');
+    const url = new URL(await connectUrl(spotifyEnv, uid));
+    const base = fakeSpotify();
+    const noFollow = (async (input: RequestInfo | URL, init?: RequestInit) =>
+      String(input).includes('/me/following')
+        ? new Response('gone', { status: 410 })
+        : base(input, init)) as typeof fetch;
+    expect(await finishConnect(spotifyEnv, uid, 'code', url.searchParams.get('state')!, noFollow)).toBe(2);
+  });
+
   it('matches by performer anywhere, and by title only for concert-type events', () => {
     const artists = new Map([['hot chip', 'Hot Chip']]);
     expect(artistMatch({ title: 'Live!', category: 'theatre', acts: 'Hot Chip|Other' }, artists)).toBe('Hot Chip');
