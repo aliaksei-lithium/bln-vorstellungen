@@ -96,6 +96,7 @@ const listItem = (r: Record<string, unknown>): EventListItem => ({
   isFree: Boolean(r.is_free),
   next: { startLocal: String(r.next_start_local), startUtc: String(r.next_start_utc) },
   moreDates: Math.max(0, Number(r.upcoming_count) - 1),
+  ...(r.lang === 'de' || r.lang === 'en' ? { lang: r.lang } : {}),
 });
 
 const reasonsOf = (raw: unknown) =>
@@ -119,8 +120,8 @@ meApi.get('/inbox', async (c) => {
   const [items, counts] = await db.batch<Record<string, unknown>>([
     db
       .prepare(
-        `SELECT e.slug, e.title, e.category, e.price_min, e.price_max, e.is_free, e.next_start_utc, e.next_start_local,
-                e.upcoming_count, v.name AS venue_name, v.district, s.score, s.reasons
+        `SELECT e.slug, e.title, e.lang, e.category, e.price_min, e.price_max, e.is_free, e.next_start_utc,
+                e.next_start_local, e.upcoming_count, v.name AS venue_name, v.district, s.score, s.reasons
            FROM user_event_scores s
            JOIN events e ON e.id = s.event_id
            LEFT JOIN venues v ON v.id = e.venue_id

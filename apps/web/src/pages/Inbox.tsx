@@ -373,7 +373,7 @@ function Deck({ item, onAct, onOpen }: { item: ScoredItem; onAct: (s: UserState)
         >
           Skip
         </span>
-        <div className="grid gap-3.5 p-4">
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-3.5 p-4">
           <WhyThis score={item.score} reasons={item.reasons} />
           <div className="flex items-start gap-3">
             <div
@@ -381,7 +381,10 @@ function Deck({ item, onAct, onOpen }: { item: ScoredItem; onAct: (s: UserState)
               style={{ ['--hatch-angle' as string]: hatchAngle(item.slug) }}
             />
             <div className="grid min-w-0 gap-2">
-              <h2 className="m-0 text-[26px] leading-[1.12] font-extrabold tracking-tight text-balance">
+              <h2
+                lang={item.lang}
+                className="m-0 text-[26px] leading-[1.12] font-extrabold tracking-tight text-balance hyphens-auto [overflow-wrap:anywhere]"
+              >
                 {item.title}
               </h2>
               <div>
