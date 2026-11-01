@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Link, Outlet, useRouterState } from '@tanstack/react-router';
 import { CalendarDays, Camera, Inbox, List, User } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from './ui/sheet';
+import { ScanSheet } from './ScanSheet';
 import { Tower } from './Tower';
 import { api } from '@/lib/api';
 import { useMe } from '@/lib/auth';
@@ -81,7 +81,7 @@ function NavLink({ to, label, Icon, active, badge }: (typeof NAV)[number] & { ac
 export function AppShell() {
   const path = useRouterState({ select: (s) => s.location.pathname });
   const [scanOpen, setScanOpen] = useState(false);
-  const pushed = path.startsWith('/e/');
+  const pushed = path.startsWith('/e/') || path.startsWith('/scan/');
   const isActive = (to: string) => (to === '/' ? path === '/' : path.startsWith(to));
   const { user } = useMe();
   const inbox = useQuery({ queryKey: ['inbox', 'all'], queryFn: () => api.inbox('all'), enabled: !!user });
@@ -123,20 +123,7 @@ export function AppShell() {
         </nav>
       )}
       <Toaster aboveNav={!pushed} />
-      <Sheet open={scanOpen} onOpenChange={setScanOpen}>
-        <SheetContent side="bottom" className="mx-auto max-w-[600px] border-x border-ink">
-          <SheetHeader>
-            <SheetTitle>Add an event</SheetTitle>
-            <SheetDescription className="text-[15px] leading-5">
-              Photograph a poster, upload a screenshot or paste text, and AI reads the date, venue and price. You review
-              everything before it is added.
-            </SheetDescription>
-          </SheetHeader>
-          <div className="mx-4 mb-6 border border-moss bg-moss-soft p-3 text-sm">
-            Reading photos is the next step on the roadmap. Until then, events come from the venues' own programmes.
-          </div>
-        </SheetContent>
-      </Sheet>
+      <ScanSheet open={scanOpen} onOpenChange={setScanOpen} />
     </>
   );
 }
