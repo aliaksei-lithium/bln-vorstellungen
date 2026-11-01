@@ -10,8 +10,8 @@ poster, a pasted text), **normalized** into one event model, **enriched** with d
 **scored** against each user's taste profile. A public, non-personalized view lists everything; signed-in users
 get a ranked "for you" feed. An MCP server exposes the same data to Claude and other agents.
 
-> Status: **phase 1 + AI from phase 3/5** (iCal, JSON-LD and LLM-read programme pages; "more like this" and
-> search by meaning on Workers AI embeddings). Live: https://bln-vorstellungen.aliaksei-zhynhiarouski.workers.dev · Mockup:
+> Status: **phase 2** (invite-only accounts with login links, taste profile, AI-ranked inbox, agenda with calendar
+> feed) on top of phase 1 sources and AI-read programme pages. Live: https://bln-vorstellungen.aliaksei-zhynhiarouski.workers.dev · Mockup:
 > https://bln-vorstellungen-mockup.aliaksei-zhynhiarouski.workers.dev
 
 ## Development
@@ -45,6 +45,19 @@ curl -X POST -H "authorization: Bearer $ADMIN_TOKEN" https://…/api/admin/sourc
 
 Adapter types so far: `ical`, `jsonld` (mapped directly), `html` (page → Markdown → Workers AI extraction) and
 `rss` (entries go through the same extraction).
+
+### Users (invite-only)
+
+The site is public; personal features are for users the owner creates. No sign-up, no passwords:
+
+```bash
+curl -X POST -H "authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
+  -d '{"name":"Ada","email":"ada@example.org"}' https://…/api/admin/users        # creates the user + login link
+curl -X POST -H "authorization: Bearer $ADMIN_TOKEN" https://…/api/admin/users/ada@example.org/login-link
+```
+
+Send the `loginLink.url` to the person. It works once, for 7 days, and signs them in for 180 days. Signed-in users
+can create a link for their other devices on the Me page. Add `"owner": true` for an owner (admin API access).
 
 ### AI
 
