@@ -7,6 +7,11 @@ import type { Category, Lang } from './schemas';
 
 /** Checked in order: the first category with a keyword hit wins, so specific ones come before broad ones. */
 const CATEGORY_KEYWORDS: [Category, RegExp][] = [
+  // Before club: these are parties too, but opt-in.
+  [
+    'kink',
+    /\b(kink\w*|fetish|fetisch\w*|bdsm|sex[- ]?positiv\w*|play ?part(y|ies)|darkroom|latex|bondage|shibari|swinger\w*|tantra party)\b/i,
+  ],
   ['opera', /\b(oper|opera|operette|operetta)\b/i],
   ['dance', /\b(tanz|dance|ballett?|choreogra\w*)\b/i],
   ['cinema', /\b(film|kino|cinema|screening|filmvorführung|movie)\b/i],

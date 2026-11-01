@@ -139,6 +139,13 @@ Format: date · decision · why · alternatives rejected. Newer entries supersed
   Clients register by Client ID Metadata Document or by DCR. Scopes: `mcp:read` (lists, search, agenda) and
   `mcp:write` (triage, taste). Static API keys are deferred: Claude.ai and Claude Code both do OAuth. Tools call
   `src/services/*`, the same functions as the REST API.
+- **2026-11-01 · Opt-in category for sex-positive and kink parties.** New category `kink` ("Sex-positive & kink"),
+  off by default for everyone: left out of public lists, search (keyword and meaning), "more like this" and MCP
+  results, and scored 0 in the inbox, unless a signed-in user turns it on in Me (`prefs.categoriesOn`). A separate
+  opt-in list rather than a default in `categoriesOff`, so users who saved prefs before stay opted out. Public list
+  responses stay user-independent and cacheable: an explicit `category=kink` request returns them, and the web app
+  only offers that filter to users who opted in. Event pages stay reachable by link. Classified by keywords
+  (fetish, BDSM, sex-positive, play party…) before `club`, and by the extraction prompt (extract@6).
 - **2026-10-02 · React + Vite + TanStack + Tailwind + shadcn/ui.** Best coverage by design tools and implementing
   models. Rejected: SvelteKit (good, but weaker design-tool output), Next.js on Workers via OpenNext (heavier than
   needed; no SSR requirement since public pages can be cached JSON + client render; revisit if SEO matters).

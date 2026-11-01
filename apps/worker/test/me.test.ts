@@ -204,6 +204,7 @@ describe('scoring', () => {
         ['sc_club', 'club', null, [1, 0.2]],
         ['sc_pricey', 'opera', 120, [1, 0.2]],
         ['sc_far', 'talk', null, [0, 1]],
+        ['sc_kink', 'kink', null, [1, 0.2]],
       ].flatMap(([id, cat, price, xs], i) => [
         env.DB.prepare(
           `INSERT INTO events (id, slug, title, lang, category, price_min, dedup_key, created_by) VALUES (?, ?, ?, 'en', ?, ?, ?, 't')`,
@@ -233,9 +234,11 @@ describe('scoring', () => {
       ['sc_club', 0],
       ['sc_dance', 60],
       ['sc_far', 0],
+      ['sc_kink', 0],
       ['sc_pricey', 0],
     ]);
     expect(JSON.parse(rows.results[0]!.reasons)[0].text).toBe('You turned off Club');
+    expect(JSON.parse(rows.results[3]!.reasons)[0].text).toBe('Sex-positive & kink is off until you turn it on');
     expect(rows.results.every((x) => x.profile_version === 3)).toBe(true);
     expect((await scoreByRules(env, u.user.id)).scored).toBe(0);
 
@@ -278,5 +281,29 @@ describe('scoring', () => {
         2,
       ),
     ).toHaveLength(1);
+  });
+
+  it('keeps opt-in categories out of public lists and scores them only for users who switched them on', async () => {
+    // Runs after the test above, which created sc_kink with an embedding.
+    const all = (await (await exports.default.fetch(`${BASE}/api/events`)).json()) as { items: { slug: string }[] };
+    expect(all.items.map((e) => e.slug)).not.toContain('sc_kink');
+    const asked = (await (await exports.default.fetch(`${BASE}/api/events?category=kink`)).json()) as {
+      items: { slug: string }[];
+    };
+    expect(asked.items.map((e) => e.slug)).toEqual(['sc_kink']);
+    const similar = (await (await exports.default.fetch(`${BASE}/api/events/sc_dance/similar`)).json()) as {
+      items: { slug: string }[];
+    };
+    expect(similar.items.map((e) => e.slug)).not.toContain('sc_kink');
+
+    const u = await createUser('Dee', 'dee@example.org');
+    await env.DB.prepare(
+      `UPDATE user_profiles SET taste_text = 'play parties', prefs = ?, profile_embedding = ?, profile_version = 2
+        WHERE user_id = ?`,
+    )
+      .bind(JSON.stringify({ categoriesOn: ['kink'] }), vec([1, 0]).buffer, u.user.id)
+      .run();
+    const r = await scoreByRules(env, u.user.id);
+    expect(r.candidates).toContain('sc_kink');
   });
 });

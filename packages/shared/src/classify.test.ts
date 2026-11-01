@@ -6,6 +6,9 @@ describe('guessCategory', () => {
   it.each([
     ['Die Zauberflöte – Oper in zwei Aufzügen', 'opera'],
     ['Halloween Party with DJs', 'club'],
+    ['Sex-positive Play Party', 'kink'],
+    ['Fetisch-Nacht: Techno & Latex', 'kink'],
+    ['Kinky Rave with DJs', 'kink'],
     ['Lesung: Neue Berliner Stimmen', 'talk'],
     ['Late Jazz Session', 'concert'],
     ['Vernissage: Fotografie der 20er Jahre', 'exhibition'],
