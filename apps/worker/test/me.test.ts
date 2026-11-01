@@ -269,7 +269,18 @@ describe('scoring', () => {
     )
       .bind(u.user.id)
       .first();
-    expect(dance).toEqual({ score: 88, model: MODELS.extract.id, prompt_version: 'score@1' });
+    expect(dance).toEqual({ score: 88, model: MODELS.extract.id, prompt_version: 'score@2' });
+
+    // A score from an older scoring prompt is stale: the next run picks the event up again.
+    expect((await scoreByRules(env, u.user.id)).scored).toBe(0);
+    await env.DB.prepare(
+      `UPDATE user_event_scores SET prompt_version = 'score@1' WHERE user_id = ? AND event_id = 'sc_dance'`,
+    )
+      .bind(u.user.id)
+      .run();
+    const again = await scoreByRules(env, u.user.id);
+    expect(again.scored).toBe(1);
+    expect(again.candidates).toEqual(['sc_dance']);
   });
 
   it('rejects replies that skip most events', () => {

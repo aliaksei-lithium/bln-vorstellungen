@@ -159,6 +159,11 @@ Format: date · decision · why · alternatives rejected. Newer entries supersed
   photos from 2026-11-01 (magazine kink calendar, two concert listing pages, a promoter list into 2027, a poster):
   8/8, 42/42, 56/56 and 12/12 events read, the past poster explained as "no upcoming dates", about $0.003 a photo.
   One wrong performer (copied from the next entry) is why the review page edits performers too.
+- **2026-11-01 · Price is neutral in ranking unless the user set a limit (score@2).** An empty "At most … €" meant no
+  limit for the rules, but the scoring model still saw prices and rewarded free events on its own ("Free small art
+  exhibition…"). The prompt now says price counts only against a stated limit. Scores keep their prompt version;
+  a score from an older prompt counts as stale, and the cron re-scores everyone once per new prompt version (KV
+  flag `rescored:<version>`).
 - **2026-10-02 · React + Vite + TanStack + Tailwind + shadcn/ui.** Best coverage by design tools and implementing
   models. Rejected: SvelteKit (good, but weaker design-tool output), Next.js on Workers via OpenNext (heavier than
   needed; no SSR requirement since public pages can be cached JSON + client render; revisit if SEO matters).
