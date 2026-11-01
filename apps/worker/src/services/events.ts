@@ -79,6 +79,17 @@ export async function listEvents(
     filters.push('v.district = ?');
     filterArgs.push(q.district);
   }
+  if (q.via) {
+    // Provenance: every event keeps the raw items it was read from (event_sources).
+    filters.push(
+      q.via === 'scans'
+        ? `e.id IN (SELECT es.event_id FROM event_sources es JOIN raw_items r ON r.id = es.raw_item_id
+                     WHERE r.source_id IS NULL)`
+        : `e.id IN (SELECT es.event_id FROM event_sources es JOIN raw_items r ON r.id = es.raw_item_id
+                     JOIN sources so ON so.id = r.source_id WHERE so.type = ?)`,
+    );
+    if (q.via !== 'scans') filterArgs.push(q.via);
+  }
   if (q.q) {
     filters.push('e.id IN (SELECT event_id FROM events_fts WHERE events_fts MATCH ?)');
     filterArgs.push(ftsQuery(q.q));

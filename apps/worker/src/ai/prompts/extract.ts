@@ -4,7 +4,7 @@ import { Category } from '@bln/shared';
  * Extraction prompt (docs/05). Bump `version` on any change: event_sources rows carry it, so items extracted
  * with an older prompt can be found and re-run.
  */
-export const version = 'extract@6';
+export const version = 'extract@7';
 
 /**
  * What the model returns. Kept flatter and more forgiving than ExtractedEvent; extract.ts maps and validates.
@@ -107,6 +107,8 @@ Rules:
 - Dates: absolute "YYYY-MM-DDTHH:mm". When the year is missing, use the next such date on or after today.
   Read German forms like "Fr 13.11. 19:30", "13. November, 20 Uhr", "Beginn 19 Uhr / Einlass 18 Uhr".
   If only a day is given, use 00:00 and lower the confidence.
+- Several posts in one text ("--- Post 12, published 2026-11-02 ---"): read relative dates such as "tomorrow",
+  "this Friday" or "heute" from that post's published date. Skip posts that announce no dated event.
 - One production with several dates is ONE event with all its dates, never one event per date.
 - Keep titles, descriptions and names in their original language. Do not translate. Do not invent facts:
   leave a field empty (or -1 for prices) when the text does not say it.

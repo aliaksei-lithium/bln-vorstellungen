@@ -250,6 +250,8 @@ export const EventsQuery = z.object({
   category: Category.optional(),
   district: z.string().optional(),
   q: z.string().max(100).optional(),
+  /** Only events that came this way: from Telegram channels, or added by people from photos and text. */
+  via: z.enum(['telegram', 'scans']).optional(),
   /** Opaque, from the previous page's `nextCursor`. */
   cursor: z.string().max(100).optional(),
 });
