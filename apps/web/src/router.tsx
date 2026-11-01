@@ -1,7 +1,7 @@
 import { createRootRoute, createRoute, createRouter } from '@tanstack/react-router';
 import { AppShell } from '@/components/AppShell';
 import { EmptyState } from '@/components/States';
-import { BrowsePage } from '@/pages/Browse';
+import { BrowsePage, BrowseSearch } from '@/pages/Browse';
 import { EventPage } from '@/pages/EventPage';
 import { AgendaPage } from '@/pages/Agenda';
 import { InboxPage } from '@/pages/Inbox';
@@ -15,7 +15,12 @@ const rootRoute = createRootRoute({
 });
 
 const routes = [
-  createRoute({ getParentRoute: () => rootRoute, path: '/', component: BrowsePage }),
+  createRoute({
+    getParentRoute: () => rootRoute,
+    path: '/',
+    component: BrowsePage,
+    validateSearch: (s: Record<string, unknown>) => BrowseSearch.parse(s),
+  }),
   createRoute({
     getParentRoute: () => rootRoute,
     path: '/e/$slug',
