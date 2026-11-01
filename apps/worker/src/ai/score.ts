@@ -1,4 +1,4 @@
-import { CATEGORY_LABELS, Prefs, formatPrice, type Category, type Reason } from '@bln/shared';
+import { CATEGORY_LABELS, Prefs, formatPrice, hiddenCategories, type Category, type Reason } from '@bln/shared';
 import { cosine, embedTexts, EMBED_MODEL_TAG } from './embed';
 import { callJson, providerFrom } from './llm';
 import * as prompt from './prompts/score';
@@ -94,7 +94,16 @@ export async function scoreByRules(
 
   const rows: { id: string; score: number; reasons: Reason[] }[] = [];
   const llm: { id: string; base: number }[] = [];
+  const optedOut = hiddenCategories(profile.prefs);
   for (const e of results) {
+    if (optedOut.includes(e.category)) {
+      rows.push({
+        id: e.id,
+        score: 0,
+        reasons: [{ kind: 'rule', text: `${CATEGORY_LABELS[e.category]} is off until you turn it on` }],
+      });
+      continue;
+    }
     if (profile.prefs.categoriesOff.includes(e.category)) {
       rows.push({
         id: e.id,

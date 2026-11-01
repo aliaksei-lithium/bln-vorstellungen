@@ -1,4 +1,4 @@
-import { CATEGORY_LABELS, Category, TASTE_MAX, type Prefs } from '@bln/shared';
+import { CATEGORY_LABELS, Category, OPT_IN_CATEGORIES, TASTE_MAX, type Prefs } from '@bln/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { LogOut, Plus, Smartphone } from 'lucide-react';
@@ -74,7 +74,7 @@ function TasteForm() {
   const qc = useQueryClient();
   const profile = useQuery({ queryKey: ['profile'], queryFn: api.profile });
   const [taste, setTaste] = useState('');
-  const [prefs, setPrefs] = useState<Prefs>({ categoriesOff: [], maxPrice: null });
+  const [prefs, setPrefs] = useState<Prefs>({ categoriesOff: [], maxPrice: null, categoriesOn: [] });
   const [dirty, setDirty] = useState(false);
 
   useEffect(() => {
@@ -96,12 +96,17 @@ function TasteForm() {
     fn();
     setDirty(true);
   };
+  const flip = (list: Category[], c: Category) => (list.includes(c) ? list.filter((x) => x !== c) : [...list, c]);
+  // Opt-in categories are off until switched on; every other one is on until switched off.
+  const isOn = (c: Category) =>
+    OPT_IN_CATEGORIES.includes(c) ? prefs.categoriesOn.includes(c) : !prefs.categoriesOff.includes(c);
   const toggleCat = (c: Category) =>
     edit(() =>
-      setPrefs((p) => ({
-        ...p,
-        categoriesOff: p.categoriesOff.includes(c) ? p.categoriesOff.filter((x) => x !== c) : [...p.categoriesOff, c],
-      })),
+      setPrefs((p) =>
+        OPT_IN_CATEGORIES.includes(c)
+          ? { ...p, categoriesOn: flip(p.categoriesOn, c) }
+          : { ...p, categoriesOff: flip(p.categoriesOff, c) },
+      ),
     );
 
   return (
@@ -143,8 +148,8 @@ function TasteForm() {
       </Box>
 
       <Box title="Categories">
-        {Category.options.map((c) => {
-          const on = !prefs.categoriesOff.includes(c);
+        {[...Category.options.filter((c) => !OPT_IN_CATEGORIES.includes(c)), ...OPT_IN_CATEGORIES].map((c) => {
+          const on = isOn(c);
           return (
             <div
               key={c}
@@ -152,7 +157,12 @@ function TasteForm() {
             >
               <span className="flex items-center gap-2.5">
                 <CategoryDot category={c} className="size-2.5" />
-                {CATEGORY_LABELS[c]}
+                <span>
+                  {CATEGORY_LABELS[c]}
+                  {OPT_IN_CATEGORIES.includes(c) && (
+                    <span className="block text-xs text-sub">Hidden unless you turn it on. 18+.</span>
+                  )}
+                </span>
               </span>
               <button
                 type="button"

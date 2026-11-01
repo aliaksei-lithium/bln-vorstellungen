@@ -7,6 +7,9 @@ import {
   McpSetTaste,
   berlinLocalToUtc,
   berlinToday,
+  hiddenCategories,
+  CATEGORY_LABELS,
+  type Category,
   type EventListItem,
 } from '@bln/shared';
 import { McpServer } from '@modelcontextprotocol/server';
@@ -60,6 +63,10 @@ export function buildServer(
     },
   );
   const readOnly = { readOnlyHint: true, openWorldHint: false } as const;
+  // Opt-in categories (sex-positive and kink) stay out of every result unless this user switched them on.
+  const hiddenFor = async () => hiddenCategories((await loadProfile(env.DB, userId)).prefs);
+  const switchedOff = (c: Category) =>
+    text(`${CATEGORY_LABELS[c]} events are off for this user. They can turn them on at ${origin}/me.`);
 
   server.registerTool(
     'my_picks',
@@ -106,9 +113,11 @@ export function buildServer(
     },
     (a) =>
       run(async () => {
+        const hidden = await hiddenFor();
+        if (a.category && hidden.includes(a.category)) return switchedOff(a.category);
         const from = a.from ?? berlinToday();
         const to = a.to ?? plusDays(from, 14);
-        const res = await listEvents(env.DB, { from, to, category: a.category, q: a.query }, a.limit);
+        const res = await listEvents(env.DB, { from, to, category: a.category, q: a.query }, a.limit, hidden);
         const scores = await scoresBySlug(
           env.DB,
           userId,
@@ -132,9 +141,10 @@ export function buildServer(
     },
     (a) =>
       run(async () => {
+        const hidden = await hiddenFor();
         const [byMeaning, byWords] = await Promise.all([
-          searchByMeaning(env, a.query, a.limit),
-          listEvents(env.DB, { q: a.query }, a.limit),
+          searchByMeaning(env, a.query, a.limit, hidden),
+          listEvents(env.DB, { q: a.query }, a.limit, hidden),
         ]);
         // Keyword hits first (exact title or name), then the closest by meaning.
         const seen = new Set<string>();
@@ -199,6 +209,7 @@ export function buildServer(
         const p = await loadProfile(env.DB, userId);
         const filters = [
           p.prefs.categoriesOff.length ? `Never shows: ${p.prefs.categoriesOff.join(', ')}` : '',
+          p.prefs.categoriesOn.length ? `Opted in to: ${p.prefs.categoriesOn.join(', ')}` : '',
           p.prefs.maxPrice != null ? `Max price: ${p.prefs.maxPrice} €` : '',
         ].filter(Boolean);
         return text([p.tasteText ? `Taste:\n${p.tasteText}` : 'No taste description yet.', ...filters].join('\n\n'));

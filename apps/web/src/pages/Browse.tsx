@@ -1,4 +1,13 @@
-import { CATEGORY_LABELS, Category, DISTRICTS, berlinToday, formatDay, type EventListItem } from '@bln/shared';
+import {
+  CATEGORY_LABELS,
+  Category,
+  DISTRICTS,
+  berlinToday,
+  formatDay,
+  hiddenCategories,
+  type EventListItem,
+  type Prefs,
+} from '@bln/shared';
 import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { Check, Search, SlidersHorizontal, X } from 'lucide-react';
 import { useDeferredValue, useMemo, useState } from 'react';
@@ -9,9 +18,14 @@ import { EmptyState, ErrorState, ListSkeleton } from '@/components/States';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetFooter, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { api } from '@/lib/api';
+import { useMe } from '@/lib/auth';
 import { WHEN_LABELS, relativeDay, whenRange, type When } from '@/lib/dates';
 
-const LIST_CATEGORIES = Category.options.filter((c) => c !== 'other');
+/** Filter chips: every category but `other`; opt-in ones only for users who switched them on. */
+const listCategories = (prefs?: Prefs) => {
+  const hidden = hiddenCategories(prefs);
+  return Category.options.filter((c) => c !== 'other' && !hidden.includes(c));
+};
 
 type Filters = { when: When; category?: Category; district?: string };
 
@@ -208,6 +222,10 @@ function FilterSheet({
   count: { n: number; more: boolean } | undefined;
 }) {
   const label = 'mb-2.5 mt-5 text-xs font-extrabold tracking-[.1em] text-sub uppercase';
+  // Opt-in categories appear as a filter only for signed-in users who switched them on.
+  const { user } = useMe();
+  const profile = useQuery({ queryKey: ['profile'], queryFn: api.profile, enabled: !!user && open });
+  const categories = listCategories(profile.data?.prefs);
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="bottom" className="mx-auto max-h-[88vh] max-w-[600px] overflow-y-auto border-x border-ink">
@@ -225,7 +243,7 @@ function FilterSheet({
           </div>
           <div className={label}>Category</div>
           <div className="flex flex-wrap gap-2">
-            {LIST_CATEGORIES.map((c) => (
+            {categories.map((c) => (
               <Chip
                 key={c}
                 pressed={filters.category === c}

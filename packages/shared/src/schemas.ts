@@ -2,9 +2,11 @@ import { z } from 'zod';
 
 /** Single source of truth for event shapes, API payloads and MCP tool inputs. See docs/03 and docs/04. */
 
+/** `kink` is opt-in: see OPT_IN_CATEGORIES. */
 export const Category = z.enum([
   'concert',
   'club',
+  'kink',
   'theatre',
   'opera',
   'dance',
@@ -270,6 +272,8 @@ export const Prefs = z.object({
   categoriesOff: z.array(Category).default([]),
   /** Events whose lowest price is above this are filtered out. Null = no limit. */
   maxPrice: z.number().int().min(0).max(1000).nullable().default(null),
+  /** Opt-in categories (OPT_IN_CATEGORIES) the user switched on; all others in that list stay hidden. */
+  categoriesOn: z.array(Category).default([]),
 });
 export type Prefs = z.infer<typeof Prefs>;
 

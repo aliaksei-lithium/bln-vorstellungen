@@ -1,5 +1,7 @@
 import {
   EventDetail,
+  OPT_IN_CATEGORIES,
+  type Category,
   berlinLocalToUtc,
   berlinToday,
   type EventListItem,
@@ -52,6 +54,7 @@ export async function listEvents(
   db: D1Database,
   q: EventsQuery,
   pageSize = PAGE_SIZE,
+  hidden: readonly Category[] = OPT_IN_CATEGORIES,
 ): Promise<EventsResponse & { rowsRead: number }> {
   const today = berlinToday();
   const from = q.from ?? today;
@@ -65,8 +68,12 @@ export async function listEvents(
   const filters: string[] = [];
   const filterArgs: unknown[] = [];
   if (q.category) {
+    // Asking for a category by name shows it, opt-in or not; the UI only offers those the user switched on.
     filters.push('e.category = ?');
     filterArgs.push(q.category);
+  } else if (hidden.length) {
+    filters.push(`e.category NOT IN (${hidden.map(() => '?').join(',')})`);
+    filterArgs.push(...hidden);
   }
   if (q.district) {
     filters.push('v.district = ?');
@@ -149,8 +156,12 @@ function parseCursor(raw: string | undefined, mode: 'e' | 'o'): { utc: string; r
   return { utc, rowid };
 }
 
-/** List rows for given event ids, in the given order (for ranked results). */
-export async function listItemsByIds(db: D1Database, ids: string[]): Promise<EventListItem[]> {
+/** List rows for given event ids, in the given order (for ranked results), leaving out hidden categories. */
+export async function listItemsByIds(
+  db: D1Database,
+  ids: string[],
+  hidden: readonly Category[] = OPT_IN_CATEGORIES,
+): Promise<EventListItem[]> {
   if (!ids.length) return [];
   const { results } = await db
     .prepare(
@@ -158,9 +169,10 @@ export async function listItemsByIds(db: D1Database, ids: string[]): Promise<Eve
               e.next_start_utc AS next_utc, e.next_start_local AS next_local,
               MAX(e.upcoming_count - 1, 0) AS more_dates, v.name AS venue_name, v.district
          FROM events e LEFT JOIN venues v ON v.id = e.venue_id
-        WHERE e.id IN (${ids.map(() => '?').join(',')}) AND e.status = 'published' AND e.next_start_utc IS NOT NULL`,
+        WHERE e.id IN (${ids.map(() => '?').join(',')}) AND e.status = 'published' AND e.next_start_utc IS NOT NULL
+          AND e.category NOT IN (${['', ...hidden].map(() => '?').join(',')})`,
     )
-    .bind(...ids)
+    .bind(...ids, '', ...hidden)
     .all<Record<string, unknown>>();
   const byId = new Map(results.map((r) => [String(r.id), r]));
   return ids.flatMap((id) => {
@@ -170,7 +182,12 @@ export async function listItemsByIds(db: D1Database, ids: string[]): Promise<Eve
 }
 
 /** Search by meaning: embeds the query and ranks upcoming events by cosine. Complements keyword search (FTS). */
-export async function searchByMeaning(env: Env, text: string, limit = 20): Promise<EventListItem[]> {
+export async function searchByMeaning(
+  env: Env,
+  text: string,
+  limit = 20,
+  hidden: readonly Category[] = OPT_IN_CATEGORIES,
+): Promise<EventListItem[]> {
   const index = await loadIndex(env.CACHE);
   // A query costs ~0.01 neurons; the check only matters if someone hammers the endpoint.
   if (!index?.ids.length || (await neuronsLeft(env.DB)) <= 50) return [];
@@ -179,12 +196,18 @@ export async function searchByMeaning(env: Env, text: string, limit = 20): Promi
   return listItemsByIds(
     env.DB,
     hits.map((h) => h.id),
+    hidden,
   );
 }
 
-/** Events close in meaning to this one ("More like this"). Reads one KV value and at most 6 event rows. */
+/**
+ * Events close in meaning to this one ("More like this"). Reads one KV value and at most 6 event rows. Opt-in
+ * categories show up only next to an event of the same category.
+ */
 export async function similarEvents(env: Env, slug: string): Promise<EventListItem[]> {
-  const ev = await env.DB.prepare('SELECT id FROM events WHERE slug = ?').bind(slug).first<{ id: string }>();
+  const ev = await env.DB.prepare('SELECT id, category FROM events WHERE slug = ?')
+    .bind(slug)
+    .first<{ id: string; category: Category }>();
   if (!ev) throw new HTTPException(404, { message: 'Event not found' });
   const index = await loadIndex(env.CACHE);
   const vec = index && vectorOf(index, ev.id);
@@ -192,6 +215,7 @@ export async function similarEvents(env: Env, slug: string): Promise<EventListIt
   return listItemsByIds(
     env.DB,
     hits.map((h) => h.id),
+    OPT_IN_CATEGORIES.filter((c) => c !== ev.category),
   );
 }
 
