@@ -1,21 +1,9 @@
-import { hasTime, type AgendaItem, type Category } from '@bln/shared';
+import { hasTime, typicalMinutes, type AgendaItem } from '@bln/shared';
 
 /**
  * iCalendar export of an agenda (RFC 5545). Times are Berlin wall-clock with TZID, so calendar apps keep 20:00 at
  * 20:00 across the DST switch; a VTIMEZONE block is included for apps that do not know IANA names.
  */
-
-/** Typical length when a source gives no end time, in minutes. */
-const DURATION: Partial<Record<Category, number>> = {
-  club: 300,
-  opera: 180,
-  theatre: 150,
-  concert: 150,
-  dance: 120,
-  cinema: 130,
-  talk: 90,
-  exhibition: 90,
-};
 
 const VTIMEZONE = [
   'BEGIN:VTIMEZONE',
@@ -65,7 +53,7 @@ function addMinutes(local: string, minutes: number): string {
 export function agendaIcs(items: AgendaItem[], origin: string, name: string, now = new Date()): string {
   const dtstamp = `${now.toISOString().replace(/[-:]/g, '').slice(0, 15)}Z`;
   const events = items.flatMap((it) => {
-    const end = it.endLocal ?? addMinutes(it.startLocal, DURATION[it.category] ?? 120);
+    const end = it.endLocal ?? addMinutes(it.startLocal, typicalMinutes(it.category));
     // No time from the source: an all-day entry instead of a fake midnight start.
     const when = hasTime(it.startLocal, it.category)
       ? [`DTSTART;TZID=Europe/Berlin:${stamp(it.startLocal)}`, `DTEND;TZID=Europe/Berlin:${stamp(end)}`]
