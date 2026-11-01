@@ -50,6 +50,8 @@
     // Anthropic key stored on the `default` AI Gateway (Provider Keys, alias "default"); without it, it falls back.
     // Claude since 2026-11-01: 3.6x faster and keeps per-date notes (room, premiere) at ~$0.003 per chunk.
     "EXTRACT_MODEL": "anthropic/claude-haiku-5.5",
+    // Model for the per-user scoring stage (same choices as EXTRACT_MODEL).
+    "SCORE_MODEL": "anthropic/claude-haiku-5.5",
     "CLAUDE_DAILY_USD": "0.5",
   },
 }
