@@ -87,11 +87,32 @@ meApi.put('/password', async (c) => {
   return c.json({ set: true } satisfies PasswordStatus);
 });
 
+/**
+ * The page behind a source for people (not the feed): an explicit `link`, the Telegram channel, or the configured
+ * URL without feed parameters (?ical=1). Only http(s) links come out.
+ */
+export function sourceLink(type: string, config: string): string | null {
+  let c: { link?: string; url?: string; channel?: string };
+  try {
+    c = JSON.parse(config);
+  } catch {
+    return null;
+  }
+  if (c.link) return /^https?:\/\//.test(c.link) ? c.link : null;
+  if (type === 'telegram' && c.channel) return `https://t.me/${c.channel}`;
+  if (!c.url || !/^https?:\/\//.test(c.url)) return null;
+  if (type !== 'ical' && type !== 'rss') return c.url;
+  const u = new URL(c.url);
+  u.search = '';
+  u.hash = '';
+  return u.toString();
+}
+
 /** Where events come from and when each source is checked next; enabled ones first, busiest first. */
 meApi.get('/sources', async (c) => {
   requireUser(c);
   const { results } = await c.env.DB.prepare(
-    `SELECT s.id, s.name, s.type, s.enabled, s.schedule_minutes, s.last_run_at, s.last_status, s.next_run_at,
+    `SELECT s.id, s.name, s.type, s.config, s.enabled, s.schedule_minutes, s.last_run_at, s.last_status, s.next_run_at,
             (SELECT COUNT(DISTINCT es.event_id) FROM raw_items r
                JOIN event_sources es ON es.raw_item_id = r.id
                JOIN events e ON e.id = es.event_id
@@ -105,6 +126,7 @@ meApi.get('/sources', async (c) => {
     sources: results.map((r) => ({
       id: String(r.id),
       name: String(r.name),
+      link: sourceLink(String(r.type), String(r.config)),
       type: String(r.type),
       enabled: Boolean(r.enabled),
       everyMinutes: Number(r.schedule_minutes),

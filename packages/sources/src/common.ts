@@ -16,6 +16,8 @@ export const VenueOverride = z.object({ name: z.string().min(1), address: z.stri
 
 export const baseConfig = {
   url: z.url(),
+  /** The page people should visit, when `url` is a feed or an API (Luma's feed → https://lu.ma/berlin). */
+  link: z.url().optional(),
   /** Single-venue sources: every event happens here; the feed's own location becomes the occurrence note (a room). */
   venue: VenueOverride.optional(),
   /** Fallback when the item itself gives no usable category. */

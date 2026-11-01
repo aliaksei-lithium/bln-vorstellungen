@@ -182,6 +182,8 @@ export type UsageOverview = z.infer<typeof UsageOverview>;
 export const SourceSummary = z.object({
   id: z.string(),
   name: z.string(),
+  /** Where to see the source itself: the venue's site, the channel, the calendar page. */
+  link: z.string().nullable(),
   type: z.string(),
   enabled: z.boolean(),
   everyMinutes: z.number(),
