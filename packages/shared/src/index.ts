@@ -4,3 +4,5 @@ export * from './dedup';
 export * from './categories';
 export * from './text';
 export * from './classify';
+export * from './agenda';
+export * from './mcp';

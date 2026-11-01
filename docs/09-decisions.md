@@ -129,6 +129,16 @@ Format: date · decision · why · alternatives rejected. Newer entries supersed
 - **2026-11-01 · 00:00 means "no time known".** Date-only sources store midnight. The UI shows only the day for
   those, Agenda skips them in clash checks, and the calendar feed writes all-day entries. Clubs are the exception:
   a club night can really start at 00:00. `hasTime()` in `packages/shared` is the one place this rule lives.
+- **2026-11-01 · MCP: stateless handler + OAuth in the same Worker; supersedes the MCP parts of "better-auth for
+  web and MCP auth" and of docs/06 "Transport".** `createMcpHandler` (Agents SDK, MCP SDK v2) instead of `McpAgent`,
+  which is now deprecated and feature-frozen; no Durable Object is needed, so the `McpAgent` class is deleted.
+  Authorization is `@cloudflare/workers-oauth-provider` (`OAuthAuthorizationServer` + `OAuthResourceServer`, both in
+  this Worker, issuer = the site's origin, resource = `<origin>/mcp`). Grants live in a separate `OAUTH_KV`
+  namespace (a handful of writes per connection and per hourly token refresh). The `/authorize` page is a consent
+  page for the already signed-in user (same login link + session cookie as the site); no new identity provider.
+  Clients register by Client ID Metadata Document or by DCR. Scopes: `mcp:read` (lists, search, agenda) and
+  `mcp:write` (triage, taste). Static API keys are deferred: Claude.ai and Claude Code both do OAuth. Tools call
+  `src/services/*`, the same functions as the REST API.
 - **2026-10-02 · React + Vite + TanStack + Tailwind + shadcn/ui.** Best coverage by design tools and implementing
   models. Rejected: SvelteKit (good, but weaker design-tool output), Next.js on Workers via OpenNext (heavier than
   needed; no SSR requirement since public pages can be cached JSON + client render; revisit if SEO matters).

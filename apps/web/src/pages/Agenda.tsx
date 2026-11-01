@@ -1,4 +1,4 @@
-import { formatDay, formatPrice, formatTime, hasTime, type AgendaItem, type Category } from '@bln/shared';
+import { clashes, formatDay, formatPrice, formatTime } from '@bln/shared';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { AlertTriangle, CalendarDays, Copy, Heart, HelpCircle } from 'lucide-react';
@@ -13,40 +13,6 @@ import { relativeDay } from '@/lib/dates';
 import { SignedOut } from './Inbox';
 
 type Tab = 'all' | 'interested' | 'maybe';
-
-/** Typical length when a source gives no end time, for clash detection (same table as the calendar export). */
-const MINUTES: Partial<Record<Category, number>> = {
-  club: 300,
-  opera: 180,
-  theatre: 150,
-  concert: 150,
-  dance: 120,
-  cinema: 130,
-  talk: 90,
-  exhibition: 90,
-};
-const minutesOf = (local: string) => Number(local.slice(11, 13)) * 60 + Number(local.slice(14, 16));
-
-/** Items on the same day whose time ranges overlap; returns the title each one clashes with. Items without a known
- * time cannot clash. */
-export function clashes(items: AgendaItem[]): Map<string, string> {
-  const out = new Map<string, string>();
-  const timed = items.filter((i) => hasTime(i.startLocal, i.category));
-  for (const a of timed) {
-    const aStart = minutesOf(a.startLocal);
-    const aEnd = a.endLocal ? minutesOf(a.endLocal) : aStart + (MINUTES[a.category] ?? 120);
-    for (const b of timed) {
-      if (a === b || a.startLocal.slice(0, 10) !== b.startLocal.slice(0, 10)) continue;
-      const bStart = minutesOf(b.startLocal);
-      const bEnd = b.endLocal ? minutesOf(b.endLocal) : bStart + (MINUTES[b.category] ?? 120);
-      if (aStart < bEnd && bStart < aEnd) {
-        out.set(a.occurrenceId, b.title);
-        break;
-      }
-    }
-  }
-  return out;
-}
 
 export function AgendaPage() {
   const { user, isPending } = useMe();

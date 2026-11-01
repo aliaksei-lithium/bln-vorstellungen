@@ -11,7 +11,12 @@ export default defineConfig(async () => {
         wrangler: { configPath: './wrangler.jsonc' },
         // Tests drive the free path; Claude-specific behaviour is tested with an explicit provider.
         miniflare: {
-          bindings: { TEST_MIGRATIONS: migrations, ADMIN_TOKEN: 'test-admin-token', EXTRACT_MODEL: 'workers-ai' },
+          bindings: {
+            TEST_MIGRATIONS: migrations,
+            ADMIN_TOKEN: 'test-admin-token',
+            EXTRACT_MODEL: 'workers-ai',
+            PUBLIC_ORIGIN: 'http://localhost',
+          },
         },
       }),
     ],
