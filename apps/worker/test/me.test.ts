@@ -429,10 +429,10 @@ describe('how often a category comes up', () => {
 });
 
 describe('sources overview', () => {
-  it('lists sources with schedule and upcoming counts for signed-in users only', async () => {
+  it('lists sources with schedule, link and upcoming counts for signed-in users only', async () => {
     expect((await exports.default.fetch(`${BASE}/api/me/sources`)).status).toBe(401);
     await env.DB.prepare(
-      `INSERT INTO sources (id, name, type, config, schedule_minutes) VALUES ('s_ov', 'Overview Club', 'ical', '{"url":"https://secret.example/feed.ics"}', 360)`,
+      `INSERT INTO sources (id, name, type, config, schedule_minutes) VALUES ('s_ov', 'Overview Club', 'ical', '{"url":"https://club.example/feed.ics?token=s3cret"}', 360)`,
     ).run();
     const u = await createUser('Ola', 'ola@example.org');
     const res = await as(await login(u.loginLink.url))('/api/me/sources');
@@ -442,8 +442,9 @@ describe('sources overview', () => {
       enabled: true,
       everyMinutes: 360,
       upcoming: 0,
+      link: 'https://club.example/feed.ics', // the page, without feed parameters
     });
-    expect(JSON.stringify(body)).not.toContain('secret.example'); // no URLs or settings
+    expect(JSON.stringify(body)).not.toContain('s3cret');
   });
 });
 
@@ -521,5 +522,20 @@ describe('browse default', () => {
     const profile = (await (await call('/api/me/profile')).json()) as { prefs: { browseDefault: string } };
     expect(new URLSearchParams(profile.prefs.browseDefault).get('category')).toBe('concert,club');
     expect(await (await put('')).json()).toEqual({ search: '' });
+  });
+});
+
+describe('sourceLink', () => {
+  it('links to the channel, an explicit page, or the site without feed parameters', async () => {
+    const { sourceLink } = await import('../src/api/me');
+    expect(sourceLink('telegram', '{"channel":"everydaythings"}')).toBe('https://t.me/everydaythings');
+    expect(
+      sourceLink('ical', '{"url":"https://api.lu.ma/ics/get?entity=discover","link":"https://lu.ma/berlin"}'),
+    ).toBe('https://lu.ma/berlin');
+    expect(sourceLink('ical', '{"url":"https://theleftberlin.com/events/?ical=1"}')).toBe(
+      'https://theleftberlin.com/events/',
+    );
+    expect(sourceLink('html', '{"url":"https://www.gorki.de/de/spielplan"}')).toBe('https://www.gorki.de/de/spielplan');
+    expect(sourceLink('ical', '{"url":"javascript:alert(1)"}')).toBeNull();
   });
 });

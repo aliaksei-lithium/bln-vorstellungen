@@ -224,6 +224,13 @@ Format: date · decision · why · alternatives rejected. Newer entries supersed
   via `PUT /api/me/browse-default`). Browse applies it when it opens with no filters in the address, once per visit,
   so "Clear all" still shows everything until the next visit. Separate from the category levels on Me: a user can
   keep theatre out of Browse while strong theatre picks still reach the inbox.
+- **2026-11-01 · Source links, and "Close to my Spotify taste".** Sources show a link to the page behind them (an
+  explicit `config.link`, the Telegram channel, or the URL without feed parameters). The taste filter
+  (`via=spotifylike`) matches concert-type events whose text mentions a genre of the user's Spotify artists (whole
+  genres plus distinctive words; broad ones like "pop" or "indie" left out), or whose meaning is at least 0.5 close
+  to the music-taste line (vector cached in KV until the artists change). Meaning alone was tried first and rejected:
+  from 0.38 it returned jazz trios and R&B for a shoegaze/punk taste, the scores being flat (0.39-0.48).
+  @berlingigs can't be read: its public web preview is off, and reading it would need a Telegram account.
 - **2026-10-02 · React + Vite + TanStack + Tailwind + shadcn/ui.** Best coverage by design tools and implementing
   models. Rejected: SvelteKit (good, but weaker design-tool output), Next.js on Workers via OpenNext (heavier than
   needed; no SSR requirement since public pages can be cached JSON + client render; revisit if SEO matters).

@@ -4,6 +4,7 @@ import { HTTPException } from 'hono/http-exception';
 import { z } from 'zod';
 import type { AppEnv } from '../auth';
 import { eventDetail, listEvents, searchByMeaning, similarEvents } from '../services/events';
+import { musicLike } from '../spotify';
 
 /**
  * Public, read-only event API over services/events. Responses carry `Cache-Control` with `s-maxage`, which Workers
@@ -22,8 +23,10 @@ eventsApi.get('/', async (c) => {
   const q = EventsQuery.safeParse(c.req.query());
   if (!q.success) throw new HTTPException(400, { message: q.error.issues[0]?.message ?? 'Invalid query' });
   // "My Spotify artists" depends on who asks: never cached publicly.
-  const mine = !!q.data.via?.includes('spotify');
-  const { rowsRead, ...body } = await listEvents(c.env.DB, q.data, undefined, undefined, c.get('user')?.id);
+  const user = c.get('user');
+  const mine = !!q.data.via?.some((v) => v === 'spotify' || v === 'spotifylike');
+  const like = user && q.data.via?.includes('spotifylike') ? await musicLike(c.env, user.id) : undefined;
+  const { rowsRead, ...body } = await listEvents(c.env.DB, q.data, undefined, undefined, user?.id, like);
   c.header('Cache-Control', mine ? 'private, no-store' : CACHE_CONTROL);
   if (!mine) c.header('Cache-Tag', CACHE_TAG);
   c.header('X-D1-Rows-Read', String(rowsRead));

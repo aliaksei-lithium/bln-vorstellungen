@@ -46,6 +46,7 @@ const joined = (a: string[]) => (a.length ? a.join(',') : undefined);
 /** Source kinds, not single venues (docs/09): where an event came from. Spotify joins when it is connected. */
 const VIA_LABELS: Record<Via, string> = {
   spotify: 'My Spotify artists',
+  spotifylike: 'Close to my Spotify taste',
   telegram: 'Telegram channels',
   scans: 'Added from photos & text',
 };
@@ -376,7 +377,7 @@ function FilterSheet({
           <div className={label}>Source</div>
           <div className="flex flex-wrap gap-2">
             {(Object.keys(VIA_LABELS) as Via[])
-              .filter((v) => v !== 'spotify' || spotify.data?.connected)
+              .filter((v) => !v.startsWith('spotify') || spotify.data?.connected)
               .map((v) => (
                 <Chip
                   key={v}

@@ -10,7 +10,7 @@ import {
 } from '@bln/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
-import { ChevronRight, LogOut, Smartphone } from 'lucide-react';
+import { ChevronRight, ExternalLink, LogOut, Smartphone } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { TopBar } from '@/components/AppShell';
 import { CategoryDot } from '@/components/CategoryChip';
@@ -602,7 +602,22 @@ function SourcesBox() {
                   )}
                 >
                   <div className="grid min-w-0 flex-1 gap-0.5">
-                    <span className="font-bold [overflow-wrap:anywhere]">{s.name}</span>
+                    {s.link ? (
+                      <a
+                        href={s.link}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="font-bold text-ink underline-offset-4 [overflow-wrap:anywhere] hover:underline"
+                      >
+                        {s.name}
+                        <ExternalLink
+                          className="ml-1 inline size-3.5 align-[-1px] text-sub"
+                          aria-label="(opens the site)"
+                        />
+                      </a>
+                    ) : (
+                      <span className="font-bold [overflow-wrap:anywhere]">{s.name}</span>
+                    )}
                     <span className="text-xs text-sub">
                       <b className="text-ink tabular-nums">{s.upcoming}</b> upcoming · {SOURCE_KIND[s.type] ?? s.type} ·{' '}
                       {s.enabled ? every(s.everyMinutes) : 'paused'} · checked {ago(s.lastRunAt)}

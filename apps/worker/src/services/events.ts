@@ -62,6 +62,8 @@ export async function listEvents(
   hidden: readonly Category[] = OPT_IN_CATEGORIES,
   /** Needed for `via: 'spotify'` (the user's own artists); without it that filter lists nothing. */
   userId?: string,
+  /** For `via: 'spotifylike'`: what the user's music taste matches (spotify.ts musicLike). */
+  like: { ids: string[]; terms: string[] } = { ids: [], terms: [] },
 ): Promise<EventsResponse & { rowsRead: number }> {
   const today = berlinToday();
   const from = q.from ?? today;
@@ -99,6 +101,15 @@ export async function listEvents(
                          SELECT 1 FROM user_artists ua WHERE ua.user_id = ? AND (lower(e.title) = ua.name_lc
                            OR lower(e.title) LIKE ua.name_lc || ' %' OR lower(e.title) LIKE ua.name_lc || ':%')))`);
         filterArgs.push(userId ?? '', userId ?? '');
+      } else if (via === 'spotifylike') {
+        // A genre word in the event's text, or a strong match by meaning. JSON lists keep it at two bound parameters
+        // however many terms and ids (D1 allows 100 per statement).
+        ways.push(`e.category IN ('concert', 'club', 'festival') AND (
+                     EXISTS (SELECT 1 FROM json_each(?) t
+                              WHERE lower(e.title || ' ' || COALESCE(e.description, '') || ' ' || e.genres)
+                                    LIKE '%' || t.value || '%')
+                     OR e.id IN (SELECT value FROM json_each(?)))`);
+        filterArgs.push(JSON.stringify(like.terms), JSON.stringify(like.ids));
       } else if (via === 'scans') {
         ways.push(`e.id IN (SELECT es.event_id FROM event_sources es JOIN raw_items r ON r.id = es.raw_item_id
                              WHERE r.source_id IS NULL)`);

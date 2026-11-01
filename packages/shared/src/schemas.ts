@@ -182,6 +182,8 @@ export type UsageOverview = z.infer<typeof UsageOverview>;
 export const SourceSummary = z.object({
   id: z.string(),
   name: z.string(),
+  /** Where to see the source itself: the venue's site, the channel, the calendar page. */
+  link: z.string().nullable(),
   type: z.string(),
   enabled: z.boolean(),
   everyMinutes: z.number(),
@@ -279,7 +281,7 @@ const anyOf = <T extends z.ZodType>(item: T) =>
     )
     .optional();
 
-export const Via = z.enum(['telegram', 'scans', 'spotify']);
+export const Via = z.enum(['telegram', 'scans', 'spotify', 'spotifylike']);
 export type Via = z.infer<typeof Via>;
 
 export const EventsQuery = z.object({
@@ -288,7 +290,10 @@ export const EventsQuery = z.object({
   category: anyOf(Category),
   district: anyOf(z.string().max(40)),
   q: z.string().max(100).optional(),
-  /** Only events that came this way: Telegram channels, added by people from photos and text, my Spotify artists. */
+  /**
+   * Only events that came this way: Telegram channels, added by people from photos and text, my Spotify artists, or
+   * close to my Spotify taste (by meaning).
+   */
   via: anyOf(Via),
   /** Opaque, from the previous page's `nextCursor`. */
   cursor: z.string().max(100).optional(),
