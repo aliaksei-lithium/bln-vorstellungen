@@ -12,7 +12,7 @@ import {
 } from '@bln/shared';
 import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useSearch } from '@tanstack/react-router';
-import { Check, Search, SlidersHorizontal, X } from 'lucide-react';
+import { Check, Search, SlidersHorizontal } from 'lucide-react';
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { z } from 'zod';
 import { TopBar } from '@/components/AppShell';
@@ -155,24 +155,10 @@ export function BrowsePage() {
   }, [meaning.data, items, shows]);
   const groups = useMemo(() => groupByDay(items), [items]);
 
-  // One removable chip per chosen value.
-  const active: { label: string; remove: (f: Filters) => Filters }[] = [
-    ...(filters.when !== 'all'
-      ? [{ label: WHEN_LABELS[filters.when], remove: (f: Filters) => ({ ...f, when: 'all' as When }) }]
-      : []),
-    ...filters.category.map((c) => ({
-      label: CATEGORY_LABELS[c],
-      remove: (f: Filters) => ({ ...f, category: f.category.filter((x) => x !== c) }),
-    })),
-    ...filters.via.map((v) => ({
-      label: VIA_LABELS[v],
-      remove: (f: Filters) => ({ ...f, via: f.via.filter((x) => x !== v) }),
-    })),
-    ...filters.district.map((d) => ({
-      label: d,
-      remove: (f: Filters) => ({ ...f, district: f.district.filter((x) => x !== d) }),
-    })),
-  ];
+  // How many filters are on, for the badge on the Filter button (the chips themselves live in the sheet).
+  const active =
+    (filters.when !== 'all' ? 1 : 0) + filters.category.length + filters.via.length + filters.district.length;
+
   const clear = () => {
     setQState('');
     setSearch({});
@@ -197,33 +183,13 @@ export function BrowsePage() {
           <Button onClick={() => setSheetOpen(true)}>
             <SlidersHorizontal aria-hidden />
             Filter
-            {active.length > 0 && (
+            {active > 0 && (
               <span className="inline-flex h-5 min-w-5 items-center justify-center bg-moss px-1 text-xs font-extrabold text-on-moss">
-                {active.length}
+                {active}
               </span>
             )}
           </Button>
         </div>
-        {active.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 pb-2.5">
-            {active.map((a) => (
-              <Button
-                key={a.label}
-                variant="dark"
-                size="sm"
-                className="min-h-8 px-2"
-                aria-label={`Remove filter ${a.label}`}
-                onClick={() => setFilters(a.remove)}
-              >
-                {a.label}
-                <X className="size-3.5" aria-hidden />
-              </Button>
-            ))}
-            <Button variant="ghost" size="sm" className="min-h-8" onClick={clear}>
-              Clear all
-            </Button>
-          </div>
-        )}
       </TopBar>
 
       <div className="grid grid-cols-[minmax(0,1fr)] gap-3">
@@ -236,7 +202,7 @@ export function BrowsePage() {
             <p className="m-0 border border-ink bg-surface px-3 py-2.5 text-sm">
               No exact matches for “{query}”. Closest by meaning:
             </p>
-          ) : active.length || query ? (
+          ) : active || query ? (
             <EmptyState title="No events match" action={<Button onClick={clear}>Clear search and filters</Button>}>
               Nothing fits {query ? `“${query}” with ` : ''}these filters yet.
             </EmptyState>
