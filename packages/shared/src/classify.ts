@@ -56,17 +56,18 @@ export function guessLang(text: string): Lang | null {
  * for new ones, and by geocoding later (phase 4).
  */
 export const DISTRICTS = [
+  // Filter order: the owner's own corner first, then roughly outward from it (docs/09, 2026-11-01).
+  'Wedding',
   'Mitte',
+  'Moabit',
   'Kreuzberg',
-  'Friedrichshain',
   'Prenzlauer Berg',
+  'Friedrichshain',
   'Neukölln',
+  'Tiergarten',
+  'Schöneberg',
   'Charlottenburg',
   'Wilmersdorf',
-  'Schöneberg',
-  'Tiergarten',
-  'Moabit',
-  'Wedding',
 ] as const;
 export type District = (typeof DISTRICTS)[number];
 

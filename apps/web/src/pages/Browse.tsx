@@ -10,8 +10,10 @@ import {
   type Prefs,
 } from '@bln/shared';
 import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-query';
+import { useNavigate, useSearch } from '@tanstack/react-router';
 import { Check, Search, SlidersHorizontal, X } from 'lucide-react';
 import { useDeferredValue, useMemo, useState } from 'react';
+import { z } from 'zod';
 import { TopBar } from '@/components/AppShell';
 import { CategoryDot } from '@/components/CategoryChip';
 import { EventRow } from '@/components/EventRow';
@@ -51,11 +53,48 @@ function groupByDay(items: EventListItem[]) {
   return [...groups.entries()];
 }
 
+/**
+ * Browse filters live in the address (?when=week&via=telegram&q=jazz), so Back from an event, a reload or a shared
+ * link shows the same list. Unknown values are dropped rather than failing the page.
+ */
+export const BrowseSearch = z.object({
+  when: z
+    .enum(Object.keys(WHEN_LABELS) as [When, ...When[]])
+    .optional()
+    .catch(undefined),
+  category: Category.optional().catch(undefined),
+  district: z.string().max(40).optional().catch(undefined),
+  via: z.enum(['telegram', 'scans', 'spotify']).optional().catch(undefined),
+  q: z.string().max(100).optional().catch(undefined),
+});
+export type BrowseSearch = z.infer<typeof BrowseSearch>;
+
 export function BrowsePage() {
   const today = berlinToday();
-  const [q, setQ] = useState('');
+  const search = useSearch({ from: '/' });
+  const navigate = useNavigate({ from: '/' });
+  // Each change replaces the address, so Back leaves Browse instead of stepping through filter changes.
+  const setSearch = (next: BrowseSearch) =>
+    void navigate({
+      search: Object.fromEntries(Object.entries(next).filter(([, v]) => v !== undefined && v !== '')) as BrowseSearch,
+      replace: true,
+    });
+  const filters: Filters = {
+    when: search.when ?? 'all',
+    category: search.category,
+    district: search.district,
+    via: search.via,
+  };
+  const setFilters = (f: Filters | ((prev: Filters) => Filters)) => {
+    const n = typeof f === 'function' ? f(filters) : f;
+    setSearch({ ...n, when: n.when === 'all' ? undefined : n.when, q: search.q });
+  };
+  const [q, setQState] = useState(search.q ?? '');
+  const setQ = (v: string) => {
+    setQState(v);
+    setSearch({ ...search, q: v.trim() || undefined });
+  };
   const query = useDeferredValue(q.trim());
-  const [filters, setFilters] = useState<Filters>({ when: 'all' });
   const [sheetOpen, setSheetOpen] = useState(false);
 
   const params = {
@@ -94,8 +133,8 @@ export function BrowsePage() {
   if (filters.district) active.push({ key: 'district', label: filters.district });
   if (filters.via) active.push({ key: 'via', label: VIA_LABELS[filters.via] });
   const clear = () => {
-    setFilters({ when: 'all' });
-    setQ('');
+    setQState('');
+    setSearch({});
   };
 
   return (
