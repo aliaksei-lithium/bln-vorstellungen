@@ -8,11 +8,12 @@ import {
   type EventListItem,
   Via,
   type Prefs,
+  type Profile,
 } from '@bln/shared';
-import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useSearch } from '@tanstack/react-router';
 import { Check, Search, SlidersHorizontal, X } from 'lucide-react';
-import { useDeferredValue, useMemo, useState } from 'react';
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { z } from 'zod';
 import { TopBar } from '@/components/AppShell';
 import { CategoryDot } from '@/components/CategoryChip';
@@ -23,6 +24,7 @@ import { Sheet, SheetContent, SheetFooter, SheetHeader, SheetTitle } from '@/com
 import { api } from '@/lib/api';
 import { useMe } from '@/lib/auth';
 import { useListFilter } from '@/lib/marks';
+import { toast } from '@/lib/toast';
 import { WHEN_LABELS, relativeDay, whenRange, type When } from '@/lib/dates';
 
 /**
@@ -107,6 +109,21 @@ export function BrowsePage() {
   };
   const query = useDeferredValue(q.trim());
   const [sheetOpen, setSheetOpen] = useState(false);
+
+  // The user's saved default filters apply when Browse opens with none in the address (once per visit, so "Clear
+  // all" still shows everything until the next visit).
+  const { user } = useMe();
+  const profile = useQuery({ queryKey: ['profile'], queryFn: api.profile, enabled: !!user });
+  const applied = useRef(false);
+  useEffect(() => {
+    if (applied.current || !profile.data) return;
+    applied.current = true;
+    const saved = profile.data.prefs.browseDefault;
+    const empty = !search.when && !search.category && !search.district && !search.via;
+    if (saved && empty) {
+      setSearch({ ...(Object.fromEntries(new URLSearchParams(saved)) as BrowseSearch), q: search.q });
+    }
+  }, [profile.data, search, setSearch]);
 
   const params = {
     ...whenRange(filters.when, today),
@@ -288,6 +305,17 @@ function Chip({ pressed, onClick, children }: { pressed: boolean; onClick: () =>
   );
 }
 
+/** These filters as the address query they live in, for saving as the default ("" when nothing is set). */
+const filterQuery = (f: Filters) =>
+  new URLSearchParams(
+    Object.entries({
+      when: f.when === 'all' ? undefined : f.when,
+      category: joined(f.category),
+      district: joined(f.district),
+      via: joined(f.via),
+    }).filter((e): e is [string, string] => !!e[1]),
+  ).toString();
+
 function FilterSheet({
   open,
   onOpenChange,
@@ -307,6 +335,16 @@ function FilterSheet({
   const profile = useQuery({ queryKey: ['profile'], queryFn: api.profile, enabled: !!user && open });
   const categories = listCategories(profile.data?.prefs);
   const spotify = useQuery({ queryKey: ['spotify'], queryFn: api.spotify, enabled: !!user && open });
+  const qc = useQueryClient();
+  const saved = profile.data?.prefs.browseDefault ?? '';
+  const current = filterQuery(filters);
+  const saveDefault = useMutation({
+    mutationFn: (search: string) => api.setBrowseDefault(search),
+    onSuccess: ({ search }) => {
+      qc.setQueryData<Profile>(['profile'], (p) => (p ? { ...p, prefs: { ...p.prefs, browseDefault: search } } : p));
+      toast(search ? 'Saved: Browse opens with these filters' : 'Default cleared: Browse opens with everything');
+    },
+  });
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="bottom" className="mx-auto max-h-[88vh] max-w-[600px] overflow-y-auto border-x border-ink">
@@ -362,6 +400,26 @@ function FilterSheet({
             ))}
           </div>
         </div>
+        {user && (
+          <div className="flex flex-wrap items-center gap-2 px-4 pt-5 text-sm">
+            {saved && saved === current ? (
+              <span className="font-bold text-moss">These are your default filters</span>
+            ) : (
+              <Button
+                size="sm"
+                disabled={saveDefault.isPending || !current}
+                onClick={() => saveDefault.mutate(current)}
+              >
+                Save as my default
+              </Button>
+            )}
+            {saved && (
+              <Button size="sm" variant="ghost" disabled={saveDefault.isPending} onClick={() => saveDefault.mutate('')}>
+                Clear default
+              </Button>
+            )}
+          </div>
+        )}
         <SheetFooter className="flex-row gap-2 pb-[calc(16px+env(safe-area-inset-bottom,0px))]">
           <Button size="lg" className="w-28" onClick={() => onChange(NO_FILTERS)}>
             Reset
