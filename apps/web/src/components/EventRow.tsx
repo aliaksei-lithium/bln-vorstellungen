@@ -31,7 +31,7 @@ export function EventRow({ item, showDay = false }: { item: EventListItem; showD
             className={`flex shrink-0 items-baseline gap-1 font-bold text-ink tabular-nums ${showDay ? 'w-[124px]' : 'w-16'}`}
           >
             {showDay && `${formatDay(item.next.startLocal)} `}
-            {formatTime(item.next.startLocal)}
+            {formatTime(item.next.startLocal, item.category)}
             {item.moreDates > 0 && <small className="text-[11px] font-semibold text-sub">+{item.moreDates}</small>}
           </span>
           <span className="truncate">{item.venueName ?? 'Venue to be announced'}</span>

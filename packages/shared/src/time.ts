@@ -54,11 +54,22 @@ export function formatDay(local: string): string {
   return `${WEEKDAYS[wd]} ${local.slice(8, 10)}.${local.slice(5, 7)}.`;
 }
 
-/** "2026-10-30T20:00" → "20:00" */
-export const formatTime = (local: string): string => local.slice(11, 16);
+/**
+ * Sources that give only a date arrive as 00:00 (date-only feeds, Spielplan pages without a time). 00:00 therefore
+ * means "no time known", except for clubs, where a night really can start at midnight.
+ */
+export const hasTime = (local: string, category?: string): boolean =>
+  local.slice(11, 16) !== '00:00' || category === 'club';
 
-/** "2026-10-30T20:00" → "Fr 30.10. · 20:00" */
-export const formatDateTime = (local: string): string => `${formatDay(local)} · ${formatTime(local)}`;
+/** "2026-10-30T20:00" → "20:00"; "" when the source gave no time. */
+export const formatTime = (local: string, category?: string): string =>
+  hasTime(local, category) ? local.slice(11, 16) : '';
+
+/** "2026-10-30T20:00" → "Fr 30.10. · 20:00"; just the day when there is no time. */
+export const formatDateTime = (local: string, category?: string): string => {
+  const time = formatTime(local, category);
+  return time ? `${formatDay(local)} · ${time}` : formatDay(local);
+};
 
 /** Berlin price conventions: "frei", "ab 18 €", "12 €". */
 export function formatPrice(p: { isFree: boolean; priceMin?: number | null; priceMax?: number | null }): string | null {

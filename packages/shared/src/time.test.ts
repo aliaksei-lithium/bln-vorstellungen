@@ -29,3 +29,13 @@ describe('Berlin time', () => {
     expect(formatPrice({ isFree: false, priceMin: 9.5, priceMax: 12 })).toBe('ab 9,50 €');
   });
 });
+
+describe('unknown times', () => {
+  it('hides 00:00, which sources use for "no time given", except for clubs', async () => {
+    const { formatDateTime, formatTime, hasTime } = await import('./time');
+    expect(formatTime('2026-11-06T00:00', 'talk')).toBe('');
+    expect(formatDateTime('2026-11-06T00:00', 'talk')).toBe('Fr 06.11.');
+    expect(formatDateTime('2026-11-06T19:30', 'talk')).toBe('Fr 06.11. · 19:30');
+    expect(hasTime('2026-11-07T00:00', 'club')).toBe(true);
+  });
+});
