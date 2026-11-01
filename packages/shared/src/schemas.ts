@@ -178,6 +178,22 @@ export const UsageOverview = z.object({
 });
 export type UsageOverview = z.infer<typeof UsageOverview>;
 
+/** Read-only overview of where events come from, for signed-in users (Me page). No URLs or settings. */
+export const SourceSummary = z.object({
+  name: z.string(),
+  type: z.string(),
+  enabled: z.boolean(),
+  everyMinutes: z.number(),
+  lastRunAt: z.string().nullable(),
+  lastStatus: z.string().nullable(),
+  nextRunAt: z.string().nullable(),
+  /** Upcoming events this source contributed to. */
+  upcoming: z.number(),
+});
+export type SourceSummary = z.infer<typeof SourceSummary>;
+export const SourcesOverview = z.object({ sources: z.array(SourceSummary) });
+export type SourcesOverview = z.infer<typeof SourcesOverview>;
+
 export const SourceVisibility = z.enum(['public', 'private']);
 
 /** A `sources` row as created or edited by the owner. `config` is validated by the adapter's own schema. */

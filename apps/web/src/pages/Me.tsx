@@ -9,7 +9,7 @@ import {
 } from '@bln/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
-import { LogOut, Plus, Smartphone } from 'lucide-react';
+import { ChevronRight, LogOut, Plus, Smartphone } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { TopBar } from '@/components/AppShell';
 import { CategoryDot } from '@/components/CategoryChip';
@@ -23,12 +23,44 @@ import { CopyField } from './Agenda';
 
 const head = 'flex h-9 items-center bg-ink px-3 text-xs font-extrabold tracking-[.1em] text-on-ink uppercase';
 
-function Box({ title, children }: { title: string; children: ReactNode }) {
+/**
+ * A section of the Me page. `collapsed` ones start closed, with a one-line `summary` in the header, so the page
+ * opens on what is used most (taste, categories).
+ */
+function Box({
+  title,
+  children,
+  collapsed,
+  summary,
+}: {
+  title: string;
+  children: ReactNode;
+  collapsed?: boolean;
+  summary?: ReactNode;
+}) {
+  if (collapsed === undefined) {
+    return (
+      <section className="border border-ink bg-surface">
+        <div className={head}>{title}</div>
+        {children}
+      </section>
+    );
+  }
   return (
-    <section className="border border-ink bg-surface">
-      <div className={head}>{title}</div>
+    <details className="group border border-ink bg-surface" open={!collapsed}>
+      <summary
+        className={cn(head, 'cursor-pointer list-none justify-between gap-3 [&::-webkit-details-marker]:hidden')}
+      >
+        <span className="flex items-center gap-1.5">
+          <ChevronRight className="size-4 transition-transform group-open:rotate-90" aria-hidden />
+          {title}
+        </span>
+        {summary && (
+          <span className="truncate text-[11px] font-bold tracking-[.04em] text-on-ink/75 normal-case">{summary}</span>
+        )}
+      </summary>
       {children}
-    </section>
+    </details>
   );
 }
 
@@ -62,6 +94,7 @@ export function MePage() {
             </div>
             <TasteForm />
             <SpotifyBox />
+            <SourcesBox />
             <PasswordBox />
             <OtherDevice />
           </>
@@ -216,7 +249,7 @@ function TasteForm() {
         })}
       </Box>
 
-      <Box title="Price">
+      <Box title="Price" collapsed summary={prefs.maxPrice == null ? 'Any price' : `Up to ${prefs.maxPrice} €`}>
         <div className="flex flex-wrap items-center gap-2 p-3">
           <label className="flex items-center gap-2">
             <span>At most</span>
@@ -306,7 +339,11 @@ function SpotifyBox() {
   }, [qc]);
   const s = status.data;
   return (
-    <Box title="Spotify">
+    <Box
+      title="Spotify"
+      collapsed
+      summary={s ? (s.connected ? `Connected · ${s.artists.length} artists` : 'Not connected') : undefined}
+    >
       <div id="spotify" className="grid gap-3 p-3">
         {!s ? (
           <p className="m-0 text-sm text-sub">Loading…</p>
@@ -440,7 +477,7 @@ function PasswordBox() {
   });
   const isSet = !!status.data?.set;
   return (
-    <Box title="Password">
+    <Box title="Password" collapsed summary={status.data ? (isSet ? 'Set' : 'Not set') : undefined}>
       <form
         className="grid gap-3 p-3"
         onSubmit={(e) => {
@@ -497,7 +534,7 @@ function PasswordBox() {
 function OtherDevice() {
   const link = useMutation({ mutationFn: api.loginLink });
   return (
-    <Box title="Other devices">
+    <Box title="Other devices" collapsed summary="Login links">
       <div className="grid gap-2.5 p-3">
         <p className="m-0 text-sm text-sub">
           Open a one-time link on your phone or another computer to sign in there. It works once and expires after 7
@@ -511,6 +548,65 @@ function OtherDevice() {
         )}
       </div>
       {link.data && <CopyField value={link.data.url} />}
+    </Box>
+  );
+}
+
+const ago = (iso: string | null) => {
+  if (!iso) return 'never';
+  const min = Math.round((Date.now() - Date.parse(iso)) / 60_000);
+  return min < 1
+    ? 'just now'
+    : min < 60
+      ? `${min} min ago`
+      : min < 48 * 60
+        ? `${Math.round(min / 60)} h ago`
+        : `${Math.round(min / 1440)} days ago`;
+};
+const every = (min: number) =>
+  min % 1440 === 0 ? `daily` : min % 60 === 0 ? `every ${min / 60} h` : `every ${min} min`;
+const SOURCE_KIND: Record<string, string> = {
+  ical: 'Calendar feed',
+  rss: 'News feed',
+  jsonld: 'Website (structured)',
+  html: 'Website, read by AI',
+  telegram: 'Telegram channel',
+};
+
+/** Where events come from and when each source is checked (read-only; the owner manages them). */
+function SourcesBox() {
+  const q = useQuery({ queryKey: ['sources'], queryFn: api.sources, staleTime: 60_000 });
+  const sources = q.data?.sources ?? [];
+  const live = sources.filter((s) => s.enabled);
+  return (
+    <Box title="Sources" collapsed summary={q.data ? `${live.length} active` : undefined}>
+      {!q.data ? (
+        <p className="m-0 p-3 text-sm text-sub">{q.isError ? 'Could not load sources.' : 'Loading…'}</p>
+      ) : (
+        <ul className="m-0 list-none p-0">
+          {sources.map((s) => (
+            <li
+              key={s.name}
+              className={cn(
+                'grid gap-0.5 border-b border-line px-3 py-2.5 last:border-b-0',
+                !s.enabled && 'opacity-55',
+              )}
+            >
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="min-w-0 truncate font-bold">{s.name}</span>
+                <span className="shrink-0 text-sm tabular-nums">
+                  <b>{s.upcoming}</b> <span className="text-sub">upcoming</span>
+                </span>
+              </div>
+              <div className="text-xs text-sub">
+                {SOURCE_KIND[s.type] ?? s.type} · {s.enabled ? every(s.everyMinutes) : 'paused'} · last checked{' '}
+                {ago(s.lastRunAt)}
+                {s.lastStatus === 'error' && <span className="font-bold text-danger"> · last run failed</span>}
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
     </Box>
   );
 }
@@ -603,13 +699,14 @@ function AiUsage() {
   const q = useQuery({ queryKey: ['usage'], queryFn: () => api.usage(30), staleTime: 60_000 });
   if (!q.data) {
     return (
-      <Box title="AI usage">
+      <Box title="AI usage" collapsed>
         <p className="m-0 p-3 text-sub">{q.isError ? 'Could not load usage.' : 'Loading…'}</p>
       </Box>
     );
   }
   const { days, claudeDailyUsd: cap, neuronBudget, models } = q.data;
   const today = days.at(-1)!;
+  const summary = `${usd(today.claudeUsd)} today`;
   const rows: [string, UsageDay[]][] = [
     ['Today', [today]],
     ['7 days', days.slice(-7)],
@@ -618,7 +715,7 @@ function AiUsage() {
   const th = 'px-2 py-1.5 text-right text-[11px] font-extrabold tracking-[.08em] text-sub uppercase first:text-left';
   const td = 'px-2 py-1.5 text-right whitespace-nowrap tabular-nums first:text-left first:font-bold';
   return (
-    <Box title="AI usage">
+    <Box title="AI usage" collapsed summary={summary}>
       <div className="grid gap-4 p-3">
         <Meter label="Claude today" value={today.claudeUsd} of={cap}>
           {usd(today.claudeUsd)} {cap === null ? '· no cap' : `of ${usd(cap)}`}

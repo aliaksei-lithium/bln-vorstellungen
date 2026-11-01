@@ -1,4 +1,12 @@
-import { AgendaResponse, InboxResponse, MeResponse, MyEvent, MyStates, berlinLocalToUtc } from '@bln/shared';
+import {
+  AgendaResponse,
+  InboxResponse,
+  MeResponse,
+  MyEvent,
+  MyStates,
+  SourcesOverview,
+  berlinLocalToUtc,
+} from '@bln/shared';
 import { env, exports } from 'cloudflare:workers';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { quantize } from '../src/ai/embed';
@@ -406,5 +414,24 @@ describe('how often a category comes up', () => {
     // Mixing only swaps similar scores: the concert at 64 is too far below the theatre at 88 to move up.
     expect(inbox.items.map((i) => i.slug)).toEqual(['fq_t1', 'fq_t2', 'fq_c1']);
     expect(inbox.total).toBe(3);
+  });
+});
+
+describe('sources overview', () => {
+  it('lists sources with schedule and upcoming counts for signed-in users only', async () => {
+    expect((await exports.default.fetch(`${BASE}/api/me/sources`)).status).toBe(401);
+    await env.DB.prepare(
+      `INSERT INTO sources (id, name, type, config, schedule_minutes) VALUES ('s_ov', 'Overview Club', 'ical', '{"url":"https://secret.example/feed.ics"}', 360)`,
+    ).run();
+    const u = await createUser('Ola', 'ola@example.org');
+    const res = await as(await login(u.loginLink.url))('/api/me/sources');
+    const body = SourcesOverview.parse(await res.json());
+    expect(body.sources.find((s) => s.name === 'Overview Club')).toMatchObject({
+      type: 'ical',
+      enabled: true,
+      everyMinutes: 360,
+      upcoming: 0,
+    });
+    expect(JSON.stringify(body)).not.toContain('secret.example'); // no URLs or settings
   });
 });
