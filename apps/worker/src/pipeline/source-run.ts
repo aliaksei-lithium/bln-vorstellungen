@@ -1,7 +1,8 @@
 import { berlinToday } from '@bln/shared';
-import { getAdapter, registerBuiltinAdapters, type RawItem, type SourceContext } from '@bln/sources';
+import { USER_AGENT, getAdapter, registerBuiltinAdapters, type RawItem, type SourceContext } from '@bln/sources';
 import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from 'cloudflare:workers';
-import { extractEvents } from '../ai/extract';
+import { extractEvents, extractFromImage } from '../ai/extract';
+import { toBase64 } from '../services/scans';
 import { BudgetExhausted } from '../ai/models';
 import { resolveEvent, VenueIndex } from './resolve';
 
@@ -218,13 +219,23 @@ export async function extractItem(env: Env, sourceId: string, rawItemId: string)
   const mark = (status: string) =>
     env.DB.prepare('UPDATE raw_items SET extraction_status = ? WHERE id = ?').bind(status, row.id).run();
   try {
-    const r = await extractEvents(env, {
-      content: row.content,
-      sourceName: source.name,
-      ...(row.url ? { url: row.url } : {}),
-      ...(config.venue ? { venue: [config.venue.name, config.venue.address].filter(Boolean).join(', ') } : {}),
-      ...(row.published_at ? { publishedAt: row.published_at } : {}),
-    });
+    // A flyer post (telegram) carries its photo as a "[Photo: url]" line: read the image, with the post as a note.
+    const photo = /\[Photo: (https:\/\/[^\]\s]+)\]/.exec(row.content)?.[1];
+    const r = photo
+      ? await extractFromImage(env, await downloadImage(photo), {
+          note: row.content
+            .replace(/\[Photo: [^\]]+\]/, '')
+            .trim()
+            .slice(0, 300),
+          ...(row.published_at ? { takenAt: row.published_at.slice(0, 10) } : {}),
+        })
+      : await extractEvents(env, {
+          content: row.content,
+          sourceName: source.name,
+          ...(row.url ? { url: row.url } : {}),
+          ...(config.venue ? { venue: [config.venue.name, config.venue.address].filter(Boolean).join(', ') } : {}),
+          ...(row.published_at ? { publishedAt: row.published_at } : {}),
+        });
     out.neurons = Math.round(r.neurons);
     const venues = await VenueIndex.load(env.DB);
     for (const ev of r.events) {
@@ -251,6 +262,16 @@ export async function extractItem(env: Env, sourceId: string, rawItemId: string)
     out.failed++;
   }
   return out;
+}
+
+/** A flyer from a public URL (Telegram's CDN), as base64 for the vision call. Only images, at most 6 MB. */
+async function downloadImage(url: string): Promise<{ mediaType: string; data: string }> {
+  const res = await fetch(url, { headers: { 'user-agent': USER_AGENT } });
+  const type = res.headers.get('content-type')?.split(';')[0] ?? '';
+  if (!res.ok || !type.startsWith('image/')) throw new Error(`Flyer not available (${res.status} ${type})`);
+  const bytes = new Uint8Array(await res.arrayBuffer());
+  if (bytes.byteLength > 6 * 1024 * 1024) throw new Error('Flyer too large');
+  return { mediaType: type, data: toBase64(bytes) };
 }
 
 export type FinishInput = {

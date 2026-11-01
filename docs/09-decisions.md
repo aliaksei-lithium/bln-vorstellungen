@@ -181,6 +181,13 @@ Format: date · decision · why · alternatives rejected. Newer entries supersed
   scores within 15 points of the best one left, so mixing never lifts a weak match over a strong one; none is
   dropped. Browse is unchanged except for off. Rejected for now: weekly caps per category (harder to explain,
   needs per-week counting). The lasting fix is more non-theatre sources.
+- **2026-11-01 · Telegram adapter as built, and a Browse filter by source kind.** `telegram` reads
+  `t.me/s/<channel>` (about 20 latest posts), split by plain string matching (no DOM, well under the CPU limit).
+  Cursor = highest post number, so a run hands over only new posts. Text posts are bundled into ~10k-character
+  items, one LLM call per bundle instead of per post (tested: 20 posts became 2 calls); a post with a photo and
+  under 280 characters of text is a flyer and goes through photo reading (at most 5 per run). Relative dates are
+  read from each post's published date (extract@7). Browse gets a Source filter by kind, not by single venue:
+  Telegram channels, Added from photos & text, and Spotify once it exists (`EventsQuery.via`, from provenance).
 - **2026-10-02 · React + Vite + TanStack + Tailwind + shadcn/ui.** Best coverage by design tools and implementing
   models. Rejected: SvelteKit (good, but weaker design-tool output), Next.js on Workers via OpenNext (heavier than
   needed; no SSR requirement since public pages can be cached JSON + client render; revisit if SEO matters).

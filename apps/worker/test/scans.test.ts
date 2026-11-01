@@ -1,5 +1,6 @@
 import { env } from 'cloudflare:workers';
 import { describe, expect, it } from 'vitest';
+import { listEvents } from '../src/services/events';
 import { confirmScan, createScan, getScan, runScan, toBase64 } from '../src/services/scans';
 
 /** Scans end to end with a stubbed model: photo in R2, the workflow's read step, review, confirm and merge. */
@@ -71,8 +72,13 @@ describe('scans', () => {
       `SELECT e.created_by, es.prompt_version FROM events e JOIN event_sources es ON es.event_id = e.id
         WHERE e.title = 'Royal Blood (edited)'`,
     ).first<{ created_by: string; prompt_version: string }>();
-    expect(ev).toEqual({ created_by: `user:${uid}`, prompt_version: 'photo@1+extract@6' });
+    expect(ev).toEqual({ created_by: `user:${uid}`, prompt_version: 'photo@1+extract@7' });
     await expect(confirmScan(e, uid, id, scan.candidates)).rejects.toThrow('already added');
+
+    // The Browse source filter: added from photos & text, not from Telegram.
+    const titles = async (via: 'scans' | 'telegram') => (await listEvents(env.DB, { via })).items.map((i) => i.title);
+    expect(await titles('scans')).toContain('Royal Blood (edited)');
+    expect(await titles('telegram')).not.toContain('Royal Blood (edited)');
 
     // The same show from another photo merges into the event instead of duplicating it.
     const again = await createScan(e, uid, { kind: 'text', text: 'Royal Blood (edited), Columbiahalle, soon.' });

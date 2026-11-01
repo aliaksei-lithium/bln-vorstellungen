@@ -6,6 +6,7 @@ import {
   formatDay,
   hiddenCategories,
   type EventListItem,
+  type EventsQuery,
   type Prefs,
 } from '@bln/shared';
 import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-query';
@@ -31,7 +32,11 @@ const listCategories = (prefs?: Prefs) => {
   return Category.options.filter((c) => c !== 'other' && !hidden.includes(c));
 };
 
-type Filters = { when: When; category?: Category; district?: string };
+type Via = NonNullable<EventsQuery['via']>;
+type Filters = { when: When; category?: Category; district?: string; via?: Via };
+
+/** Source kinds, not single venues (docs/09): where an event came from. Spotify joins when it is connected. */
+const VIA_LABELS: Record<Via, string> = { telegram: 'Telegram channels', scans: 'Added from photos & text' };
 
 function groupByDay(items: EventListItem[]) {
   const groups = new Map<string, EventListItem[]>();
@@ -53,6 +58,7 @@ export function BrowsePage() {
     ...whenRange(filters.when, today),
     category: filters.category,
     district: filters.district,
+    via: filters.via,
     q: query || undefined,
   };
   const events = useInfiniteQuery({
@@ -82,6 +88,7 @@ export function BrowsePage() {
   if (filters.when !== 'all') active.push({ key: 'when', label: WHEN_LABELS[filters.when] });
   if (filters.category) active.push({ key: 'category', label: CATEGORY_LABELS[filters.category] });
   if (filters.district) active.push({ key: 'district', label: filters.district });
+  if (filters.via) active.push({ key: 'via', label: VIA_LABELS[filters.via] });
   const clear = () => {
     setFilters({ when: 'all' });
     setQ('');
@@ -257,6 +264,18 @@ function FilterSheet({
               >
                 <CategoryDot category={c} className="size-2" />
                 {CATEGORY_LABELS[c]}
+              </Chip>
+            ))}
+          </div>
+          <div className={label}>Source</div>
+          <div className="flex flex-wrap gap-2">
+            {(Object.keys(VIA_LABELS) as Via[]).map((v) => (
+              <Chip
+                key={v}
+                pressed={filters.via === v}
+                onClick={() => onChange({ ...filters, via: filters.via === v ? undefined : v })}
+              >
+                {VIA_LABELS[v]}
               </Chip>
             ))}
           </div>
