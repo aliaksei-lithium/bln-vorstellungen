@@ -231,6 +231,18 @@ Format: date · decision · why · alternatives rejected. Newer entries supersed
   to the music-taste line (vector cached in KV until the artists change). Meaning alone was tried first and rejected:
   from 0.38 it returned jazz trios and R&B for a shoegaze/punk taste, the scores being flat (0.39-0.48).
   @berlingigs can't be read: its public web preview is off, and reading it would need a Telegram account.
+- **2026-11-01 · Scan insights: ranked by taste with genres, "More", "Listen", playlists.** Reading a scan also ranks
+  its candidates for the user (`scanRank@1`: score, one reason, 0-3 genres; batches of 20 in parallel; best effort,
+  falling back to the extractor's genres). They are stored in `scans.insights`, one entry per candidate with model
+  and prompt version. The review page sorts best first ("As read" switches back) and marks up to 5 top picks (score 60
+  or more). "More" is on demand, never in bulk on read, so a 50-event listing costs one ranking call per 20 events
+  and nothing else until asked. It looks the acts up on Spotify (exact name only; app token, cached per name for a
+  week) and writes a 2-3 sentence note (`scanMore@1`) kept on the scan; "Explain top 5" asks for them one after
+  another. "Listen" (`/spotify/listen?artist=`) redirects to the artist page, else to Spotify's search. Playlists:
+  scope `playlist-modify-private` added (older connections must reconnect), two tracks per act by exact artist name,
+  first acts of every ticked event first, at most 25 events and 40 acts (the free plan's 50 subrequests). Spotify's
+  2026 API changes shape this: no top-tracks endpoint, so tracks come from search; playlist items go to
+  `/playlists/{id}/items`; artist genres may be empty; and a development-mode app serves at most 5 users.
 - **2026-10-02 · React + Vite + TanStack + Tailwind + shadcn/ui.** Best coverage by design tools and implementing
   models. Rejected: SvelteKit (good, but weaker design-tool output), Next.js on Workers via OpenNext (heavier than
   needed; no SSR requirement since public pages can be cached JSON + client render; revisit if SEO matters).

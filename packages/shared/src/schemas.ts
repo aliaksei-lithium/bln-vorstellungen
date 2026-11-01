@@ -131,6 +131,31 @@ export const ExtractedEvent = z.object({
 });
 export type ExtractedEvent = z.infer<typeof ExtractedEvent>;
 
+/** An act looked up on Spotify. Genres may be empty: Spotify deprecated them (2026). */
+export const SpotifyArtist = z.object({
+  name: z.string(),
+  url: z.url(),
+  genres: z.array(z.string()),
+  image: z.url().nullable(),
+});
+export type SpotifyArtist = z.infer<typeof SpotifyArtist>;
+
+/** How a scanned event fits the user's taste (docs/09, 2026-11-01 "Scan insights"). */
+export const ScanInsight = z.object({
+  score: z.number().int().min(0).max(100).nullable(),
+  reason: z.string().nullable(),
+  genres: z.array(z.string()),
+  /** The "More" note, once asked for: what it is, why it may suit, and the acts on Spotify. */
+  more: z
+    .object({
+      about: z.string(),
+      why: z.string(),
+      artists: z.array(SpotifyArtist),
+    })
+    .optional(),
+});
+export type ScanInsight = z.infer<typeof ScanInsight>;
+
 /** A photo or pasted text turned into candidate events for review (docs/09, 2026-11-01 "Scans"). */
 export const ScanStatus = z.enum(['queued', 'reading', 'ready', 'failed', 'done']);
 export const Scan = z.object({
@@ -148,8 +173,21 @@ export const Scan = z.object({
     })
     .nullable(),
   error: z.string().nullable(),
+  /** Per candidate, same order; null while not ranked (or when ranking failed). */
+  insights: z.array(ScanInsight.nullable()).default([]),
 });
 export type Scan = z.infer<typeof Scan>;
+
+export const ScanPlaylist = z.object({
+  indexes: z.array(z.number().int().min(0)).min(1, 'Pick at least one event.').max(25),
+});
+export const ScanPlaylistResult = z.object({
+  url: z.url(),
+  tracks: z.number(),
+  /** Acts with no tracks found on Spotify. */
+  missing: z.array(z.string()),
+});
+export type ScanPlaylistResult = z.infer<typeof ScanPlaylistResult>;
 
 export const ScanText = z.object({ text: z.string().trim().min(10, 'Paste a bit more text.').max(20000) });
 export const ScanCreated = z.object({ id: z.string() });
@@ -371,6 +409,8 @@ export const SpotifyStatus = z.object({
   artists: z.array(z.string()),
   /** Genres read from those artists, most weight first; added to the taste behind the scenes. */
   genres: z.array(z.string()).default([]),
+  /** Whether the connection may create playlists; older connections need a reconnect. */
+  canPlaylist: z.boolean().default(false),
 });
 export type SpotifyStatus = z.infer<typeof SpotifyStatus>;
 export type PasswordStatus = z.infer<typeof PasswordStatus>;

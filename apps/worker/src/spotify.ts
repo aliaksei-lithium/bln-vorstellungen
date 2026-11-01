@@ -1,4 +1,4 @@
-import type { SpotifyStatus } from '@bln/shared';
+import { artistKey, type SpotifyArtist, type SpotifyStatus } from '@bln/shared';
 import { HTTPException } from 'hono/http-exception';
 import { embedTexts } from './ai/embed';
 import { callJson, providerFrom } from './ai/llm';
@@ -8,13 +8,15 @@ import { newToken, sha256 } from './auth';
 /**
  * Spotify (docs/09, 2026-11-01): the user connects once (authorization code flow, server side with the client
  * secret); we keep the refresh token and store their top and followed artists. Artists boost the ranking and back
- * the "My Spotify artists" filter. Scopes: top artists and followed artists only.
+ * the "My Spotify artists" filter. Scopes: top and followed artists, and private playlists (scan playlists). Public
+ * lookups (artist search for "Listen" and "More") use an app token instead of the user's.
  */
 
 const AUTHORIZE = 'https://accounts.spotify.com/authorize';
 const TOKEN = 'https://accounts.spotify.com/api/token';
 const API = 'https://api.spotify.com/v1';
-const SCOPES = 'user-top-read user-follow-read';
+const PLAYLIST_SCOPE = 'playlist-modify-private';
+const SCOPES = `user-top-read user-follow-read ${PLAYLIST_SCOPE}`;
 const PROVIDER = 'spotify';
 const STATE_MINUTES = 10;
 
@@ -61,8 +63,17 @@ async function token(env: Env, body: Record<string, string>, f: Fetch) {
   return (await res.json()) as { access_token: string; refresh_token?: string; expires_in: number; scope?: string };
 }
 
-async function api<T>(path: string, access: string, f: Fetch): Promise<T> {
-  const res = await f(`${API}${path}`, { headers: { authorization: `Bearer ${access}` } });
+async function api<T>(path: string, access: string, f: Fetch, post?: unknown): Promise<T> {
+  const res = await f(
+    `${API}${path}`,
+    post === undefined
+      ? { headers: { authorization: `Bearer ${access}` } }
+      : {
+          method: 'POST',
+          headers: { authorization: `Bearer ${access}`, 'content-type': 'application/json' },
+          body: JSON.stringify(post),
+        },
+  );
   if (res.status === 403) {
     throw new HTTPException(403, {
       message: 'Spotify only lets accounts the site owner added in its dashboard connect. Ask the owner to add you.',
@@ -178,27 +189,37 @@ export async function finishConnect(env: Env, userId: string, code: string, stat
   return artists.length;
 }
 
-/** Re-reads the artists with the stored refresh token (Spotify may rotate it). */
-export async function syncArtists(env: Env, userId: string, f: Fetch = fetch): Promise<number> {
-  const acc = await env.DB.prepare(`SELECT id, refresh_token FROM accounts WHERE user_id = ? AND provider_id = ?`)
+/** A fresh access token from the stored refresh token (Spotify may rotate it). */
+async function userAccess(env: Env, userId: string, f: Fetch, needScope?: string): Promise<string> {
+  const acc = await env.DB.prepare(
+    `SELECT id, refresh_token, scope FROM accounts WHERE user_id = ? AND provider_id = ?`,
+  )
     .bind(userId, PROVIDER)
-    .first<{ id: string; refresh_token: string | null }>();
+    .first<{ id: string; refresh_token: string | null; scope: string | null }>();
   if (!acc?.refresh_token) throw new HTTPException(409, { message: 'Spotify is not connected.' });
+  if (needScope && !acc.scope?.split(' ').includes(needScope)) {
+    throw new HTTPException(409, { message: 'Reconnect Spotify on the Me page to allow playlists.' });
+  }
   const t = await token(env, { grant_type: 'refresh_token', refresh_token: acc.refresh_token }, f);
-  const artists = await fillGenres(env, await fetchArtists(t.access_token, f));
   await env.DB.prepare(
     `UPDATE accounts SET refresh_token = COALESCE(?, refresh_token), updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
       WHERE id = ?`,
   )
     .bind(t.refresh_token ?? null, acc.id)
     .run();
+  return t.access_token;
+}
+
+/** Re-reads the artists. */
+export async function syncArtists(env: Env, userId: string, f: Fetch = fetch): Promise<number> {
+  const artists = await fillGenres(env, await fetchArtists(await userAccess(env, userId, f), f));
   await saveArtists(env.DB, userId, artists);
   return artists.length;
 }
 
 export async function spotifyStatus(db: D1Database, userId: string): Promise<SpotifyStatus> {
   const [acc, artists] = await db.batch<Record<string, unknown>>([
-    db.prepare(`SELECT updated_at FROM accounts WHERE user_id = ? AND provider_id = ?`).bind(userId, PROVIDER),
+    db.prepare(`SELECT updated_at, scope FROM accounts WHERE user_id = ? AND provider_id = ?`).bind(userId, PROVIDER),
     db.prepare(`SELECT name FROM user_artists WHERE user_id = ? AND source = 'spotify' ORDER BY rank`).bind(userId),
   ]);
   const synced = acc?.results[0]?.updated_at;
@@ -207,6 +228,9 @@ export async function spotifyStatus(db: D1Database, userId: string): Promise<Spo
     syncedAt: synced ? String(synced) : null,
     artists: (artists?.results ?? []).map((r) => String(r.name)),
     genres: synced ? (await musicTaste(db, userId)).genres : [],
+    canPlaylist: String(acc?.results[0]?.scope ?? '')
+      .split(' ')
+      .includes(PLAYLIST_SCOPE),
   };
 }
 
@@ -321,4 +345,103 @@ export async function musicLike(env: Env, userId: string): Promise<{ ids: string
     await env.CACHE.put(key, vec.slice().buffer as ArrayBuffer, { metadata: { h: hash } });
   }
   return { ids: nearest(index, vec, LIKE_MAX, { min: LIKE_MIN }).map((h) => h.id), terms };
+}
+
+/** An app token (client credentials) for public lookups; kept in KV for most of its hour. */
+async function appToken(env: Env, f: Fetch): Promise<string> {
+  const cached = await env.CACHE.get('spotify:app-token');
+  if (cached) return cached;
+  const t = await token(env, { grant_type: 'client_credentials' }, f);
+  await env.CACHE.put('spotify:app-token', t.access_token, { expirationTtl: Math.max(60, t.expires_in - 300) });
+  return t.access_token;
+}
+
+type ArtistHit = {
+  name: string;
+  genres?: string[];
+  external_urls?: { spotify?: string };
+  images?: { url: string; width?: number | null }[];
+};
+const ARTIST_TTL = 7 * 86_400;
+
+/**
+ * The act on Spotify, by exact name only (a near match is usually another band), or null. Cached per name for a
+ * week, misses included, so a scan's "More" and "Listen" cost one search per act.
+ */
+export async function findArtist(env: Env, name: string, f: Fetch = fetch): Promise<SpotifyArtist | null> {
+  const want = artistKey(name);
+  if (!want) return null;
+  const key = `spotify:artist:${want}`;
+  const cached = await env.CACHE.get(key);
+  if (cached) return JSON.parse(cached) as SpotifyArtist | null;
+  const r = await api<{ artists: { items: ArtistHit[] } }>(
+    `/search?${new URLSearchParams({ q: name, type: 'artist', limit: '10' })}`,
+    await appToken(env, f),
+    f,
+  );
+  const hit = r.artists.items.find((a) => artistKey(a.name) === want && a.external_urls?.spotify);
+  const image = hit?.images?.length
+    ? ([...hit.images].reverse().find((i) => (i.width ?? 0) >= 160) ?? hit.images[0]!).url
+    : null;
+  const artist: SpotifyArtist | null = hit
+    ? { name: hit.name, url: hit.external_urls!.spotify!, genres: (hit.genres ?? []).slice(0, 4), image }
+    : null;
+  await env.CACHE.put(key, JSON.stringify(artist), { expirationTtl: ARTIST_TTL });
+  return artist;
+}
+
+/** Where "Listen" goes: the artist page when the name is found, Spotify's own search otherwise. */
+export async function listenUrl(env: Env, name: string, f: Fetch = fetch): Promise<string> {
+  try {
+    const a = await findArtist(env, name, f);
+    if (a) return a.url;
+  } catch (err) {
+    console.warn('spotify listen lookup', String(err));
+  }
+  return `https://open.spotify.com/search/${encodeURIComponent(name)}`;
+}
+
+const TRACKS_PER_ACT = 2;
+/** The Workers Free plan allows 50 subrequests per call: token, searches, create, add. */
+export const PLAYLIST_ACTS = 40;
+
+/**
+ * A private playlist in the user's account with a couple of tracks per act (exact artist name only). Acts without
+ * a match are reported, not guessed. Needs the playlist scope, so older connections must reconnect first.
+ */
+export async function createPlaylist(
+  env: Env,
+  userId: string,
+  p: { name: string; description: string; acts: string[] },
+  f: Fetch = fetch,
+): Promise<{ url: string; tracks: number; missing: string[] }> {
+  const access = await userAccess(env, userId, f, PLAYLIST_SCOPE);
+  const acts = p.acts.slice(0, PLAYLIST_ACTS);
+  const found: string[][] = [];
+  for (let i = 0; i < acts.length; i += 5) {
+    found.push(
+      ...(await Promise.all(
+        acts.slice(i, i + 5).map(async (act) => {
+          const r = await api<{ tracks: { items: { uri: string; artists: { name: string }[] }[] } }>(
+            `/search?${new URLSearchParams({ q: `artist:"${act}"`, type: 'track', limit: '10' })}`,
+            access,
+            f,
+          );
+          return r.tracks.items
+            .filter((t) => t.artists.some((a) => artistKey(a.name) === artistKey(act)))
+            .slice(0, TRACKS_PER_ACT)
+            .map((t) => t.uri);
+        }),
+      )),
+    );
+  }
+  const uris = [...new Set(found.flat())].slice(0, 100);
+  if (!uris.length) throw new HTTPException(404, { message: 'None of these acts have tracks on Spotify.' });
+  const list = await api<{ id: string; external_urls: { spotify: string } }>('/me/playlists', access, f, {
+    name: p.name.slice(0, 100),
+    public: false,
+    description: p.description.slice(0, 300),
+  });
+  await api(`/playlists/${list.id}/items`, access, f, { uris });
+  return { url: list.external_urls.spotify, tracks: uris.length, missing: acts.filter((_, i) => !found[i]!.length) };
 }

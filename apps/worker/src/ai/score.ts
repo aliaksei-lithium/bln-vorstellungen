@@ -175,6 +175,19 @@ export async function scoreByRules(
   return { scored: rows.length, candidates };
 }
 
+/** The "Preferences" line of scoring prompts: categories off, a price limit, and the music from Spotify. */
+export async function prefsLine(db: D1Database, userId: string, prefs: Prefs): Promise<string> {
+  return [
+    prefs.categoriesOff.length
+      ? `not interested in ${prefs.categoriesOff.map((c) => CATEGORY_LABELS[c]).join(', ')}`
+      : '',
+    prefs.maxPrice != null ? `pays at most ${prefs.maxPrice} €` : '',
+    await musicTasteLine(db, userId),
+  ]
+    .filter(Boolean)
+    .join('; ');
+}
+
 /** Stage 2: one LLM call for up to LLM_BATCH events of one user. */
 export async function scoreWithLlm(env: Env, userId: string, eventIds: string[], now = new Date()) {
   if (!eventIds.length) return { scored: 0, model: null as string | null };
@@ -197,15 +210,7 @@ export async function scoreWithLlm(env: Env, userId: string, eventIds: string[],
       }
     >();
 
-  const prefs = [
-    profile.prefs.categoriesOff.length
-      ? `not interested in ${profile.prefs.categoriesOff.map((c) => CATEGORY_LABELS[c]).join(', ')}`
-      : '',
-    profile.prefs.maxPrice != null ? `pays at most ${profile.prefs.maxPrice} €` : '',
-    await musicTasteLine(env.DB, userId),
-  ]
-    .filter(Boolean)
-    .join('; ');
+  const prefs = await prefsLine(env.DB, userId, profile.prefs);
   const r = await callJson(env, {
     provider: providerFrom(env.SCORE_MODEL),
     system: prompt.system,

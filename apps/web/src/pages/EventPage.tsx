@@ -1,4 +1,4 @@
-import { CATEGORY_LABELS, formatDay, formatPrice, formatTime, type MyEvent, type UserState } from '@bln/shared';
+import { CATEGORY_LABELS, actsOf, formatDay, formatPrice, formatTime, type MyEvent, type UserState } from '@bln/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useRouter } from '@tanstack/react-router';
 import {
@@ -13,6 +13,7 @@ import {
   Plus,
   Ticket,
   X,
+  Headphones,
 } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { CategoryChip } from '@/components/CategoryChip';
@@ -25,6 +26,9 @@ import { useMe } from '@/lib/auth';
 import { useListFilter } from '@/lib/marks';
 import { relativeDay } from '@/lib/dates';
 import { cn } from '@/lib/utils';
+
+/** Categories where "Listen" on Spotify makes sense. */
+const MUSIC = new Set(['concert', 'club', 'festival']);
 
 function Box({ title, right, children }: { title: string; right?: ReactNode; children: ReactNode }) {
   return (
@@ -266,6 +270,27 @@ export function EventPage({ slug }: { slug: string }) {
               <>
                 <dt className="pt-0.5 text-[11.5px] font-extrabold tracking-[.1em] text-sub uppercase">With</dt>
                 <dd>{e.performers.map((p) => p.name).join(', ')}</dd>
+              </>
+            )}
+            {MUSIC.has(e.category) && actsOf(e).length > 0 && (
+              <>
+                <dt className="pt-0.5 text-[11.5px] font-extrabold tracking-[.1em] text-sub uppercase">Listen</dt>
+                <dd className="flex flex-wrap gap-x-3 gap-y-1">
+                  {actsOf(e)
+                    .slice(0, 6)
+                    .map((name) => (
+                      <a
+                        key={name}
+                        href={`/spotify/listen?artist=${encodeURIComponent(name)}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 font-bold text-moss"
+                      >
+                        <Headphones className="size-4" aria-hidden />
+                        {name}
+                      </a>
+                    ))}
+                </dd>
               </>
             )}
             {price && (
