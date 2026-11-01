@@ -1,4 +1,4 @@
-import { AgendaResponse, InboxResponse, MeResponse, MyEvent, berlinLocalToUtc } from '@bln/shared';
+import { AgendaResponse, InboxResponse, MeResponse, MyEvent, MyStates, berlinLocalToUtc } from '@bln/shared';
 import { env, exports } from 'cloudflare:workers';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { quantize } from '../src/ai/embed';
@@ -158,6 +158,10 @@ describe('inbox, triage and agenda', () => {
     await mark('me-b', null);
     expect((await inbox()).items.map((i) => i.slug)).toEqual(['me-b']);
     expect((await mark('me-b', 'maybe', 'me_o0')).status).toBe(400);
+
+    // List rows read every mark at once.
+    const states = MyStates.parse(await (await as(cookie)('/api/me/states')).json());
+    expect(states.states).toEqual({ 'me-a': 'interested', 'me-c': 'hidden' });
   });
 
   it('lists interested dates in the agenda and exports them as iCalendar', async () => {

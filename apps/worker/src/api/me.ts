@@ -1,4 +1,4 @@
-import { LoginRequest, ProfileUpdate, StateUpdate, type Profile } from '@bln/shared';
+import { LoginRequest, ProfileUpdate, StateUpdate, type MyStates, type Profile } from '@bln/shared';
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { z } from 'zod';
@@ -13,7 +13,7 @@ import {
   startSession,
   type AppEnv,
 } from '../auth';
-import { agendaItems, eventIdBySlug, inbox, inboxUntil, myEvent, setEventState } from '../services/me';
+import { agendaItems, eventIdBySlug, inbox, inboxUntil, myEvent, setEventState, statesBySlug } from '../services/me';
 import { agendaIcs } from './ics';
 
 /** Sign-in, the signed-in user's profile, inbox, triage and agenda. Never cached: every response is per user. */
@@ -79,6 +79,10 @@ meApi.get('/inbox', async (c) => {
   const range = c.req.query('range') === 'week' ? 'week' : 'all';
   return c.json(await inbox(c.env.DB, user.id, { to: inboxUntil(range) }));
 });
+
+meApi.get('/states', async (c) =>
+  c.json({ states: await statesBySlug(c.env.DB, requireUser(c).id) } satisfies MyStates),
+);
 
 meApi.get('/events/:slug', async (c) => {
   const user = requireUser(c);

@@ -1,6 +1,9 @@
 import { formatDay, formatPrice, formatTime, type EventListItem } from '@bln/shared';
 import { Link } from '@tanstack/react-router';
+import { CalendarDays, EyeOff, Heart, HelpCircle } from 'lucide-react';
+import { useMark, useMyStates } from '@/lib/marks';
 import { CategoryChip } from './CategoryChip';
+import { SwipeRow } from './SwipeRow';
 
 const ANGLES = [90, 60, 145, 35, 120, 0, 160, 75];
 
@@ -13,19 +16,76 @@ export function hatchAngle(slug: string): string {
 
 /**
  * time · title · venue · price · category. The event appears once; "+N" counts its further dates. `showDay` adds
- * the weekday and date for lists that are not grouped by day (similar events, search by meaning).
+ * the weekday and date for lists that are not grouped by day (similar events, search by meaning). Signed in, the row
+ * shows the user's mark and swipes: right for interested (again to undo), left for Calendar and Hide. Hidden events
+ * are not shown.
  */
 export function EventRow({ item, showDay = false }: { item: EventListItem; showDay?: boolean }) {
   const price = formatPrice(item);
+  const { signedIn, states } = useMyStates();
+  const mark = useMark();
+  const state = states[item.slug];
+  if (state === 'hidden') return null;
+  const icon = 'size-[22px]';
+  return (
+    <SwipeRow
+      id={item.slug}
+      enabled={signedIn}
+      right={{
+        label: state === 'interested' ? 'Remove' : 'Interested',
+        icon: <Heart className={icon} strokeWidth={2} aria-hidden />,
+        className: 'bg-moss text-on-moss',
+        run: () => mark(item.slug, state === 'interested' ? null : 'interested'),
+      }}
+      actions={[
+        {
+          label: 'Calendar',
+          icon: <CalendarDays className={icon} strokeWidth={2} aria-hidden />,
+          className: 'bg-cal text-on-ink',
+          run: () => mark(item.slug, 'interested', { message: 'Added to Agenda and calendar' }),
+        },
+        {
+          label: 'Hide',
+          icon: <EyeOff className={icon} strokeWidth={2} aria-hidden />,
+          className: 'bg-danger text-on-ink',
+          run: () => mark(item.slug, 'hidden', { message: `Hidden “${item.title}”` }),
+        },
+      ]}
+    >
+      <RowLink item={item} showDay={showDay} price={price} state={state} />
+    </SwipeRow>
+  );
+}
+
+function RowLink({
+  item,
+  showDay,
+  price,
+  state,
+}: {
+  item: EventListItem;
+  showDay: boolean;
+  price: string | null;
+  state: string | undefined;
+}) {
   return (
     <Link
       to="/e/$slug"
       params={{ slug: item.slug }}
-      className="flex min-h-16 items-center gap-3 border-b border-line px-3 py-2 text-ink no-underline last:border-b-0 hover:bg-surface/60"
+      draggable={false}
+      className="flex min-h-16 items-center gap-3 px-3 py-2 text-ink no-underline hover:bg-surface/60"
     >
       <div className="hatch size-12 shrink-0" style={{ ['--hatch-angle' as string]: hatchAngle(item.slug) }} />
       <div className="min-w-0 flex-1">
-        <div className="truncate text-[15.5px] leading-5 font-bold">{item.title}</div>
+        <div className="flex items-center gap-1.5 text-[15.5px] leading-5 font-bold">
+          <span className="truncate">{item.title}</span>
+          {state === 'interested' && (
+            <Heart className="size-[15px] shrink-0 text-moss" strokeWidth={2.2} aria-label="Interested" />
+          )}
+          {state === 'maybe' && (
+            <HelpCircle className="size-[15px] shrink-0 text-moss" strokeWidth={2.2} aria-label="Maybe" />
+          )}
+        </div>
         <div className="mt-[3px] flex h-5 items-center text-[12.5px] text-sub">
           <span
             className={`flex shrink-0 items-baseline gap-1 font-bold text-ink tabular-nums ${showDay ? 'w-[124px]' : 'w-16'}`}

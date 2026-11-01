@@ -19,6 +19,7 @@ import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetFooter, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { api } from '@/lib/api';
 import { useMe } from '@/lib/auth';
+import { useMyStates } from '@/lib/marks';
 import { WHEN_LABELS, relativeDay, whenRange, type When } from '@/lib/dates';
 
 /** Filter chips: every category but `other`; opt-in ones only for users who switched them on. */
@@ -58,7 +59,12 @@ export function BrowsePage() {
     getNextPageParam: (last) => last.nextCursor ?? undefined,
     placeholderData: keepPreviousData,
   });
-  const items = useMemo(() => events.data?.pages.flatMap((p) => p.items) ?? [], [events.data]);
+  const { states } = useMyStates();
+  // Events the user hid never show; the rows themselves skip them too, this keeps empty days out.
+  const items = useMemo(
+    () => (events.data?.pages.flatMap((p) => p.items) ?? []).filter((e) => states[e.slug] !== 'hidden'),
+    [events.data, states],
+  );
   // Search by meaning complements keyword search: "jazz tonight" also finds a quartet that never says "jazz".
   const meaning = useQuery({
     queryKey: ['meaning', query],

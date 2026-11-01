@@ -312,6 +312,10 @@ export const InboxResponse = z.object({
 });
 export type InboxResponse = z.infer<typeof InboxResponse>;
 
+/** The signed-in user's marks by event slug, for showing them on list rows. */
+export const MyStates = z.object({ states: z.record(z.string(), UserState) });
+export type MyStates = z.infer<typeof MyStates>;
+
 export const StateUpdate = z.object({
   /** Null removes the state (undo). */
   state: UserState.nullable(),
