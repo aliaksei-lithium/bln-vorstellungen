@@ -1,7 +1,7 @@
 import { EventsResponse, berlinLocalToUtc } from '@bln/shared';
 import { env, exports } from 'cloudflare:workers';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { PAGE_SIZE } from '../src/api/events';
+import { PAGE_SIZE } from '../src/services/events';
 import { refreshAllNextDates } from '../src/pipeline/next-dates';
 
 const EVENTS = 120;

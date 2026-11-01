@@ -1,14 +1,4 @@
-import {
-  AgendaItem,
-  InboxResponse,
-  LoginRequest,
-  MyEvent,
-  ProfileUpdate,
-  Reason,
-  StateUpdate,
-  type EventListItem,
-  type Profile,
-} from '@bln/shared';
+import { LoginRequest, ProfileUpdate, StateUpdate, type Profile } from '@bln/shared';
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { z } from 'zod';
@@ -23,14 +13,13 @@ import {
   startSession,
   type AppEnv,
 } from '../auth';
+import { agendaItems, eventIdBySlug, inbox, inboxUntil, myEvent, setEventState } from '../services/me';
 import { agendaIcs } from './ics';
 
 /** Sign-in, the signed-in user's profile, inbox, triage and agenda. Never cached: every response is per user. */
 export const meApi = new Hono<AppEnv>();
 export const authApi = new Hono<AppEnv>();
 export const calendarApi = new Hono<AppEnv>();
-
-const DAY_MS = 86_400_000;
 
 async function body<T>(c: { req: { json: () => Promise<unknown> } }, schema: z.ZodType<T>): Promise<T> {
   let raw: unknown;
@@ -83,181 +72,26 @@ meApi.put('/profile', async (c) => {
   return c.json({ tasteText: p.tasteText.trim(), prefs: p.prefs, version } satisfies Profile);
 });
 
-/* ---------- inbox ---------- */
+/* ---------- inbox, one event, triage, agenda (services/me) ---------- */
 
-const listItem = (r: Record<string, unknown>): EventListItem => ({
-  slug: String(r.slug),
-  title: String(r.title),
-  category: r.category as EventListItem['category'],
-  venueName: (r.venue_name as string | null) ?? null,
-  district: (r.district as string | null) ?? null,
-  priceMin: (r.price_min as number | null) ?? null,
-  priceMax: (r.price_max as number | null) ?? null,
-  isFree: Boolean(r.is_free),
-  next: { startLocal: String(r.next_start_local), startUtc: String(r.next_start_utc) },
-  moreDates: Math.max(0, Number(r.upcoming_count) - 1),
-  ...(r.lang === 'de' || r.lang === 'en' ? { lang: r.lang } : {}),
-});
-
-const reasonsOf = (raw: unknown) =>
-  z
-    .array(Reason)
-    .catch([])
-    .parse(JSON.parse(String(raw ?? '[]')));
-
-/**
- * Untriaged, scored, upcoming events best first. Rows read ≈ the user's scored upcoming events (a few hundred),
- * through the (user_id, score) index.
- */
 meApi.get('/inbox', async (c) => {
   const user = requireUser(c);
   const range = c.req.query('range') === 'week' ? 'week' : 'all';
-  const now = new Date();
-  const from = now.toISOString();
-  const to = range === 'week' ? new Date(now.getTime() + 7 * DAY_MS).toISOString() : '9999';
-  const { version, tasteText } = await loadProfile(c.env.DB, user.id);
-  const db = c.env.DB;
-  const [items, counts] = await db.batch<Record<string, unknown>>([
-    db
-      .prepare(
-        `SELECT e.slug, e.title, e.lang, e.category, e.price_min, e.price_max, e.is_free, e.next_start_utc,
-                e.next_start_local, e.upcoming_count, v.name AS venue_name, v.district, s.score, s.reasons
-           FROM user_event_scores s
-           JOIN events e ON e.id = s.event_id
-           LEFT JOIN venues v ON v.id = e.venue_id
-          WHERE s.user_id = ?1 AND s.score > 0 AND e.status = 'published'
-            AND e.next_start_utc >= ?2 AND e.next_start_utc <= ?3
-            AND NOT EXISTS (SELECT 1 FROM user_event_state st WHERE st.user_id = ?1 AND st.event_id = s.event_id)
-          ORDER BY s.score DESC, e.next_start_utc
-          LIMIT 100`,
-      )
-      .bind(user.id, from, to),
-    db
-      .prepare(
-        `SELECT
-           (SELECT COUNT(*) FROM user_event_scores s JOIN events e ON e.id = s.event_id
-             WHERE s.user_id = ?1 AND s.score > 0 AND e.status = 'published'
-               AND e.next_start_utc >= ?2 AND e.next_start_utc <= ?3) AS total,
-           (SELECT COUNT(*) FROM user_event_scores s JOIN events e ON e.id = s.event_id
-             JOIN user_event_state st ON st.user_id = s.user_id AND st.event_id = s.event_id
-             WHERE s.user_id = ?1 AND s.score > 0 AND e.status = 'published'
-               AND e.next_start_utc >= ?2 AND e.next_start_utc <= ?3) AS done,
-           (SELECT COUNT(*) FROM events e INDEXED BY events_next_idx
-             WHERE e.next_start_utc >= ?2 AND e.status = 'published'
-               AND NOT EXISTS (SELECT 1 FROM user_event_scores s
-                                WHERE s.user_id = ?1 AND s.event_id = e.id AND s.profile_version = ?4)) AS pending`,
-      )
-      .bind(user.id, from, to, version),
-  ]);
-  const n = counts?.results[0] ?? {};
-  const res: InboxResponse = {
-    items: (items?.results ?? []).map((r) => ({
-      ...listItem(r),
-      score: Number(r.score),
-      reasons: reasonsOf(r.reasons),
-    })),
-    total: Number(n.total ?? 0),
-    done: Number(n.done ?? 0),
-    pending: Number(n.pending ?? 0),
-    hasTaste: tasteText.length > 0,
-  };
-  return c.json(res);
+  return c.json(await inbox(c.env.DB, user.id, { to: inboxUntil(range) }));
 });
-
-/* ---------- one event ---------- */
-
-async function eventId(db: D1Database, slug: string): Promise<string> {
-  const ev = await db.prepare('SELECT id FROM events WHERE slug = ?').bind(slug).first<{ id: string }>();
-  if (!ev) throw new HTTPException(404, { message: 'Event not found' });
-  return ev.id;
-}
 
 meApi.get('/events/:slug', async (c) => {
   const user = requireUser(c);
-  const id = await eventId(c.env.DB, c.req.param('slug'));
-  const row = await c.env.DB.prepare(
-    `SELECT s.score, s.reasons, st.state, st.occurrence_id
-       FROM (SELECT ?1 AS user_id, ?2 AS event_id) k
-       LEFT JOIN user_event_scores s ON s.user_id = k.user_id AND s.event_id = k.event_id
-       LEFT JOIN user_event_state st ON st.user_id = k.user_id AND st.event_id = k.event_id`,
-  )
-    .bind(user.id, id)
-    .first<Record<string, unknown>>();
-  return c.json(
-    MyEvent.parse({
-      score: row?.score ?? null,
-      reasons: reasonsOf(row?.reasons),
-      state: row?.state ?? null,
-      occurrenceId: row?.occurrence_id ?? null,
-    }),
-  );
+  return c.json(await myEvent(c.env.DB, user.id, await eventIdBySlug(c.env.DB, c.req.param('slug'))));
 });
 
-/** Triage: interested / maybe / skipped / hidden / went, or null to undo. Hidden events never come back. */
 meApi.put('/events/:slug/state', async (c) => {
   const user = requireUser(c);
-  const id = await eventId(c.env.DB, c.req.param('slug'));
+  const id = await eventIdBySlug(c.env.DB, c.req.param('slug'));
   const u = await body(c, StateUpdate);
-  if (u.state === null) {
-    await c.env.DB.prepare('DELETE FROM user_event_state WHERE user_id = ? AND event_id = ?').bind(user.id, id).run();
-  } else {
-    if (u.occurrenceId) {
-      const occ = await c.env.DB.prepare('SELECT 1 FROM occurrences WHERE id = ? AND event_id = ?')
-        .bind(u.occurrenceId, id)
-        .first();
-      if (!occ) throw new HTTPException(400, { message: 'That date does not belong to this event.' });
-    }
-    await c.env.DB.prepare(
-      `INSERT INTO user_event_state (user_id, event_id, state, occurrence_id) VALUES (?, ?, ?, ?)
-       ON CONFLICT (user_id, event_id) DO UPDATE SET state = excluded.state,
-         occurrence_id = COALESCE(excluded.occurrence_id, occurrence_id),
-         updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')`,
-    )
-      .bind(user.id, id, u.state, u.occurrenceId ?? null)
-      .run();
-  }
+  await setEventState(c.env.DB, user.id, id, u);
   return c.json({ state: u.state });
 });
-
-/* ---------- agenda ---------- */
-
-export async function agendaItems(db: D1Database, userId: string, now = new Date()): Promise<AgendaItem[]> {
-  // The picked date when it is still ahead, else the event's next date.
-  const { results } = await db
-    .prepare(
-      `SELECT e.slug, e.title, e.category, e.price_min, e.price_max, e.is_free, v.name AS venue_name, st.state,
-              COALESCE(o.id, (SELECT o2.id FROM occurrences o2 WHERE o2.event_id = e.id
-                               AND o2.start_utc = e.next_start_utc LIMIT 1)) AS occ_id,
-              COALESCE(o.start_local, e.next_start_local) AS start_local,
-              CASE WHEN o.id IS NOT NULL THEN o.end_local END AS end_local
-         FROM user_event_state st
-         JOIN events e ON e.id = st.event_id
-         LEFT JOIN venues v ON v.id = e.venue_id
-         LEFT JOIN occurrences o ON o.id = st.occurrence_id AND o.start_utc >= ?2
-        WHERE st.user_id = ?1 AND st.state IN ('interested', 'maybe')
-          AND (o.id IS NOT NULL OR e.next_start_utc >= ?2)
-        ORDER BY start_local`,
-    )
-    .bind(userId, now.toISOString())
-    .all<Record<string, unknown>>();
-  return results
-    .filter((r) => r.occ_id && r.start_local)
-    .map((r) =>
-      AgendaItem.parse({
-        slug: r.slug,
-        title: r.title,
-        category: r.category,
-        venueName: r.venue_name ?? null,
-        priceMin: r.price_min ?? null,
-        priceMax: r.price_max ?? null,
-        isFree: Boolean(r.is_free),
-        state: r.state,
-        occurrenceId: r.occ_id,
-        startLocal: r.start_local,
-        endLocal: r.end_local ?? null,
-      }),
-    );
-}
 
 meApi.get('/agenda', async (c) => c.json({ items: await agendaItems(c.env.DB, requireUser(c).id) }));
 

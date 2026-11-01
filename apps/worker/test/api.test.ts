@@ -1,7 +1,7 @@
 import { EventsResponse, HealthResponse, EventDetail } from '@bln/shared';
 import { env, exports } from 'cloudflare:workers';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { ftsQuery } from '../src/api/events';
+import { ftsQuery } from '../src/services/events';
 import { refreshAllNextDates } from '../src/pipeline/next-dates';
 
 const inDays = (n: number, time: string) => {
