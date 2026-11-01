@@ -3,6 +3,7 @@ import {
   PasswordLogin,
   PasswordSet,
   ProfileUpdate,
+  SourceSwitch,
   StateUpdate,
   type MyStates,
   type PasswordStatus,
@@ -89,7 +90,7 @@ meApi.put('/password', async (c) => {
 meApi.get('/sources', async (c) => {
   requireUser(c);
   const { results } = await c.env.DB.prepare(
-    `SELECT s.name, s.type, s.enabled, s.schedule_minutes, s.last_run_at, s.last_status, s.next_run_at,
+    `SELECT s.id, s.name, s.type, s.enabled, s.schedule_minutes, s.last_run_at, s.last_status, s.next_run_at,
             (SELECT COUNT(DISTINCT es.event_id) FROM raw_items r
                JOIN event_sources es ON es.raw_item_id = r.id
                JOIN events e ON e.id = es.event_id
@@ -101,6 +102,7 @@ meApi.get('/sources', async (c) => {
     .all<Record<string, unknown>>();
   return c.json({
     sources: results.map((r) => ({
+      id: String(r.id),
       name: String(r.name),
       type: String(r.type),
       enabled: Boolean(r.enabled),
@@ -111,6 +113,23 @@ meApi.get('/sources', async (c) => {
       upcoming: Number(r.upcoming ?? 0),
     })),
   } satisfies SourcesOverview);
+});
+
+/** Switches one source off or on for this user. No re-scoring: lists and the inbox filter at read time. */
+meApi.put('/sources/:id', async (c) => {
+  const user = requireUser(c);
+  const { on } = await body(c, SourceSwitch);
+  const id = c.req.param('id');
+  const exists = await c.env.DB.prepare('SELECT 1 FROM sources WHERE id = ?').bind(id).first();
+  if (!exists) throw new HTTPException(404, { message: 'Source not found' });
+  const { prefs } = await loadProfile(c.env.DB, user.id);
+  const sourcesOff = on ? prefs.sourcesOff.filter((s) => s !== id) : [...new Set([...prefs.sourcesOff, id])];
+  await c.env.DB.prepare(
+    `UPDATE user_profiles SET prefs = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE user_id = ?`,
+  )
+    .bind(JSON.stringify({ ...prefs, sourcesOff }), user.id)
+    .run();
+  return c.json({ sourcesOff });
 });
 
 /* ---------- profile ---------- */
@@ -124,6 +143,8 @@ meApi.get('/profile', async (c) => {
 meApi.put('/profile', async (c) => {
   const user = requireUser(c);
   const p = await body(c, ProfileUpdate);
+  // Source switches have their own endpoint; a taste form opened earlier must not undo them.
+  p.prefs.sourcesOff = (await loadProfile(c.env.DB, user.id)).prefs.sourcesOff;
   const version = await saveProfile(c.env, user.id, p.tasteText, p.prefs);
   c.executionCtx.waitUntil(dispatchScoring(c.env, user.id));
   return c.json({ tasteText: p.tasteText.trim(), prefs: p.prefs, version } satisfies Profile);

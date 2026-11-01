@@ -446,3 +446,67 @@ describe('sources overview', () => {
     expect(JSON.stringify(body)).not.toContain('secret.example'); // no URLs or settings
   });
 });
+
+describe('switching sources off', () => {
+  it('takes their events out of the inbox and keeps the agenda', async () => {
+    const u = await createUser('Rae', 'rae@example.org');
+    const cookie = await login(u.loginLink.url);
+    const call = as(cookie);
+    await env.DB.batch([
+      env.DB.prepare(
+        `INSERT INTO sources (id, name, type, config, schedule_minutes) VALUES ('s_sw', 'Switch Club', 'ical', '{}', 360)`,
+      ),
+      env.DB.prepare(
+        `INSERT INTO raw_items (id, source_id, external_id, content_hash, kind, content, fetched_at)
+         VALUES ('raw-sw', 's_sw', 'x', 'hash-sw', 'json', '{}', '2026-01-01T00:00:00Z')`,
+      ),
+      ...['sw_a', 'sw_b'].flatMap((id, i) => [
+        env.DB.prepare(
+          `INSERT INTO events (id, slug, title, lang, category, dedup_key, created_by) VALUES (?, ?, ?, 'en', 'concert', ?, 't')`,
+        ).bind(id, id, id, `sw${i}`),
+        env.DB.prepare(`INSERT INTO occurrences (id, event_id, start_local, start_utc) VALUES (?, ?, ?, ?)`).bind(
+          `${id}_o`,
+          id,
+          local(4 + i),
+          berlinLocalToUtc(local(4 + i)),
+        ),
+        env.DB.prepare(
+          `INSERT INTO event_sources (event_id, raw_item_id, extracted, confidence) VALUES (?, 'raw-sw', '{}', 1)`,
+        ).bind(id),
+        env.DB.prepare(
+          `INSERT INTO user_event_scores (user_id, event_id, score, reasons, profile_version, computed_at)
+           VALUES (?, ?, 80, '[]', 1, '2026-01-01T00:00:00Z')`,
+        ).bind(u.user.id, id),
+      ]),
+      env.DB.prepare(`UPDATE user_profiles SET taste_text = 'x', profile_version = 1 WHERE user_id = ?`).bind(
+        u.user.id,
+      ),
+    ]);
+    await refreshAllNextDates(env.DB);
+    await call('/api/me/events/sw_b/state', { method: 'PUT', body: JSON.stringify({ state: 'interested' }) });
+    const slugs = async () => InboxResponse.parse(await (await call('/api/me/inbox')).json()).items.map((i) => i.slug);
+    expect(await slugs()).toEqual(['sw_a']);
+
+    const sw = await call('/api/me/sources/s_sw', { method: 'PUT', body: JSON.stringify({ on: false }) });
+    expect(await sw.json()).toEqual({ sourcesOff: ['s_sw'] });
+    expect(await slugs()).toEqual([]);
+    const agenda = AgendaResponse.parse(await (await call('/api/me/agenda')).json());
+    expect(agenda.items.map((a) => a.slug)).toEqual(['sw_b']); // planned stays planned
+
+    // The list rows carry their sources, so Browse can hide them for this user.
+    const list = (await (await exports.default.fetch(`${BASE}/api/events`)).json()) as {
+      items: { slug: string; sources?: string[] }[];
+    };
+    expect(list.items.find((i) => i.slug === 'sw_a')?.sources).toEqual(['s_sw']);
+
+    expect((await call('/api/me/sources/nope', { method: 'PUT', body: JSON.stringify({ on: false }) })).status).toBe(
+      404,
+    );
+    expect(
+      await (await call('/api/me/sources/s_sw', { method: 'PUT', body: JSON.stringify({ on: true }) })).json(),
+    ).toEqual({
+      sourcesOff: [],
+    });
+    expect(await slugs()).toEqual(['sw_a']);
+  });
+});

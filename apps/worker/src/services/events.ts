@@ -41,7 +41,12 @@ const listItem = (r: Record<string, unknown>): EventListItem => ({
   next: { startLocal: String(r.next_local), startUtc: String(r.next_utc) },
   moreDates: Number(r.more_dates),
   ...(r.lang === 'de' || r.lang === 'en' ? { lang: r.lang } : {}),
+  ...(r.source_ids ? { sources: String(r.source_ids).split(',') } : {}),
 });
+
+/** The sources an event came from, for per-user source switches (one small indexed lookup per row). */
+const SOURCE_IDS = `(SELECT group_concat(DISTINCT r.source_id) FROM event_sources es JOIN raw_items r ON r.id = es.raw_item_id
+                     WHERE es.event_id = e.id AND r.source_id IS NOT NULL) AS source_ids`;
 
 /**
  * Two plans, both paging with a cursor and listing each event once at its next date in range:
@@ -111,7 +116,7 @@ export async function listEvents(
   }
 
   const select = `e.slug, e.title, e.lang, e.category, e.price_min, e.price_max, e.is_free, v.name AS venue_name,
-                  v.district`;
+                  v.district, ${SOURCE_IDS}`;
   let stmt: D1PreparedStatement;
   if (!windowed) {
     const where = ["e.status = 'published'", 'e.next_start_utc >= ?', 'e.next_start_utc <= ?', ...filters];
@@ -193,7 +198,7 @@ export async function listItemsByIds(
     .prepare(
       `SELECT e.id, e.slug, e.title, e.lang, e.category, e.price_min, e.price_max, e.is_free,
               e.next_start_utc AS next_utc, e.next_start_local AS next_local,
-              MAX(e.upcoming_count - 1, 0) AS more_dates, v.name AS venue_name, v.district
+              MAX(e.upcoming_count - 1, 0) AS more_dates, v.name AS venue_name, v.district, ${SOURCE_IDS}
          FROM events e LEFT JOIN venues v ON v.id = e.venue_id
         WHERE e.id IN (${ids.map(() => '?').join(',')}) AND e.status = 'published' AND e.next_start_utc IS NOT NULL
           AND e.category NOT IN (${['', ...hidden].map(() => '?').join(',')})`,

@@ -77,6 +77,11 @@ export const api = {
   passwordStatus: () => getJson('/api/me/password', PasswordStatus),
   spotify: () => getJson('/api/me/spotify', SpotifyStatus),
   sources: () => getJson('/api/me/sources', SourcesOverview),
+  setSource: (id: string, on: boolean) =>
+    request(`/api/me/sources/${enc(id)}`, z.object({ sourcesOff: z.array(z.string()) }), {
+      method: 'PUT',
+      body: { on },
+    }),
   spotifySync: () => request('/api/me/spotify/sync', SpotifyStatus, { method: 'POST', body: {} }),
   spotifyDisconnect: () => request('/api/me/spotify', SpotifyStatus, { method: 'DELETE' }),
   setPassword: (body: { password: string; current?: string }) =>

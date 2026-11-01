@@ -215,6 +215,11 @@ Format: date · decision · why · alternatives rejected. Newer entries supersed
   leaves out switched-off categories at read time (not only through scores). The site is a PWA: manifest, icons
   (192/512, maskable), iOS home-screen tags, and a service worker that only keeps the app shell (network first,
   never the API).
+- **2026-11-01 · Sources can be switched off per user.** `prefs.sourcesOff` (set only through
+  `PUT /api/me/sources/:id`, so saving the taste never undoes it). An event leaves a user's Browse, inbox and picks
+  when every source that lists it is off; events added by people from photos and text are never hidden this way, and
+  the agenda and event pages keep everything. List rows carry their source ids (public, cacheable), the inbox filters
+  at read time; no re-scoring.
 - **2026-10-02 · React + Vite + TanStack + Tailwind + shadcn/ui.** Best coverage by design tools and implementing
   models. Rejected: SvelteKit (good, but weaker design-tool output), Next.js on Workers via OpenNext (heavier than
   needed; no SSR requirement since public pages can be cached JSON + client render; revisit if SEO matters).
