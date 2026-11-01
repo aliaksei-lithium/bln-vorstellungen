@@ -1,8 +1,11 @@
+import { useQuery } from '@tanstack/react-query';
 import { Link, Outlet, useRouterState } from '@tanstack/react-router';
 import { CalendarDays, Camera, Inbox, List, User } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from './ui/sheet';
 import { Tower } from './Tower';
+import { api } from '@/lib/api';
+import { useMe } from '@/lib/auth';
 import { cn } from '@/lib/utils';
 
 function useScrolled() {
@@ -48,7 +51,7 @@ const NAV = [
   { to: '/me', label: 'Me', Icon: User },
 ] as const;
 
-function NavLink({ to, label, Icon, active }: (typeof NAV)[number] & { active: boolean }) {
+function NavLink({ to, label, Icon, active, badge }: (typeof NAV)[number] & { active: boolean; badge?: number }) {
   return (
     <Link
       to={to}
@@ -60,7 +63,15 @@ function NavLink({ to, label, Icon, active }: (typeof NAV)[number] & { active: b
           : 'text-sub',
       )}
     >
-      <Icon className="size-[22px]" strokeWidth={1.75} aria-hidden />
+      <span className="relative">
+        <Icon className="size-[22px]" strokeWidth={1.75} aria-hidden />
+        {badge ? (
+          <span className="absolute -top-1.5 left-4 min-w-[18px] bg-moss px-1 text-center text-[10.5px] leading-[18px] font-extrabold text-on-moss tabular-nums">
+            {badge > 99 ? '99+' : badge}
+            <span className="sr-only"> to sort</span>
+          </span>
+        ) : null}
+      </span>
       {label}
     </Link>
   );
@@ -71,6 +82,9 @@ export function AppShell() {
   const [scanOpen, setScanOpen] = useState(false);
   const pushed = path.startsWith('/e/');
   const isActive = (to: string) => (to === '/' ? path === '/' : path.startsWith(to));
+  const { user } = useMe();
+  const inbox = useQuery({ queryKey: ['inbox', 'all'], queryFn: () => api.inbox('all'), enabled: !!user });
+  const toSort = inbox.data ? inbox.data.total - inbox.data.done : 0;
 
   return (
     <>
@@ -92,7 +106,7 @@ export function AppShell() {
         >
           <div className="mx-auto flex h-16 max-w-[600px] px-[env(safe-area-inset-left,0px)]">
             <NavLink {...NAV[0]} active={isActive('/')} />
-            <NavLink {...NAV[1]} active={isActive('/inbox')} />
+            <NavLink {...NAV[1]} active={isActive('/inbox')} badge={toSort} />
             <button
               type="button"
               onClick={() => setScanOpen(true)}
@@ -117,7 +131,7 @@ export function AppShell() {
             </SheetDescription>
           </SheetHeader>
           <div className="mx-4 mb-6 border border-moss bg-moss-soft p-3 text-sm">
-            Adding events needs an account. Sign-in and photo reading are the next steps on the roadmap.
+            Reading photos is the next step on the roadmap. Until then, events come from the venues' own programmes.
           </div>
         </SheetContent>
       </Sheet>
