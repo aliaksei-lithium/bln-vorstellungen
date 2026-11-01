@@ -4,6 +4,7 @@ import { HTTPException } from 'hono/http-exception';
 import { z } from 'zod';
 import type { AppEnv } from '../auth';
 import { eventDetail, listEvents, searchByMeaning, similarEvents } from '../services/events';
+import { occurrenceIcs } from './ics';
 import { musicLike } from '../spotify';
 
 /**
@@ -47,6 +48,29 @@ eventsApi.get('/:slug/similar', async (c) => {
   const items = await similarEvents(c.env, c.req.param('slug'));
   c.header('Cache-Control', 'public, max-age=300, s-maxage=1800');
   return c.json({ items } satisfies EventsList);
+});
+
+/** One date as an .ics file for "Add to calendar"; public, so visitors can use it without an account. */
+eventsApi.get('/:slug/ics', async (c) => {
+  const detail = await eventDetail(c.env.DB, c.req.param('slug'));
+  const o = detail?.occurrences.find((x) => x.id === c.req.query('date'));
+  if (!detail || !o) throw new HTTPException(404, { message: 'Date not found' });
+  const origin = new URL(c.req.url).origin;
+  const ics = occurrenceIcs({
+    uid: o.id,
+    title: detail.title,
+    category: detail.category,
+    startLocal: o.startLocal,
+    endLocal: o.endLocal ?? null,
+    location: detail.venue ? [detail.venue.name, detail.venue.address ?? 'Berlin'].join(', ') : null,
+    url: `${origin}/e/${detail.slug}`,
+  });
+  return c.body(ics, 200, {
+    'Content-Type': 'text/calendar; charset=utf-8',
+    'Content-Disposition': `attachment; filename="${detail.slug.slice(0, 80)}.ics"`,
+    'Cache-Control': CACHE_CONTROL,
+    'Cache-Tag': CACHE_TAG,
+  });
 });
 
 eventsApi.get('/:slug', async (c) => {

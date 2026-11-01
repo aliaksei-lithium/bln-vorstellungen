@@ -1,7 +1,7 @@
-import { hasTime, typicalMinutes, type AgendaItem } from '@bln/shared';
+import { hasTime, typicalMinutes, type AgendaItem, type Category } from '@bln/shared';
 
 /**
- * iCalendar export of an agenda (RFC 5545). Times are Berlin wall-clock with TZID, so calendar apps keep 20:00 at
+ * iCalendar export of an agenda, or of one date of an event (RFC 5545). Times are Berlin wall-clock with TZID, so calendar apps keep 20:00 at
  * 20:00 across the DST switch; a VTIMEZONE block is included for apps that do not know IANA names.
  */
 
@@ -50,7 +50,40 @@ function addMinutes(local: string, minutes: number): string {
   return new Date(ms).toISOString().slice(0, 16);
 }
 
+type IcsEvent = {
+  uid: string;
+  title: string;
+  category: Category;
+  startLocal: string;
+  endLocal: string | null;
+  location: string | null;
+  url: string;
+  status: 'CONFIRMED' | 'TENTATIVE';
+};
+
 export function agendaIcs(items: AgendaItem[], origin: string, name: string, now = new Date()): string {
+  return calendar(
+    items.map((it) => ({
+      uid: it.occurrenceId,
+      title: it.state === 'maybe' ? `(maybe) ${it.title}` : it.title,
+      category: it.category,
+      startLocal: it.startLocal,
+      endLocal: it.endLocal,
+      location: it.venueName ? `${it.venueName}, Berlin` : null,
+      url: `${origin}/e/${it.slug}`,
+      status: it.state === 'maybe' ? 'TENTATIVE' : 'CONFIRMED',
+    })),
+    { name, refresh: true },
+    now,
+  );
+}
+
+/** One date of an event, for "Add to calendar" (a file the calendar app imports once). */
+export function occurrenceIcs(e: Omit<IcsEvent, 'status'>, now = new Date()): string {
+  return calendar([{ ...e, status: 'CONFIRMED' }], {}, now);
+}
+
+function calendar(items: IcsEvent[], opts: { name?: string; refresh?: boolean }, now: Date): string {
   const dtstamp = `${now.toISOString().replace(/[-:]/g, '').slice(0, 15)}Z`;
   const events = items.flatMap((it) => {
     const end = it.endLocal ?? addMinutes(it.startLocal, typicalMinutes(it.category));
@@ -65,13 +98,13 @@ export function agendaIcs(items: AgendaItem[], origin: string, name: string, now
         ];
     return [
       'BEGIN:VEVENT',
-      `UID:${it.occurrenceId}@bln-vorstellungen`,
+      `UID:${it.uid}@bln-vorstellungen`,
       `DTSTAMP:${dtstamp}`,
       ...when,
-      `SUMMARY:${escapeText(it.state === 'maybe' ? `(maybe) ${it.title}` : it.title)}`,
-      ...(it.venueName ? [`LOCATION:${escapeText(`${it.venueName}, Berlin`)}`] : []),
-      `URL:${origin}/e/${it.slug}`,
-      `STATUS:${it.state === 'maybe' ? 'TENTATIVE' : 'CONFIRMED'}`,
+      `SUMMARY:${escapeText(it.title)}`,
+      ...(it.location ? [`LOCATION:${escapeText(it.location)}`] : []),
+      `URL:${it.url}`,
+      `STATUS:${it.status}`,
       'END:VEVENT',
     ];
   });
@@ -81,9 +114,9 @@ export function agendaIcs(items: AgendaItem[], origin: string, name: string, now
     'PRODID:-//BLN Vorstellungen//Agenda//EN',
     'CALSCALE:GREGORIAN',
     'METHOD:PUBLISH',
-    `X-WR-CALNAME:${escapeText(name)}`,
+    ...(opts.name ? [`X-WR-CALNAME:${escapeText(opts.name)}`] : []),
     'X-WR-TIMEZONE:Europe/Berlin',
-    'REFRESH-INTERVAL;VALUE=DURATION:PT1H',
+    ...(opts.refresh ? ['REFRESH-INTERVAL;VALUE=DURATION:PT1H'] : []),
     ...VTIMEZONE,
     ...events,
     'END:VCALENDAR',
