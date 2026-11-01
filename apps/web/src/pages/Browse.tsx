@@ -19,10 +19,13 @@ import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetFooter, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { api } from '@/lib/api';
 import { useMe } from '@/lib/auth';
-import { useMyStates } from '@/lib/marks';
+import { useListFilter } from '@/lib/marks';
 import { WHEN_LABELS, relativeDay, whenRange, type When } from '@/lib/dates';
 
-/** Filter chips: every category but `other`; opt-in ones only for users who switched them on. */
+/**
+ * Filter chips: every category but `other`; opt-in ones only for users who turned them on. Switched-off categories
+ * keep their chip: picking one is how to look at them on purpose.
+ */
 const listCategories = (prefs?: Prefs) => {
   const hidden = hiddenCategories(prefs);
   return Category.options.filter((c) => c !== 'other' && !hidden.includes(c));
@@ -59,12 +62,9 @@ export function BrowsePage() {
     getNextPageParam: (last) => last.nextCursor ?? undefined,
     placeholderData: keepPreviousData,
   });
-  const { states } = useMyStates();
-  // Events the user hid never show; the rows themselves skip them too, this keeps empty days out.
-  const items = useMemo(
-    () => (events.data?.pages.flatMap((p) => p.items) ?? []).filter((e) => states[e.slug] !== 'hidden'),
-    [events.data, states],
-  );
+  // Hidden events and switched-off categories stay out here, so no day is left empty.
+  const shows = useListFilter(filters.category);
+  const items = useMemo(() => (events.data?.pages.flatMap((p) => p.items) ?? []).filter(shows), [events.data, shows]);
   // Search by meaning complements keyword search: "jazz tonight" also finds a quartet that never says "jazz".
   const meaning = useQuery({
     queryKey: ['meaning', query],
@@ -74,8 +74,8 @@ export function BrowsePage() {
   });
   const related = useMemo(() => {
     const shown = new Set(items.map((i) => i.slug));
-    return (meaning.data?.items ?? []).filter((i) => !shown.has(i.slug)).slice(0, 8);
-  }, [meaning.data, items]);
+    return (meaning.data?.items ?? []).filter((i) => !shown.has(i.slug) && shows(i)).slice(0, 8);
+  }, [meaning.data, items, shows]);
   const groups = useMemo(() => groupByDay(items), [items]);
 
   const active: { key: keyof Filters; label: string }[] = [];

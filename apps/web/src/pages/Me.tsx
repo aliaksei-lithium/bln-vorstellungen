@@ -146,6 +146,10 @@ function TasteForm() {
       </Box>
 
       <Box title="Categories">
+        <p className="m-0 border-b border-line px-3 py-2.5 text-sm text-sub">
+          Switched off: left out of your picks, Browse and similar events. Picking one in the Browse filter still shows
+          it.
+        </p>
         {[...Category.options.filter((c) => !OPT_IN_CATEGORIES.includes(c)), ...OPT_IN_CATEGORIES].map((c) => {
           const on = isOn(c);
           return (
