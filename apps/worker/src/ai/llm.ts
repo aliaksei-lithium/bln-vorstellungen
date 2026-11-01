@@ -114,6 +114,8 @@ async function claude(env: Env, model: ClaudeModel, req: JsonCall<unknown>, maxT
   await env.DB.batch([
     bumpUsage(env.DB, 'claude_microusd', usd * 1e6),
     bumpUsage(env.DB, 'claude_calls', 1),
+    bumpUsage(env.DB, 'claude_tokens_in', res.usage?.input_tokens ?? 0),
+    bumpUsage(env.DB, 'claude_tokens_out', res.usage?.output_tokens ?? 0),
     bumpUsage(env.DB, metric, 1),
   ]);
   return { out: (res.content ?? []).find((b) => b.type === 'text')?.text, neurons: 0, usd, model };

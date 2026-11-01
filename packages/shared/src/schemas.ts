@@ -157,6 +157,27 @@ export type ScanCreated = z.infer<typeof ScanCreated>;
 export const ScanConfirm = z.object({ events: z.array(ExtractedEvent).min(1, 'Pick at least one event.').max(100) });
 export type ScanConfirm = z.infer<typeof ScanConfirm>;
 
+/** AI spend for the owner's overview (Me page). Whole site, not per user; days are UTC. */
+export const UsageDay = z.object({
+  day: z.string(),
+  claudeUsd: z.number(),
+  claudeCalls: z.number(),
+  tokensIn: z.number(),
+  tokensOut: z.number(),
+  neurons: z.number(),
+  extractCalls: z.number(),
+  scoreCalls: z.number(),
+});
+export type UsageDay = z.infer<typeof UsageDay>;
+export const UsageOverview = z.object({
+  /** Oldest first; the last one is today. */
+  days: z.array(UsageDay),
+  claudeDailyUsd: z.number().nullable(),
+  neuronBudget: z.number(),
+  models: z.object({ extract: z.string(), score: z.string() }),
+});
+export type UsageOverview = z.infer<typeof UsageOverview>;
+
 export const SourceVisibility = z.enum(['public', 'private']);
 
 /** A `sources` row as created or edited by the owner. `config` is validated by the adapter's own schema. */

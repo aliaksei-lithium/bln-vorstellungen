@@ -1,5 +1,5 @@
-import { SourceView } from '@bln/shared';
-import { exports } from 'cloudflare:workers';
+import { SourceView, UsageOverview } from '@bln/shared';
+import { env, exports } from 'cloudflare:workers';
 import { describe, expect, it } from 'vitest';
 
 const call = (path: string, init: RequestInit & { token?: string | null } = {}) => {
@@ -59,5 +59,34 @@ describe('admin api', () => {
 
     expect((await call(`/sources/${s.id}`, { method: 'DELETE' })).status).toBe(204);
     expect((await call(`/sources/${s.id}/runs`)).status).toBe(404);
+  });
+});
+
+describe('AI usage overview', () => {
+  it('returns one row per UTC day, today last, with Claude tokens', async () => {
+    const today = new Date().toISOString().slice(0, 10);
+    await env.DB.batch(
+      [
+        ['claude_microusd', 12_500],
+        ['claude_tokens_in', 3000],
+        ['claude_tokens_out', 500],
+        ['claude_calls', 2],
+        ['ai_neurons', 40],
+      ].map(([m, v]) =>
+        env.DB.prepare(
+          `INSERT INTO usage_counters (day, metric, value) VALUES (?, ?, ?)
+           ON CONFLICT (day, metric) DO UPDATE SET value = excluded.value`,
+        ).bind(today, m, v),
+      ),
+    );
+    const res = await exports.default.fetch('https://bln.test/api/admin/usage/days?days=7', {
+      headers: { authorization: 'Bearer test-admin-token' },
+    });
+    const u = UsageOverview.parse(await res.json());
+    expect(u.days).toHaveLength(7);
+    expect(u.days.at(-1)).toMatchObject({ day: today, claudeUsd: 0.0125, tokensIn: 3000, tokensOut: 500, neurons: 40 });
+    expect(u.days[0]!.claudeUsd).toBe(0);
+    expect(u.claudeDailyUsd).toBe(0.5);
+    expect((await exports.default.fetch('https://bln.test/api/admin/usage/days')).status).toBe(401);
   });
 });

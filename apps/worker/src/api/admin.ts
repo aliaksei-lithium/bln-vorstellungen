@@ -1,4 +1,4 @@
-import { SourceCreate, SourceRunView, SourceUpdate, SourceView, UserCreate } from '@bln/shared';
+import { SourceCreate, SourceRunView, SourceUpdate, SourceView, UserCreate, type UsageOverview } from '@bln/shared';
 import { adapterTypes, getAdapter, hasAdapter, HtmlConfig, htmlAdapter, registerBuiltinAdapters } from '@bln/sources';
 import { z } from 'zod';
 import { configuredProvider, extractEvents } from '../ai/extract';
@@ -6,7 +6,7 @@ import { embedMissing } from '../ai/embed';
 import { BudgetExhausted, CLAUDE, DAILY_NEURON_BUDGET } from '../ai/models';
 import { rebuildIndex } from '../ai/vector-index';
 import { sourceContext } from '../pipeline/source-run';
-import { usageToday } from '../usage';
+import { usageDays, usageToday } from '../usage';
 import { Hono } from 'hono';
 import { createLoginLink, isAdmin, type AppEnv } from '../auth';
 import { HTTPException } from 'hono/http-exception';
@@ -265,6 +265,28 @@ adminApi.get('/usage', async (c) => {
     claudeUsd: (today.claude_microusd ?? 0) / 1e6,
     ...today,
   });
+});
+
+/** The owner's spend overview: one row per UTC day, today last (`?days=`, 1–90, default 30). */
+adminApi.get('/usage/days', async (c) => {
+  const days = Math.min(90, Math.max(1, Number(c.req.query('days')) || 30));
+  const rows = await usageDays(c.env.DB, days);
+  const cap = Number(c.env.CLAUDE_DAILY_USD);
+  return c.json({
+    days: rows.map(({ day, values: v }) => ({
+      day,
+      claudeUsd: (v.claude_microusd ?? 0) / 1e6,
+      claudeCalls: v.claude_calls ?? 0,
+      tokensIn: v.claude_tokens_in ?? 0,
+      tokensOut: v.claude_tokens_out ?? 0,
+      neurons: v.ai_neurons ?? 0,
+      extractCalls: v.ai_extract_calls ?? 0,
+      scoreCalls: v.ai_score_calls ?? 0,
+    })),
+    claudeDailyUsd: String(c.env.CLAUDE_DAILY_USD ?? '').trim() && Number.isFinite(cap) ? cap : null,
+    neuronBudget: DAILY_NEURON_BUDGET,
+    models: { extract: c.env.EXTRACT_MODEL ?? 'workers-ai', score: c.env.SCORE_MODEL ?? 'workers-ai' },
+  } satisfies UsageOverview);
 });
 
 /** Embeds every upcoming event that has no vector yet (in rounds of 32), then rebuilds the vector index. */
