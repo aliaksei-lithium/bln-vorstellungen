@@ -74,3 +74,26 @@ export const McpSetTaste = z.object({
     ),
 });
 export type McpSetTaste = z.infer<typeof McpSetTaste>;
+
+export const McpAddFromText = z.object({
+  text: z
+    .string()
+    .trim()
+    .min(10)
+    .max(20000)
+    .describe(
+      'Text that announces events, as the user gave it: a newsletter, message, website text or programme. ' +
+        'Pass it unchanged; do not summarise or translate.',
+    ),
+});
+export type McpAddFromText = z.infer<typeof McpAddFromText>;
+
+export const McpConfirmEvents = z.object({
+  scanId: z.string().min(1).describe('The scan id returned by add_events_from_text.'),
+  pick: z
+    .array(z.number().int().min(1))
+    .max(100)
+    .optional()
+    .describe('Numbers of the events to add, as listed. Default: all of them.'),
+});
+export type McpConfirmEvents = z.infer<typeof McpConfirmEvents>;

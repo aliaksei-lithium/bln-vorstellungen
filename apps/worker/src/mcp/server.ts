@@ -1,4 +1,6 @@
 import {
+  McpAddFromText,
+  McpConfirmEvents,
   McpGetEvent,
   McpListEvents,
   McpMarkEvent,
@@ -18,7 +20,8 @@ import { z } from 'zod';
 import { dispatchScoring, loadProfile, saveProfile } from '../ai/score';
 import { eventDetail, listEvents, searchByMeaning } from '../services/events';
 import { agendaItems, eventIdBySlug, inbox, myEvent, scoresBySlug, setEventState } from '../services/me';
-import { agendaMarkdown, eventLines, eventMarkdown } from './format';
+import { agendaMarkdown, candidateLines, eventLines, eventMarkdown } from './format';
+import { confirmScan, createScan, getScan, runScan } from '../services/scans';
 
 /**
  * The MCP server (docs/06): one per request (stateless), for one signed-in user. Every tool calls the same
@@ -273,6 +276,59 @@ export function buildServer(
         await saveProfile(env, userId, a.tasteText, prefs);
         ctx.waitUntil(dispatchScoring(env, userId));
         return text('Saved. Scores update within a few minutes; my_picks shows the new ranking after that.');
+      }),
+  );
+
+  server.registerTool(
+    'add_events_from_text',
+    {
+      title: 'Read events from text',
+      description:
+        'Reads events out of text the user gives you (a newsletter, message, website text or programme) and lists ' +
+        'them numbered, with a review link. Nothing is added yet: show the list to the user, then call ' +
+        'confirm_events with the numbers they want.',
+      inputSchema: McpAddFromText,
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+    },
+    (a) =>
+      run(async () => {
+        if (!canWrite) return needsWrite();
+        const scanId = await createScan(env, userId, { kind: 'text', text: a.text }, new Date(), { start: false });
+        await runScan(env, scanId);
+        const scan = await getScan(env.DB, userId, scanId);
+        if (scan.status === 'failed') return fail(scan.error ?? 'Could not read that text.');
+        if (!scan.candidates.length) return text(scan.error ?? 'No dated events in that text.');
+        return text(
+          `Found ${scan.candidates.length} ${scan.candidates.length === 1 ? 'event' : 'events'} (scan \`${scanId}\`). ` +
+            `Nothing is added yet. To review or edit in the app: ${origin}/scan/${scanId}\n\n` +
+            candidateLines(scan.candidates),
+        );
+      }),
+  );
+
+  server.registerTool(
+    'confirm_events',
+    {
+      title: 'Add read events',
+      description:
+        'Adds events read by add_events_from_text, all or the numbers picked. Events already listed get the new ' +
+        'dates merged in instead of a duplicate. Only after the user agreed to the list.',
+      inputSchema: McpConfirmEvents,
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+    },
+    (a) =>
+      run(async () => {
+        if (!canWrite) return needsWrite();
+        const scan = await getScan(env.DB, userId, a.scanId);
+        const picked = a.pick?.length
+          ? a.pick.map((n) => scan.candidates[n - 1]).filter((e): e is NonNullable<typeof e> => !!e)
+          : scan.candidates;
+        if (!picked.length) return fail(`Pick numbers between 1 and ${scan.candidates.length}.`);
+        const r = await confirmScan(env, userId, a.scanId, picked);
+        return text(
+          `Added ${r.added} new, merged ${r.merged} into events already listed:\n` +
+            r.events.map((e) => `- [${e.title}](${origin}/e/${e.slug}) · ${e.created ? 'new' : 'merged'}`).join('\n'),
+        );
       }),
   );
 
