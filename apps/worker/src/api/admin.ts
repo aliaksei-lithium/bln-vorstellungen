@@ -1,4 +1,4 @@
-import { SourceCreate, SourceRunView, SourceUpdate, SourceView } from '@bln/shared';
+import { SourceCreate, SourceRunView, SourceUpdate, SourceView, UserCreate } from '@bln/shared';
 import { adapterTypes, getAdapter, hasAdapter, HtmlConfig, htmlAdapter, registerBuiltinAdapters } from '@bln/sources';
 import { z } from 'zod';
 import { configuredProvider, extractEvents } from '../ai/extract';
@@ -8,35 +8,24 @@ import { rebuildIndex } from '../ai/vector-index';
 import { sourceContext } from '../pipeline/source-run';
 import { usageToday } from '../usage';
 import { Hono } from 'hono';
+import { createLoginLink, isAdmin, type AppEnv } from '../auth';
 import { HTTPException } from 'hono/http-exception';
 import { startSourceRun } from '../pipeline/scheduler';
 
 registerBuiltinAdapters();
 
 /**
- * Owner-only admin API. Until sign-in lands (phase 2) it is gated by a shared secret: `Authorization: Bearer
- * <ADMIN_TOKEN>`, set with `wrangler secret put ADMIN_TOKEN`. Without the secret the admin API is off.
+ * Owner-only admin API: a signed-in owner (web app) or `Authorization: Bearer <ADMIN_TOKEN>` (scripts), see
+ * auth.ts. The bearer header also makes Workers Caching bypass, and every response here is no-store.
  */
-export const adminApi = new Hono<{ Bindings: Env }>();
+export const adminApi = new Hono<AppEnv>();
 
 adminApi.use('*', async (c, next) => {
-  const expected = c.env.ADMIN_TOKEN;
-  if (!expected) throw new HTTPException(503, { message: 'Admin API is disabled: ADMIN_TOKEN is not set.' });
-  const given = c.req.header('authorization')?.replace(/^Bearer\s+/i, '') ?? '';
-  if (!(await sameSecret(given, expected))) throw new HTTPException(401, { message: 'Missing or wrong admin token.' });
+  if (!(await isAdmin(c)))
+    throw new HTTPException(401, { message: 'Owner only: sign in as the owner or send the admin token.' });
   c.header('Cache-Control', 'no-store');
   await next();
 });
-
-/** Compares digests so the check takes the same time whatever the input. */
-async function sameSecret(a: string, b: string): Promise<boolean> {
-  const enc = new TextEncoder();
-  const [ha, hb] = await Promise.all([
-    crypto.subtle.digest('SHA-256', enc.encode(a)),
-    crypto.subtle.digest('SHA-256', enc.encode(b)),
-  ]);
-  return crypto.subtle.timingSafeEqual(ha, hb);
-}
 
 type SourceRow = {
   id: string;
@@ -288,4 +277,55 @@ adminApi.post('/ai/reindex', async (c) => {
   }
   const indexed = await rebuildIndex(c.env, new Date(), true);
   return c.json({ embedded, indexed });
+});
+
+/* ---------- users (pre-defined, no sign-up) ---------- */
+
+adminApi.get('/users', async (c) => {
+  const { results } = await c.env.DB.prepare(
+    `SELECT u.id, u.name, u.email, u.is_owner AS isOwner, u.created_at AS createdAt,
+            (SELECT COUNT(*) FROM sessions s WHERE s.user_id = u.id AND s.expires_at > ?) AS activeSessions
+       FROM users u ORDER BY u.created_at`,
+  )
+    .bind(new Date().toISOString())
+    .all();
+  return c.json({ users: results.map((u) => ({ ...u, isOwner: Boolean(u.isOwner) })) });
+});
+
+/** Creates a user (or returns the existing one with that email) and a fresh one-time login link for them. */
+adminApi.post('/users', async (c) => {
+  const parsed = UserCreate.safeParse(await readJson(c));
+  if (!parsed.success) throw new HTTPException(400, { message: parsed.error.issues[0]?.message ?? 'Invalid user' });
+  const u = parsed.data;
+  const email = u.email.toLowerCase();
+  await c.env.DB.batch([
+    c.env.DB.prepare(
+      `INSERT INTO users (id, name, email, email_verified, is_owner) VALUES (?, ?, ?, 1, ?)
+       ON CONFLICT (email) DO UPDATE SET name = excluded.name, is_owner = MAX(is_owner, excluded.is_owner)`,
+    ).bind(crypto.randomUUID(), u.name, email, u.owner ? 1 : 0),
+  ]);
+  const user = await c.env.DB.prepare('SELECT id, name, email, is_owner FROM users WHERE email = ?')
+    .bind(email)
+    .first<{ id: string; name: string; email: string; is_owner: number }>();
+  await c.env.DB.prepare('INSERT OR IGNORE INTO user_profiles (user_id) VALUES (?)').bind(user!.id).run();
+  const link = await createLoginLink(c.env.DB, user!.id, new URL(c.req.url).origin);
+  return c.json(
+    { user: { id: user!.id, name: user!.name, email: user!.email, isOwner: Boolean(user!.is_owner) }, loginLink: link },
+    201,
+  );
+});
+
+adminApi.post('/users/:id/login-link', async (c) => {
+  const user = await c.env.DB.prepare('SELECT id FROM users WHERE id = ? OR email = ?')
+    .bind(c.req.param('id'), c.req.param('id').toLowerCase())
+    .first<{ id: string }>();
+  if (!user) throw new HTTPException(404, { message: 'User not found' });
+  return c.json(await createLoginLink(c.env.DB, user.id, new URL(c.req.url).origin), 201);
+});
+
+/** Signs the user out everywhere and removes their data (profile, scores, states cascade). */
+adminApi.delete('/users/:id', async (c) => {
+  const r = await c.env.DB.prepare('DELETE FROM users WHERE id = ?').bind(c.req.param('id')).run();
+  if (!r.meta.changes) throw new HTTPException(404, { message: 'User not found' });
+  return c.body(null, 204);
 });

@@ -1,0 +1,282 @@
+import { AgendaResponse, InboxResponse, MeResponse, MyEvent, berlinLocalToUtc } from '@bln/shared';
+import { env, exports } from 'cloudflare:workers';
+import { beforeAll, describe, expect, it } from 'vitest';
+import { quantize } from '../src/ai/embed';
+import { MODELS } from '../src/ai/models';
+import { baseFromCosine, parseScores, scoreByRules, scoreWithLlm } from '../src/ai/score';
+import { rebuildIndex } from '../src/ai/vector-index';
+import { refreshAllNextDates } from '../src/pipeline/next-dates';
+
+const BASE = 'https://bln.test';
+const DAY = 86_400_000;
+const local = (days: number, hh = 20) =>
+  `${new Date(Date.now() + days * DAY).toISOString().slice(0, 10)}T${String(hh).padStart(2, '0')}:00`;
+
+const admin = (path: string, init: RequestInit = {}) =>
+  exports.default.fetch(`${BASE}/api/admin${path}`, {
+    ...init,
+    headers: { authorization: 'Bearer test-admin-token', 'content-type': 'application/json', ...init.headers },
+  });
+
+async function createUser(name: string, email: string, owner = false) {
+  const res = await admin('/users', { method: 'POST', body: JSON.stringify({ name, email, owner }) });
+  expect(res.status).toBe(201);
+  return (await res.json()) as { user: { id: string }; loginLink: { url: string } };
+}
+
+/** Logs in through the link and returns the session cookie. */
+async function login(url: string): Promise<string> {
+  const token = new URL(url).pathname.split('/').pop()!;
+  const res = await exports.default.fetch(`${BASE}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', origin: BASE },
+    body: JSON.stringify({ token }),
+  });
+  expect(res.status).toBe(200);
+  return res.headers.get('set-cookie')!.split(';')[0]!;
+}
+
+const as =
+  (cookie: string) =>
+  (path: string, init: RequestInit = {}) =>
+    exports.default.fetch(`${BASE}${path}`, {
+      ...init,
+      headers: { cookie, origin: BASE, 'content-type': 'application/json', ...init.headers },
+    });
+
+describe('sign-in with pre-defined users', () => {
+  it('logs in once per link, keeps the session, and signs out', async () => {
+    const { loginLink } = await createUser('Ada', 'ada@example.org');
+    expect(loginLink.url).toMatch(/^https:\/\/bln\.test\/login\//);
+    const cookie = await login(loginLink.url);
+    expect(cookie).toMatch(/^bln_session=/);
+
+    const me = MeResponse.parse(await (await as(cookie)('/api/me')).json());
+    expect(me.user).toMatchObject({ name: 'Ada', email: 'ada@example.org', isOwner: false });
+
+    const token = new URL(loginLink.url).pathname.split('/').pop();
+    const again = await exports.default.fetch(`${BASE}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ token }),
+    });
+    expect(again.status).toBe(401);
+
+    await as(cookie)('/api/auth/logout', { method: 'POST' });
+    expect(MeResponse.parse(await (await as(cookie)('/api/me')).json()).user).toBeNull();
+  });
+
+  it('is anonymous without a cookie and refuses personal routes', async () => {
+    expect(MeResponse.parse(await (await exports.default.fetch(`${BASE}/api/me`)).json()).user).toBeNull();
+    expect((await exports.default.fetch(`${BASE}/api/me/inbox`)).status).toBe(401);
+  });
+
+  it('refuses cross-site writes and lets only owners into the admin API', async () => {
+    const owner = await login((await createUser('Owner', 'owner@example.org', true)).loginLink.url);
+    const guest = await login((await createUser('Guest', 'guest@example.org')).loginLink.url);
+    const evil = await as(guest)('/api/me/login-link', { method: 'POST', headers: { origin: 'https://evil.example' } });
+    expect(evil.status).toBe(403);
+    expect((await as(guest)('/api/admin/users')).status).toBe(401);
+    const list = await as(owner)('/api/admin/users');
+    expect(list.status).toBe(200);
+    expect(((await list.json()) as { users: unknown[] }).users.length).toBeGreaterThanOrEqual(3);
+  });
+});
+
+describe('inbox, triage and agenda', () => {
+  let cookie = '';
+  let userId = '';
+
+  beforeAll(async () => {
+    const u = await createUser('Bea', 'bea@example.org');
+    userId = u.user.id;
+    cookie = await login(u.loginLink.url);
+    const stmts = [
+      env.DB.prepare(`INSERT INTO venues (id, name) VALUES ('v_me', 'Radialsystem')`),
+      ...['a', 'b', 'c'].map((k, i) =>
+        env.DB.prepare(
+          `INSERT INTO events (id, slug, title, lang, category, venue_id, dedup_key, created_by)
+           VALUES (?, ?, ?, 'de', 'dance', 'v_me', ?, 't')`,
+        ).bind(`me_${k}`, `me-${k}`, `Stück ${k.toUpperCase()}`, `me${k}${i}`),
+      ),
+      ...[
+        ['me_a', 2],
+        ['me_a', 9],
+        ['me_b', 3],
+        ['me_c', 30],
+      ].map(([id, d], i) =>
+        env.DB.prepare(`INSERT INTO occurrences (id, event_id, start_local, start_utc) VALUES (?, ?, ?, ?)`).bind(
+          `me_o${i}`,
+          id,
+          local(d as number),
+          berlinLocalToUtc(local(d as number)),
+        ),
+      ),
+      ...[
+        ['me_a', 91],
+        ['me_b', 64],
+        ['me_c', 40],
+      ].map(([id, score]) =>
+        env.DB.prepare(
+          `INSERT INTO user_event_scores (user_id, event_id, score, reasons, profile_version, computed_at)
+           VALUES (?, ?, ?, ?, 1, '2026-01-01T00:00:00Z')`,
+        ).bind(userId, id, score, JSON.stringify([{ kind: 'for', text: 'Contemporary dance' }])),
+      ),
+    ];
+    await env.DB.batch(stmts);
+    await refreshAllNextDates(env.DB);
+  });
+
+  const inbox = async (range = 'all') =>
+    InboxResponse.parse(await (await as(cookie)(`/api/me/inbox?range=${range}`)).json());
+  const mark = (slug: string, state: string | null, occurrenceId?: string) =>
+    as(cookie)(`/api/me/events/${slug}/state`, { method: 'PUT', body: JSON.stringify({ state, occurrenceId }) });
+
+  it('ranks scored events best first, with reasons, and limits the week view', async () => {
+    const all = await inbox();
+    expect(all.items.map((i) => i.slug)).toEqual(['me-a', 'me-b', 'me-c']);
+    expect(all.items[0]).toMatchObject({
+      score: 91,
+      moreDates: 1,
+      reasons: [{ kind: 'for', text: 'Contemporary dance' }],
+    });
+    expect(all).toMatchObject({ total: 3, done: 0 });
+    expect((await inbox('week')).items.map((i) => i.slug)).toEqual(['me-a', 'me-b']);
+  });
+
+  it('removes triaged events, never brings hidden ones back, and undoes', async () => {
+    expect((await mark('me-a', 'interested', 'me_o1')).status).toBe(200);
+    expect((await mark('me-c', 'hidden')).status).toBe(200);
+    const after = await inbox();
+    expect(after.items.map((i) => i.slug)).toEqual(['me-b']);
+    expect(after).toMatchObject({ total: 3, done: 2 });
+
+    const mine = MyEvent.parse(await (await as(cookie)('/api/me/events/me-a')).json());
+    expect(mine).toMatchObject({ score: 91, state: 'interested', occurrenceId: 'me_o1' });
+
+    await mark('me-b', 'maybe');
+    await mark('me-b', null);
+    expect((await inbox()).items.map((i) => i.slug)).toEqual(['me-b']);
+    expect((await mark('me-b', 'maybe', 'me_o0')).status).toBe(400);
+  });
+
+  it('lists interested dates in the agenda and exports them as iCalendar', async () => {
+    await mark('me-b', 'maybe');
+    const agenda = AgendaResponse.parse(await (await as(cookie)('/api/me/agenda')).json());
+    expect(agenda.items.map((i) => [i.slug, i.state, i.occurrenceId])).toEqual([
+      ['me-b', 'maybe', 'me_o2'],
+      ['me-a', 'interested', 'me_o1'],
+    ]);
+
+    const link = (await (await as(cookie)('/api/me/calendar-link', { method: 'POST' })).json()) as { url: string };
+    const ics = await (await exports.default.fetch(link.url)).text();
+    expect(ics).toContain('BEGIN:VCALENDAR');
+    expect(ics).toContain(`DTSTART;TZID=Europe/Berlin:${local(9).replace(/[-:]/g, '')}00`);
+    expect(ics).toContain('SUMMARY:(maybe) Stück B');
+    expect(ics).toContain('LOCATION:Radialsystem\\, Berlin');
+    expect(ics.split('BEGIN:VEVENT')).toHaveLength(3);
+    const next = (await (await as(cookie)('/api/me/calendar-link', { method: 'POST' })).json()) as { url: string };
+    expect((await exports.default.fetch(link.url)).status).toBe(404);
+    expect((await exports.default.fetch(next.url)).status).toBe(200);
+  });
+});
+
+describe('scoring', () => {
+  const vec = (xs: number[]) => {
+    const v = new Array<number>(MODELS.embed.dims).fill(0);
+    xs.forEach((x, i) => (v[i] = x));
+    return quantize(v);
+  };
+
+  it('maps cosine onto 0..60', () => {
+    expect([0.1, 0.3, 0.45, 0.6, 0.9].map(baseFromCosine)).toEqual([0, 0, 30, 60, 60]);
+  });
+
+  it('filters by prefs, ranks by taste, then lets the LLM score the best candidates', async () => {
+    const u = await createUser('Cem', 'cem@example.org');
+    await env.DB.batch([
+      env.DB.prepare(
+        `UPDATE user_profiles SET taste_text = 'contemporary dance', prefs = ?, profile_embedding = ?, profile_version = 3
+          WHERE user_id = ?`,
+      ).bind(JSON.stringify({ categoriesOff: ['club'], maxPrice: 30 }), vec([1, 0]).buffer, u.user.id),
+      ...[
+        ['sc_dance', 'dance', null, [1, 0.2]],
+        ['sc_club', 'club', null, [1, 0.2]],
+        ['sc_pricey', 'opera', 120, [1, 0.2]],
+        ['sc_far', 'talk', null, [0, 1]],
+      ].flatMap(([id, cat, price, xs], i) => [
+        env.DB.prepare(
+          `INSERT INTO events (id, slug, title, lang, category, price_min, dedup_key, created_by) VALUES (?, ?, ?, 'en', ?, ?, ?, 't')`,
+        ).bind(id, id, `Event ${id}`, cat, price, `sc${i}`),
+        env.DB.prepare(`INSERT INTO occurrences (id, event_id, start_local, start_utc) VALUES (?, ?, ?, ?)`).bind(
+          `${id}_o`,
+          id,
+          local(4),
+          berlinLocalToUtc(local(4)),
+        ),
+        env.DB.prepare(
+          `INSERT INTO event_embeddings (event_id, model, dims, vector, text_hash) VALUES (?, ?, ?, ?, 'x')`,
+        ).bind(id, `${MODELS.embed.id}#int8`, MODELS.embed.dims, vec(xs as number[]).buffer),
+      ]),
+    ]);
+    await refreshAllNextDates(env.DB);
+    await rebuildIndex(env, new Date(), true);
+
+    const r = await scoreByRules(env, u.user.id);
+    expect(r.candidates).toEqual(['sc_dance']);
+    const rows = await env.DB.prepare(
+      `SELECT event_id, score, reasons, profile_version FROM user_event_scores WHERE user_id = ? AND event_id LIKE 'sc_%' ORDER BY event_id`,
+    )
+      .bind(u.user.id)
+      .all<{ event_id: string; score: number; reasons: string; profile_version: number }>();
+    expect(rows.results.map((x) => [x.event_id, x.score])).toEqual([
+      ['sc_club', 0],
+      ['sc_dance', 60],
+      ['sc_far', 0],
+      ['sc_pricey', 0],
+    ]);
+    expect(JSON.parse(rows.results[0]!.reasons)[0].text).toBe('You turned off Club');
+    expect(rows.results.every((x) => x.profile_version === 3)).toBe(true);
+    expect((await scoreByRules(env, u.user.id)).scored).toBe(0);
+
+    const ai = {
+      ...env,
+      AI: {
+        run: async () => ({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  scores: [{ n: 1, score: 88, reasons: [{ kind: 'for', text: 'Dance, as asked' }] }],
+                }),
+              },
+            },
+          ],
+          usage: { neurons: 2 },
+        }),
+      },
+    } as unknown as Env;
+    await scoreWithLlm({ ...ai, SCORE_MODEL: 'workers-ai' } as unknown as Env, u.user.id, ['sc_dance']);
+    const dance = await env.DB.prepare(
+      `SELECT score, model, prompt_version FROM user_event_scores WHERE user_id = ? AND event_id = 'sc_dance'`,
+    )
+      .bind(u.user.id)
+      .first();
+    expect(dance).toEqual({ score: 88, model: MODELS.extract.id, prompt_version: 'score@1' });
+  });
+
+  it('rejects replies that skip most events', () => {
+    expect(parseScores({ scores: [{ n: 1, score: 50, reasons: [] }] }, 4)).toBeNull();
+    expect(
+      parseScores(
+        {
+          scores: [
+            { n: 1, score: 50, reasons: [] },
+            { n: 9, score: 1, reasons: [] },
+          ],
+        },
+        2,
+      ),
+    ).toHaveLength(1);
+  });
+});
