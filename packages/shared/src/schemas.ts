@@ -218,6 +218,8 @@ export const EventListItem = z.object({
   isFree: z.boolean(),
   next: z.object({ startLocal: LocalDateTime, startUtc: UtcInstant }),
   moreDates: z.number().int().nonnegative(),
+  /** Language of the title, for correct hyphenation of long German words. */
+  lang: Lang.optional(),
 });
 export type EventListItem = z.infer<typeof EventListItem>;
 

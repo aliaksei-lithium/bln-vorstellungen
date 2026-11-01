@@ -118,7 +118,12 @@ export function EventPage({ slug }: { slug: string }) {
           <CategoryChip category={e.category} className="bg-surface" />
         </div>
         <div className="grid gap-1.5">
-          <h2 className="text-[30px] leading-[1.08] font-extrabold tracking-tight text-balance">{e.title}</h2>
+          <h2
+            lang={e.lang === 'other' ? undefined : e.lang}
+            className="text-[30px] leading-[1.08] font-extrabold tracking-tight text-balance hyphens-auto [overflow-wrap:anywhere]"
+          >
+            {e.title}
+          </h2>
           <p className="text-sm text-sub">
             {[v?.name, e.lang === 'de' ? 'In German' : e.lang === 'en' ? 'In English' : null, price]
               .filter(Boolean)

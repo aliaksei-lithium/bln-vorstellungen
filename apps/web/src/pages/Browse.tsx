@@ -121,7 +121,11 @@ export function BrowsePage() {
         ) : events.isError ? (
           <ErrorState message={events.error.message} onRetry={() => events.refetch()} />
         ) : groups.length === 0 ? (
-          active.length || query ? (
+          query.length >= 3 && related.length > 0 ? (
+            <p className="m-0 border border-ink bg-surface px-3 py-2.5 text-sm">
+              No exact matches for “{query}”. Closest by meaning:
+            </p>
+          ) : active.length || query ? (
             <EmptyState title="No events match" action={<Button onClick={clear}>Clear search and filters</Button>}>
               Nothing fits {query ? `“${query}” with ` : ''}these filters yet.
             </EmptyState>
