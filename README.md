@@ -1,107 +1,104 @@
 # BLN Vorstellungen
 
-<p align="center"><img src="docs/images/design-programme-list.png" alt="Design example: public event list, direction A &quot;Programme&quot;" width="360"></p>
+**What's on in Berlin tonight, read from the venues' own programmes, ranked for your taste.**
 
-A personal, AI-assisted overview of events in Berlin: concerts, theatre, opera, clubs, talks, exhibitions and
-whatever else is worth leaving the flat for.
+### → [bln-vorstellungen.aliaksei-zhynhiarouski.workers.dev](https://bln-vorstellungen.aliaksei-zhynhiarouski.workers.dev)
 
-Events are **sourced** automatically (websites, RSS, iCal, Telegram channels, newsletters) or manually (a photo of a
-poster, a pasted text), **normalized** into one event model, **enriched** with data from the web, and then
-**scored** against each user's taste profile. A public, non-personalized view lists everything; signed-in users
-get a ranked "for you" feed. An MCP server exposes the same data to Claude and other agents.
+<p align="center">
+  <img src="docs/images/screen-browse.jpg" alt="Today's events in Berlin, grouped by day" width="200">
+  <img src="docs/images/screen-inbox.jpg" alt="Inbox card: score 88 with the reason it matches" width="200">
+  <img src="docs/images/screen-event.jpg" alt="Event page with score, reasons and all dates" width="200">
+  <img src="docs/images/screen-agenda.jpg" alt="Agenda: what you're going to, by day" width="200">
+</p>
 
-> Status: **phase 2** (invite-only accounts with login links, taste profile, AI-ranked inbox, agenda with calendar
-> feed) on top of phase 1 sources and AI-read programme pages. Live: https://bln-vorstellungen.aliaksei-zhynhiarouski.workers.dev · Mockup:
-> https://bln-vorstellungen-mockup.aliaksei-zhynhiarouski.workers.dev
+Berlin has hundreds of stages, and each one publishes its programme its own way: a calendar feed here, a Spielplan
+page there, a Luma list somewhere else. BLN Vorstellungen reads them all and turns them into one calm list. Tell it
+in a sentence what you like, and it ranks every upcoming event for you and says why.
 
-## Development
+## What makes it good
+
+**One list for the whole city.** Theatre, opera, concerts, clubs, talks, exhibitions and community events from
+venue calendars, venue websites and Luma, side by side. A production with twelve performances is one entry with
+twelve dates, not twelve rows. The same event from two sources shows up once.
+
+**AI reads the programmes no feed covers.** Most theatres only publish a web page. Claude reads those Spielplan
+pages like a person would: titles, every date, prices, the room ("Großes Haus", "Kammer"), premieres, "nur noch
+wenige Karten". It skips a house's guest performances in other cities and ignores anything on a page that tries to
+give it instructions.
+
+**Your own inbox, ranked with reasons.** Describe your taste in plain words ("contemporary dance, political talks,
+jazz in small clubs; not into techno"). Every upcoming event gets a 0–100 score and a one-line reason you can
+check: *"Contemporary theatre by Kae Tempest, a strong match."* Swipe right for interested, left to skip, or use
+the keyboard (j/k, i, m, x, u). Hidden events never come back.
+
+**Search by meaning.** "Something fun with kids" finds the Kinder Rave even though no title says "kids". Every
+event page shows more like it.
+
+**An agenda that lives in your calendar.** What you're going to and what's a maybe, by day, with clashes flagged.
+Subscribe once in Google or Apple Calendar and it stays up to date.
+
+**Made for Berlin.** German and English side by side, never auto-translated. Berlin formats throughout:
+"Fr 30.10. · 20:00", "ab 18 €", "frei". Phone first, works in light and dark, with the Fernsehturm in the
+background.
+
+<p align="center">
+  <img src="docs/images/screen-search.jpg" alt="Search by meaning: no keyword match, closest events by meaning" width="200">
+  <img src="docs/images/screen-dark.jpg" alt="Event page in dark mode" width="200">
+</p>
+
+## Open to everyone, personal for a few
+
+Anyone can browse, search and open events, no account needed. The ranked inbox, agenda and calendar feed are for
+invited people: the owner creates an account and sends a one-time login link. No passwords, no sign-up forms, no
+Google login.
+
+## Where the events come from
+
+The Left Berlin · Luma Berlin · Maxim Gorki Theater · Berliner Ensemble · Deutsches Theater · Staatsoper Unter den
+Linden · A-Trane · Privatclub · Bar jeder Vernunft. Each is checked on its own schedule, every 6 to 24 hours.
+Adding a venue is one entry, not new code.
+
+## Under the hood
+
+One Cloudflare Worker serves the site and the API, runs the schedule and keeps everything in D1. Event pages
+without a feed are read by Claude Haiku through Cloudflare's AI Gateway; matching and search by meaning use
+Workers AI embeddings. It all runs on Cloudflare's free plan, and the AI costs a few cents a day.
+
+<details>
+<summary>For developers</summary>
+
+TypeScript throughout: Hono on Workers, D1 with Drizzle, Workflows, KV, Workers AI, React 19 with Vite, TanStack
+and Tailwind. Notes on the design and architecture are in [`docs/`](docs/), decisions in
+[`docs/09-decisions.md`](docs/09-decisions.md).
 
 ```bash
 pnpm install
-pnpm --filter @bln/worker db:migrate:local   # create the local D1 database
-pnpm --filter @bln/worker db:seed:local      # optional sample events for UI work
-pnpm dev                                     # builds the web app, then serves Worker + app on :8787
-pnpm dev:web                                 # Vite with hot reload on :5173, API proxied to :8787
+pnpm --filter @bln/worker db:migrate:local          # local D1
+pnpm --filter @bln/worker db:seed-sources:local     # the venues above
+pnpm dev                                            # Worker + app on :8787
 pnpm typecheck && pnpm lint && pnpm test
-pnpm run deploy                              # build web + wrangler deploy (`pnpm deploy` is a pnpm built-in)
+pnpm run deploy                                     # build + wrangler deploy
 ```
 
-Remote schema changes: `pnpm --filter @bln/worker db:generate`, then `db:migrate:remote` before deploying.
-
-### Sources
-
-Sources live in the `sources` table and run every 6–12 h from the 15-min cron. Starter set:
-`pnpm --filter @bln/worker db:seed-sources:local` (or `:remote`). Manage them through the admin API, gated by a
-shared secret until sign-in exists (local value in `apps/worker/.dev.vars`, remote via
-`wrangler secret put ADMIN_TOKEN`):
+The admin API takes `Authorization: Bearer $ADMIN_TOKEN` (local value in `apps/worker/.dev.vars`, remote via
+`wrangler secret put ADMIN_TOKEN`) or an owner's session:
 
 ```bash
-curl -H "authorization: Bearer $ADMIN_TOKEN" https://…/api/admin/sources              # list with last status
+# Invite someone: creates the account and returns a one-time login link (7 days)
 curl -X POST -H "authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
-  -d '{"name":"My venue","type":"jsonld","config":{"url":"https://venue.example/programm","category":"concert"}}' \
-  https://…/api/admin/sources                                                             # add; runs on the next tick
-curl -X POST -H "authorization: Bearer $ADMIN_TOKEN" https://…/api/admin/sources/<id>/run  # run now
+  -d '{"name":"Ada","email":"ada@example.org"}' https://…/api/admin/users
+
+# Add a venue
+curl -X POST -H "authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
+  -d '{"name":"My venue","type":"html","config":{"url":"https://venue.example/programm"}}' \
+  https://…/api/admin/sources
+
+# Try what the AI reads from a page before adding it
+curl -X POST -H "authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
+  -d '{"url":"https://venue.example/spielplan"}' https://…/api/admin/extract
 ```
 
-Adapter types so far: `ical`, `jsonld` (mapped directly), `html` (page → Markdown → Workers AI extraction) and
-`rss` (entries go through the same extraction).
+Source types: `ical`, `jsonld`, `html` (read by the AI) and `rss`. Claude is used when an Anthropic key is stored
+on the `default` AI Gateway; otherwise the free Workers AI model takes over.
 
-### Users (invite-only)
-
-The site is public; personal features are for users the owner creates. No sign-up, no passwords:
-
-```bash
-curl -X POST -H "authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
-  -d '{"name":"Ada","email":"ada@example.org"}' https://…/api/admin/users        # creates the user + login link
-curl -X POST -H "authorization: Bearer $ADMIN_TOKEN" https://…/api/admin/users/ada@example.org/login-link
-```
-
-Send the `loginLink.url` to the person. It works once, for 7 days, and signs them in for 180 days. Signed-in users
-can create a link for their other devices on the Me page. Add `"owner": true` for an owner (admin API access).
-
-### AI
-
-Workers AI only, within the free 10k neurons a day (our code stops at 8k; see `GET /api/admin/usage`).
-
-```bash
-curl -X POST -H "authorization: Bearer $ADMIN_TOKEN" -H 'content-type: application/json' \
-  -d '{"url":"https://venue.example/spielplan","cssSelector":"main"}' https://…/api/admin/extract   # dry run
-curl -X POST -H "authorization: Bearer $ADMIN_TOKEN" https://…/api/admin/ai/reindex                  # embed now
-RUN_AI_TESTS=1 pnpm --filter @bln/worker golden      # golden extraction examples against a running dev server
-```
-
-**Claude (optional, your Anthropic key):** in the Cloudflare dashboard, AI → AI Gateway → `default` → Provider
-Keys → add an Anthropic key with alias `default`. Then set `"EXTRACT_MODEL": "anthropic/claude-haiku-5.5"` in
-`apps/worker/wrangler.jsonc` and deploy. The Worker never sees the key; spend shows in the gateway's analytics,
-our cap is `CLAUDE_DAILY_USD`, and you can add a dollar spend limit on the gateway too. Compare models first with
-`"provider": "anthropic/claude-haiku-5.5"` in a `POST /api/admin/extract` body, or
-`PROVIDER=anthropic/claude-haiku-5.5` for the golden script.
-
-## Documents
-
-| Doc | What it covers |
-| --- | --- |
-| [01 Functionality](docs/01-functionality.md) | What the product does, for whom, screen by screen |
-| [02 Architecture](docs/02-architecture.md) | Tech stack, Cloudflare components, free-tier budget, the Kotlin question |
-| [03 Sourcing](docs/03-sourcing.md) | The generic source adapter model and the catalogue of Berlin sources |
-| [04 Data model](docs/04-data-model.md) | Tables, the event vs. performance distinction, dedup keys |
-| [05 AI pipeline](docs/05-ai-pipeline.md) | Extraction, enrichment, web research, scoring, search; model choice and cost |
-| [06 MCP](docs/06-mcp.md) | MCP tools, resources, auth |
-| [07 UI](docs/07-ui.md) | UX principles, reference sites to study, brief for a design tool |
-| [08 Execution plan](docs/08-execution-plan.md) | Phased delivery plan written for the implementing model |
-| [09 Decisions](docs/09-decisions.md) | Short decision log with the alternatives that were rejected |
-
-## Stack in one paragraph
-
-One Cloudflare Worker written in **TypeScript** (Hono) serves the JSON API, the MCP endpoint, the cron entry point and
-the email ingest handler, and ships the **React + Vite + Tailwind + shadcn/ui** frontend as static assets.
-Data lives in **D1** (SQLite) with **R2** for uploaded images, **KV** for caches, **Workflows** for source runs and
-AI pipelines, a **Durable Object** for the MCP session and a **cron trigger** for scheduling.
-LLM work uses **Workers AI** for cheap bulk steps and **Claude** (via AI Gateway) for extraction and scoring that needs
-quality. Everything fits the Workers Free plan at hobby volume; the only expected recurring cost is a few cents of
-Claude API usage per day. See [02 Architecture](docs/02-architecture.md) for why not Kotlin.
-
-## Working on this repo
-
-- `CLAUDE.md` holds the standing instructions for the model that implements the plan.
-- Decisions that change the plan go into `docs/09-decisions.md` first, then the code.
+</details>
