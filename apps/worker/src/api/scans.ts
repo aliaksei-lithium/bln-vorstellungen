@@ -1,12 +1,21 @@
-import { ScanConfirm, ScanText, type ScanCreated } from '@bln/shared';
+import {
+  ScanConfirm,
+  ScanPlaylist,
+  ScanText,
+  type ScanCreated,
+  type ScanInsight,
+  type ScanPlaylistResult,
+} from '@bln/shared';
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { requireUser, type AppEnv } from '../auth';
+import { scanMore, scanPlaylist } from '../services/scan-insights';
 import { IMAGE_TYPES, MAX_IMAGE_BYTES, confirmScan, createScan, getScan, scanImage } from '../services/scans';
 
 /**
  * Scans for signed-in users: POST a photo (multipart `image`, optional `takenAt` and `note`) or JSON `{ text }`,
- * poll GET until `ready`, then POST the reviewed events to /confirm.
+ * poll GET until `ready`, then POST the reviewed events to /confirm. Before that, /more/:i explains one event and
+ * /playlist makes a Spotify playlist from the picked ones.
  */
 export const scansApi = new Hono<AppEnv>();
 
@@ -67,4 +76,23 @@ scansApi.post('/:id/confirm', async (c) => {
   const p = ScanConfirm.safeParse(raw);
   if (!p.success) throw new HTTPException(400, { message: p.error.issues[0]?.message ?? 'Invalid events' });
   return c.json(await confirmScan(c.env, user.id, c.req.param('id'), p.data.events));
+});
+
+scansApi.post('/:id/more/:i', async (c) => {
+  const i = Number(c.req.param('i'));
+  if (!Number.isInteger(i) || i < 0) throw new HTTPException(400, { message: 'Bad event number' });
+  return c.json((await scanMore(c.env, requireUser(c).id, c.req.param('id'), i)) satisfies ScanInsight);
+});
+
+scansApi.post('/:id/playlist', async (c) => {
+  const user = requireUser(c);
+  let raw: unknown;
+  try {
+    raw = await c.req.json();
+  } catch {
+    throw new HTTPException(400, { message: 'Body must be JSON.' });
+  }
+  const p = ScanPlaylist.safeParse(raw);
+  if (!p.success) throw new HTTPException(400, { message: p.error.issues[0]?.message ?? 'Invalid events' });
+  return c.json((await scanPlaylist(c.env, user.id, c.req.param('id'), p.data.indexes)) satisfies ScanPlaylistResult);
 });

@@ -7,6 +7,8 @@ import {
   UsageOverview,
   Scan,
   ScanCreated,
+  ScanInsight,
+  ScanPlaylistResult,
   type ScanConfirm,
   CalendarLink,
   EventDetail,
@@ -111,5 +113,9 @@ export const api = {
   },
   confirmScan: (id: string, body: ScanConfirm) =>
     request(`/api/me/scans/${enc(id)}/confirm`, Scan.shape.result.unwrap(), { method: 'POST', body }),
+  scanMore: (id: string, index: number) =>
+    request(`/api/me/scans/${enc(id)}/more/${index}`, ScanInsight, { method: 'POST', body: {} }),
+  scanPlaylist: (id: string, indexes: number[]) =>
+    request(`/api/me/scans/${enc(id)}/playlist`, ScanPlaylistResult, { method: 'POST', body: { indexes } }),
   calendarLink: () => request('/api/me/calendar-link', CalendarLink, { method: 'POST', body: {} }),
 };

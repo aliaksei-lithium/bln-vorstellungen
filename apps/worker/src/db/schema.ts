@@ -353,6 +353,8 @@ export const scans = sqliteTable(
       .notNull()
       .default('queued'),
     candidates: text('candidates'),
+    /** Per candidate, same order: score and reason for the user, genres, and "More" details once asked for. */
+    insights: text('insights'),
     result: text('result'),
     error: text('error'),
     model: text('model'),

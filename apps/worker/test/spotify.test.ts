@@ -51,7 +51,7 @@ describe('spotify', () => {
     const url = new URL(await connectUrl(spotifyEnv, uid));
     expect(url.origin + url.pathname).toBe('https://accounts.spotify.com/authorize');
     expect(url.searchParams.get('redirect_uri')).toBe('http://localhost/spotify/callback');
-    expect(url.searchParams.get('scope')).toBe('user-top-read user-follow-read');
+    expect(url.searchParams.get('scope')).toBe('user-top-read user-follow-read playlist-modify-private');
     const state = url.searchParams.get('state')!;
 
     const seen: string[] = [];
@@ -65,7 +65,13 @@ describe('spotify', () => {
     await expect(finishConnect(spotifyEnv, uid, 'code', state, fakeSpotify())).rejects.toThrow('expired');
 
     await disconnect(env.DB, uid);
-    expect(await spotifyStatus(env.DB, uid)).toEqual({ connected: false, syncedAt: null, artists: [], genres: [] });
+    expect(await spotifyStatus(env.DB, uid)).toEqual({
+      connected: false,
+      syncedAt: null,
+      artists: [],
+      genres: [],
+      canPlaylist: false,
+    });
   });
 
   it('still connects when followed artists are unavailable', async () => {

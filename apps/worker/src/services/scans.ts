@@ -1,4 +1,4 @@
-import { ExtractedEvent, type Scan } from '@bln/shared';
+import { ExtractedEvent, ScanInsight, type Scan } from '@bln/shared';
 import { HTTPException } from 'hono/http-exception';
 import { z } from 'zod';
 import { extractEvents, extractFromImage, type ExtractResult } from '../ai/extract';
@@ -6,6 +6,7 @@ import { VisionUnavailable } from '../ai/llm';
 import { BudgetExhausted } from '../ai/models';
 import { sha256 } from '../auth';
 import { VenueIndex, resolveEvent } from '../pipeline/resolve';
+import { rankCandidates } from './scan-insights';
 
 /**
  * Scans (docs/09, 2026-11-01): a photo or pasted text becomes candidate events that the user reviews. Creating a
@@ -27,6 +28,7 @@ type ScanRow = {
   candidates: string | null;
   result: string | null;
   error: string | null;
+  insights: string | null;
   created_at: string;
 };
 
@@ -115,16 +117,20 @@ const setStatus = (db: D1Database, id: string, fields: Record<string, string | n
     .run();
 };
 
-/** Reads one scan with the model and stores the candidates. Expected failures end as status `failed`. */
+/**
+ * Reads one scan with the model, ranks the candidates for the user (best effort) and stores both. Expected failures
+ * end as status `failed`.
+ */
 export async function runScan(env: Env, scanId: string): Promise<{ status: Scan['status']; events: number }> {
   const row = await env.DB.prepare(
-    `SELECT s.status, s.kind, r.id AS raw_id, r.content, r.r2_key, r.published_at
+    `SELECT s.status, s.kind, s.user_id, r.id AS raw_id, r.content, r.r2_key, r.published_at
        FROM scans s JOIN raw_items r ON r.id = s.raw_item_id WHERE s.id = ?`,
   )
     .bind(scanId)
     .first<{
       status: Scan['status'];
       kind: 'photo' | 'text';
+      user_id: string;
       raw_id: string;
       content: string | null;
       r2_key: string | null;
@@ -165,10 +171,12 @@ export async function runScan(env: Env, scanId: string): Promise<{ status: Scan[
     : r.raw.length
       ? `Found ${r.raw.length === 1 ? 'an event' : `${r.raw.length} events`}, but no upcoming dates.`
       : `No dated events found in this ${row.kind === 'photo' ? 'photo' : 'text'}.`;
+  const insights = await rankCandidates(env, row.user_id, r.events);
   await setStatus(env.DB, scanId, {
     status: 'ready',
     error: empty,
     candidates: JSON.stringify(r.events),
+    insights: JSON.stringify(insights),
     model: r.model,
     prompt_version: r.promptVersion,
   });
@@ -196,6 +204,10 @@ export async function getScan(db: D1Database, userId: string, id: string): Promi
       .parse(JSON.parse(row.candidates ?? '[]')),
     result: row.result ? ScanResult.parse(JSON.parse(row.result)) : null,
     error: row.error,
+    insights: z
+      .array(ScanInsight.nullable().catch(null))
+      .catch([])
+      .parse(JSON.parse(row.insights ?? '[]')),
   };
 }
 

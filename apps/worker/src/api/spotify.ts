@@ -3,7 +3,7 @@ import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { dispatchScoring, refreshTaste } from '../ai/score';
 import { requireUser, type AppEnv } from '../auth';
-import { connectUrl, disconnect, finishConnect, spotifyStatus, syncArtists } from '../spotify';
+import { connectUrl, disconnect, finishConnect, listenUrl, spotifyStatus, syncArtists } from '../spotify';
 
 /** Browser redirects (/spotify/connect, /spotify/callback) and the JSON API under /api/me/spotify. */
 export const spotifyPages = new Hono<AppEnv>();
@@ -31,6 +31,14 @@ spotifyPages.get('/callback', async (c) => {
     console.warn('spotify callback', String(err));
     return c.redirect(back(err instanceof HTTPException && err.status === 403 ? 'not-allowed' : 'failed'));
   }
+});
+
+/** "Listen": the act's Spotify page, or Spotify's search for the name. Signed-in users only (it spends lookups). */
+spotifyPages.get('/listen', async (c) => {
+  const name = (c.req.query('artist') ?? '').trim().slice(0, 200);
+  if (!name) return c.redirect('https://open.spotify.com/');
+  if (!c.get('user')) return c.redirect(`https://open.spotify.com/search/${encodeURIComponent(name)}`);
+  return c.redirect(await listenUrl(c.env, name));
 });
 
 spotifyApi.get('/', async (c) => c.json((await spotifyStatus(c.env.DB, requireUser(c).id)) satisfies SpotifyStatus));
