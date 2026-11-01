@@ -3,7 +3,8 @@
   "name": "bln-vorstellungen",
   "main": "src/index.ts",
   "compatibility_date": "2026-10-01",
-  "compatibility_flags": ["nodejs_compat"],
+  // global_fetch_strictly_public: OAuth client metadata documents are fetched from client-supplied URLs.
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
   "observability": { "enabled": true },
   // Workers Caching: GET responses are cached per their Cache-Control (public API: 5 min; everything else under
   // /api is no-store). Keyed by Worker version, so a deploy starts with a fresh cache.
@@ -14,7 +15,7 @@
     "directory": "../web/dist",
     "binding": "ASSETS",
     "not_found_handling": "single-page-application",
-    "run_worker_first": ["/api/*", "/mcp", "/mcp/*"],
+    "run_worker_first": ["/api/*", "/mcp", "/mcp/*", "/authorize", "/oauth/*", "/.well-known/*"],
   },
 
   "d1_databases": [
@@ -26,7 +27,11 @@
     },
   ],
   "r2_buckets": [{ "binding": "MEDIA", "bucket_name": "bln-vorstellungen-media" }],
-  "kv_namespaces": [{ "binding": "CACHE", "id": "2ce0a82133f54d078f430e0b7d44fc2b" }],
+  "kv_namespaces": [
+    { "binding": "CACHE", "id": "2ce0a82133f54d078f430e0b7d44fc2b" },
+    // MCP OAuth clients, grants and tokens (@cloudflare/workers-oauth-provider); hashes only, props encrypted.
+    { "binding": "OAUTH_KV", "id": "7568dad0930d43a189f0e768ae31bb49" },
+  ],
   "ai": { "binding": "AI", "remote": true },
 
   "workflows": [
@@ -37,15 +42,18 @@
     { "name": "photo-ingest", "binding": "PHOTO_INGEST", "class_name": "PhotoIngestWorkflow" },
   ],
 
-  "durable_objects": {
-    "bindings": [{ "name": "MCP_AGENT", "class_name": "McpAgent" }],
-  },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["McpAgent"] }],
+  // The MCP server is stateless (docs/09, 2026-11-01); its Durable Object is gone.
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["McpAgent"] },
+    { "tag": "v2", "deleted_classes": ["McpAgent"] },
+  ],
 
   "triggers": { "crons": ["*/15 * * * *"] },
 
   "vars": {
     "APP_ENV": "production",
+    // The site's public origin: OAuth issuer, and `<origin>/mcp` is the MCP resource tokens are bound to.
+    "PUBLIC_ORIGIN": "https://bln-vorstellungen.aliaksei-zhynhiarouski.workers.dev",
     // Extraction model: "workers-ai" (free) or a Claude id such as "anthropic/claude-haiku-5.5". Claude needs an
     // Anthropic key stored on the `default` AI Gateway (Provider Keys, alias "default"); without it, it falls back.
     // Claude since 2026-11-01: 3.6x faster and keeps per-date notes (room, premiere) at ~$0.003 per chunk.

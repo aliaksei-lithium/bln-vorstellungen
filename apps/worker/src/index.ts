@@ -1,17 +1,17 @@
 import type { HealthResponse } from '@bln/shared';
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { adminApi } from './api/admin';
 import { authApi, calendarApi, meApi } from './api/me';
 import { loadUser, sameOrigin, type AppEnv } from './auth';
 import { eventsApi } from './api/events';
+import { authorize, oauth } from './mcp/oauth';
 import { embedMissing } from './ai/embed';
 import { dispatchScoring } from './ai/score';
 import { markIndexStale, rebuildIndex } from './ai/vector-index';
 import { sweepPassedDates } from './pipeline/next-dates';
 import { dispatchDueSources } from './pipeline/scheduler';
 
-export { McpAgent } from './mcp';
 export { ScoreEventsWorkflow } from './pipeline/score-run';
 export { SourceRunWorkflow } from './pipeline/source-run';
 export { EnrichEventWorkflow, ExtractItemWorkflow, PhotoIngestWorkflow } from './workflows';
@@ -47,8 +47,36 @@ app.route('/api/auth', authApi);
 app.route('/api/me', meApi);
 app.route('/api/cal', calendarApi);
 
-app.all('/mcp/*', (c) => c.env.MCP_AGENT.get(c.env.MCP_AGENT.idFromName('default')).fetch(c.req.raw));
-app.all('/mcp', (c) => c.env.MCP_AGENT.get(c.env.MCP_AGENT.idFromName('default')).fetch(c.req.raw));
+// MCP (docs/06) and its OAuth endpoints. /authorize is the consent page for the signed-in user; discovery,
+// registration and tokens are the library's; /mcp checks the bearer token and runs the stateless MCP server.
+app.on(['GET', 'POST'], '/authorize', loadUser, authorize);
+// Hono types the runtime's ExecutionContext without its `props`; the object is the same.
+const to = (pick: (o: ReturnType<typeof oauth>) => typeof o.as | typeof o.rs) => (c: Context<AppEnv>) =>
+  pick(oauth(c.env)).fetch(c.req.raw, c.env, c.executionCtx as ExecutionContext<unknown>);
+app.all(
+  '/.well-known/oauth-protected-resource',
+  to((o) => o.rs),
+);
+app.all(
+  '/.well-known/oauth-protected-resource/*',
+  to((o) => o.rs),
+);
+app.all(
+  '/.well-known/*',
+  to((o) => o.as),
+);
+app.all(
+  '/oauth/*',
+  to((o) => o.as),
+);
+app.all(
+  '/mcp',
+  to((o) => o.rs),
+);
+app.all(
+  '/mcp/*',
+  to((o) => o.rs),
+);
 
 app.all('/api/*', () => {
   throw new HTTPException(404, { message: 'Not found' });

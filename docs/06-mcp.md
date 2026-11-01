@@ -3,7 +3,15 @@
 Goal: from Claude.ai, Claude Code, or any MCP client, be able to ask "what's on this weekend that I'd like?", "add
 this poster", "pause the Telegram source", "why did you score this 82?".
 
-## Transport and hosting
+## As built (2026-11-01)
+
+Live at `<origin>/mcp`, stateless (`createMcpHandler`), OAuth in the same Worker; see docs/09 for why. Tools so far:
+`my_picks`, `list_events`, `search_events`, `get_event`, `my_agenda`, `get_taste` (read, scope `mcp:read`) and
+`mark_event`, `set_taste` (scope `mcp:write`); prompt `weekend_picks`. Inputs are the `Mcp*` schemas in
+`packages/shared/src/mcp.ts`; tools call `apps/worker/src/services/*`. Adding events (text, image), sources and the
+review queue come with the photo pipeline.
+
+## Transport and hosting (original plan)
 
 - Endpoint: `https://<domain>/mcp`, streamable HTTP. Implemented with the Cloudflare Agents SDK (`McpAgent` on a
   SQLite-backed Durable Object, free) or, for the stateless protocol (MCP 2026-07-28), the Agents SDK's
