@@ -1,6 +1,7 @@
 import {
   AgendaResponse,
   MyStates,
+  UsageOverview,
   Scan,
   ScanCreated,
   type ScanConfirm,
@@ -74,6 +75,7 @@ export const api = {
     request(`/api/me/events/${enc(slug)}/state`, z.unknown(), { method: 'PUT', body: u }),
   agenda: () => getJson('/api/me/agenda', AgendaResponse),
   states: () => getJson('/api/me/states', MyStates),
+  usage: (days = 30) => getJson(`/api/admin/usage/days?days=${days}`, UsageOverview),
   scan: (id: string) => getJson(`/api/me/scans/${enc(id)}`, Scan),
   scanText: (text: string) => request('/api/me/scans', ScanCreated, { method: 'POST', body: { text } }),
   scanPhoto: async (photo: Blob, takenAt?: string) => {

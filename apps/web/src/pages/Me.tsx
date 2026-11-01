@@ -1,4 +1,4 @@
-import { CATEGORY_LABELS, Category, OPT_IN_CATEGORIES, TASTE_MAX, type Prefs } from '@bln/shared';
+import { CATEGORY_LABELS, Category, OPT_IN_CATEGORIES, TASTE_MAX, type Prefs, type UsageDay } from '@bln/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { LogOut, Plus, Smartphone } from 'lucide-react';
@@ -62,6 +62,7 @@ export function MePage() {
             </p>
           </Box>
         )}
+        {user?.isOwner && <AiUsage />}
         <Appearance />
         <Status />
         {user && <SignOut />}
@@ -308,5 +309,97 @@ function SignOut() {
         Back to all events
       </Link>
     </div>
+  );
+}
+
+const usd = (n: number) => (n === 0 ? '$0' : n < 0.01 ? `$${n.toFixed(4)}` : `$${n.toFixed(2)}`);
+const compact = new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 });
+const sum = (days: UsageDay[], k: keyof Omit<UsageDay, 'day'>) => days.reduce((a, d) => a + d[k], 0);
+
+function Meter({
+  label,
+  value,
+  of,
+  children,
+}: {
+  label: string;
+  value: number;
+  of: number | null;
+  children: ReactNode;
+}) {
+  const pct = of ? Math.min(100, (value / of) * 100) : 0;
+  return (
+    <div className="grid gap-1.5">
+      <div className="flex items-baseline justify-between gap-3">
+        <span className="font-bold">{label}</span>
+        <span className="text-sm text-sub tabular-nums">{children}</span>
+      </div>
+      {of !== null && (
+        <div className="h-2 bg-chip" role="meter" aria-label={label} aria-valuenow={value} aria-valuemax={of}>
+          <div className={cn('h-full', pct >= 90 ? 'bg-danger' : 'bg-moss')} style={{ width: `${pct}%` }} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Owner only: what the AI cost today and recently, against the daily caps. Whole site, UTC days. */
+function AiUsage() {
+  const q = useQuery({ queryKey: ['usage'], queryFn: () => api.usage(30), staleTime: 60_000 });
+  if (!q.data) {
+    return (
+      <Box title="AI usage">
+        <p className="m-0 p-3 text-sub">{q.isError ? 'Could not load usage.' : 'Loading…'}</p>
+      </Box>
+    );
+  }
+  const { days, claudeDailyUsd: cap, neuronBudget, models } = q.data;
+  const today = days.at(-1)!;
+  const rows: [string, UsageDay[]][] = [
+    ['Today', [today]],
+    ['7 days', days.slice(-7)],
+    ['30 days', days],
+  ];
+  const th = 'px-2 py-1.5 text-right text-[11px] font-extrabold tracking-[.08em] text-sub uppercase first:text-left';
+  const td = 'px-2 py-1.5 text-right whitespace-nowrap tabular-nums first:text-left first:font-bold';
+  return (
+    <Box title="AI usage">
+      <div className="grid gap-4 p-3">
+        <Meter label="Claude today" value={today.claudeUsd} of={cap}>
+          {usd(today.claudeUsd)} {cap === null ? '· no cap' : `of ${usd(cap)}`}
+        </Meter>
+        <Meter label="Workers AI today" value={today.neurons} of={neuronBudget}>
+          {today.neurons.toLocaleString('en')} of {neuronBudget.toLocaleString('en')} neurons
+        </Meter>
+      </div>
+      <div className="overflow-x-auto border-t border-line">
+        <table className="w-full border-collapse text-sm">
+          <thead>
+            <tr className="border-b border-line">
+              <th className={th}>Claude</th>
+              <th className={th}>Spent</th>
+              <th className={th}>Tokens in</th>
+              <th className={th}>Tokens out</th>
+              <th className={th}>Calls</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(([label, ds]) => (
+              <tr key={label} className="border-b border-line last:border-b-0">
+                <td className={td}>{label}</td>
+                <td className={td}>{usd(sum(ds, 'claudeUsd'))}</td>
+                <td className={td}>{compact.format(sum(ds, 'tokensIn'))}</td>
+                <td className={td}>{compact.format(sum(ds, 'tokensOut'))}</td>
+                <td className={td}>{sum(ds, 'claudeCalls')}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="m-0 border-t border-line p-3 text-xs text-sub">
+        Whole site, days in UTC. Reading pages and photos uses {models.extract}; ranking uses {models.score}. Tokens are
+        counted from 1 Nov 2026, so earlier days show spend without tokens.
+      </p>
+    </Box>
   );
 }
