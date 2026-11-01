@@ -1,6 +1,7 @@
 import {
   AgendaItem,
   FREQUENCY_MIN_SCORE,
+  hiddenCategories,
   mixCategories,
   MyEvent,
   Reason,
@@ -58,6 +59,12 @@ export async function inbox(
   const often = (first: number) =>
     levels.map((_, i) => ` AND NOT (e.category = ?${first + 2 * i} AND s.score < ?${first + 2 * i + 1})`).join('');
   const levelArgs = levels.flatMap(([c, f]) => [c, FREQUENCY_MIN_SCORE[f]]);
+  // Off now (switched off, or an opt-in one not switched on) stays out even before the next re-scoring, e.g. after
+  // a source's events got a better category.
+  const off = [...prefs.categoriesOff, ...hiddenCategories(prefs)];
+  const notOff = (first: number) =>
+    off.length ? ` AND e.category NOT IN (${off.map((_, i) => `?${first + i}`).join(',')})` : '';
+  const args = [...levelArgs, ...off];
   // A window that starts later (a weekend, say) matches any performance in it, shown as the event's date; the plain
   // inbox goes by the denormalized next date and reads no occurrences.
   const inWindow = `(SELECT o.start_utc || '|' || o.start_local FROM occurrences o
@@ -76,29 +83,29 @@ export async function inbox(
              LEFT JOIN venues v ON v.id = e.venue_id
             WHERE s.user_id = ?1 AND s.score >= MAX(?5, 1) AND e.status = 'published'
               AND ${windowed ? 'e.next_start_utc IS NOT NULL' : 'e.next_start_utc >= ?2'}
-              AND e.next_start_utc <= ?3 AND (?6 IS NULL OR e.category = ?6)${often(7)}
+              AND e.next_start_utc <= ?3 AND (?6 IS NULL OR e.category = ?6)${often(7)}${notOff(7 + levelArgs.length)}
               AND NOT EXISTS (SELECT 1 FROM user_event_state st WHERE st.user_id = ?1 AND st.event_id = s.event_id)
          ) WHERE ${windowed ? 'window_start IS NOT NULL' : '1'}
           ORDER BY score DESC, COALESCE(window_start, next_start_utc)
           LIMIT ?4`,
       )
-      .bind(userId, from, to, opts.limit ?? 100, opts.minScore ?? 1, opts.category ?? null, ...levelArgs),
+      .bind(userId, from, to, opts.limit ?? 100, opts.minScore ?? 1, opts.category ?? null, ...args),
     db
       .prepare(
         `SELECT
            (SELECT COUNT(*) FROM user_event_scores s JOIN events e ON e.id = s.event_id
              WHERE s.user_id = ?1 AND s.score > 0 AND e.status = 'published'
-               AND e.next_start_utc >= ?2 AND e.next_start_utc <= ?3${often(5)}) AS total,
+               AND e.next_start_utc >= ?2 AND e.next_start_utc <= ?3${often(5)}${notOff(5 + levelArgs.length)}) AS total,
            (SELECT COUNT(*) FROM user_event_scores s JOIN events e ON e.id = s.event_id
              JOIN user_event_state st ON st.user_id = s.user_id AND st.event_id = s.event_id
              WHERE s.user_id = ?1 AND s.score > 0 AND e.status = 'published'
-               AND e.next_start_utc >= ?2 AND e.next_start_utc <= ?3${often(5)}) AS done,
+               AND e.next_start_utc >= ?2 AND e.next_start_utc <= ?3${often(5)}${notOff(5 + levelArgs.length)}) AS done,
            (SELECT COUNT(*) FROM events e INDEXED BY events_next_idx
              WHERE e.next_start_utc >= ?2 AND e.status = 'published'
                AND NOT EXISTS (SELECT 1 FROM user_event_scores s
                                 WHERE s.user_id = ?1 AND s.event_id = e.id AND s.profile_version = ?4)) AS pending`,
       )
-      .bind(userId, from, to, version, ...levelArgs),
+      .bind(userId, from, to, version, ...args),
   ]);
   const n = counts?.results[0] ?? {};
   return {

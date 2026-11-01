@@ -24,7 +24,7 @@ const CATEGORY_KEYWORDS: [Category, RegExp][] = [
   ['club', /\b(party|rave|dj|djs|techno|clubnacht|club night|house music|disco)\b/i],
   [
     'talk',
-    /\b(talk|vortrag|lecture|lesung|reading|diskussion|discussion|panel|podium\w*|gespräch|workshop|book launch|buchvorstellung|seminar|meetup)\b/i,
+    /\b(talk|vortrag|lecture|lesung|reading|diskussion|discussion|panel|podium\w*|gespräch|workshop|book launch|buchvorstellung|seminar|meetup|hackathon|hack|barcamp|unconference|founders?|gründer\w*|startup|builders?|networking|demo day|conference|konferenz|summit|book club|masterclass|bootcamp|webinar|community night)\b/i,
   ],
   [
     'concert',

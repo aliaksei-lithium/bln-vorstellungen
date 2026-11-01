@@ -6,7 +6,7 @@ import {
   formatDay,
   hiddenCategories,
   type EventListItem,
-  type EventsQuery,
+  Via,
   type Prefs,
 } from '@bln/shared';
 import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-query';
@@ -34,8 +34,12 @@ const listCategories = (prefs?: Prefs) => {
   return Category.options.filter((c) => c !== 'other' && !hidden.includes(c));
 };
 
-type Via = NonNullable<EventsQuery['via']>;
-type Filters = { when: When; category?: Category; district?: string; via?: Via };
+/** Within a group, choices add up: any of them matches (concert or theatre, Wedding or Mitte). */
+type Filters = { when: When; category: Category[]; district: string[]; via: Via[] };
+const NO_FILTERS: Filters = { when: 'all', category: [], district: [], via: [] };
+const toggle = <T,>(list: T[], v: T) => (list.includes(v) ? list.filter((x) => x !== v) : [...list, v]);
+const list = (s?: string) => (s ? s.split(',').filter(Boolean) : []);
+const joined = (a: string[]) => (a.length ? a.join(',') : undefined);
 
 /** Source kinds, not single venues (docs/09): where an event came from. Spotify joins when it is connected. */
 const VIA_LABELS: Record<Via, string> = {
@@ -62,9 +66,10 @@ export const BrowseSearch = z.object({
     .enum(Object.keys(WHEN_LABELS) as [When, ...When[]])
     .optional()
     .catch(undefined),
-  category: Category.optional().catch(undefined),
-  district: z.string().max(40).optional().catch(undefined),
-  via: z.enum(['telegram', 'scans', 'spotify']).optional().catch(undefined),
+  // Comma lists, checked value by value below.
+  category: z.string().max(200).optional().catch(undefined),
+  district: z.string().max(400).optional().catch(undefined),
+  via: z.string().max(60).optional().catch(undefined),
   q: z.string().max(100).optional().catch(undefined),
 });
 export type BrowseSearch = z.infer<typeof BrowseSearch>;
@@ -81,13 +86,19 @@ export function BrowsePage() {
     });
   const filters: Filters = {
     when: search.when ?? 'all',
-    category: search.category,
-    district: search.district,
-    via: search.via,
+    category: list(search.category).filter((c): c is Category => Category.safeParse(c).success),
+    district: list(search.district),
+    via: list(search.via).filter((v): v is Via => Via.safeParse(v).success),
   };
   const setFilters = (f: Filters | ((prev: Filters) => Filters)) => {
     const n = typeof f === 'function' ? f(filters) : f;
-    setSearch({ ...n, when: n.when === 'all' ? undefined : n.when, q: search.q });
+    setSearch({
+      when: n.when === 'all' ? undefined : n.when,
+      category: joined(n.category),
+      district: joined(n.district),
+      via: joined(n.via),
+      q: search.q,
+    });
   };
   const [q, setQState] = useState(search.q ?? '');
   const setQ = (v: string) => {
@@ -99,9 +110,9 @@ export function BrowsePage() {
 
   const params = {
     ...whenRange(filters.when, today),
-    category: filters.category,
-    district: filters.district,
-    via: filters.via,
+    category: filters.category.length ? filters.category : undefined,
+    district: filters.district.length ? filters.district : undefined,
+    via: filters.via.length ? filters.via : undefined,
     q: query || undefined,
   };
   const events = useInfiniteQuery({
@@ -127,11 +138,24 @@ export function BrowsePage() {
   }, [meaning.data, items, shows]);
   const groups = useMemo(() => groupByDay(items), [items]);
 
-  const active: { key: keyof Filters; label: string }[] = [];
-  if (filters.when !== 'all') active.push({ key: 'when', label: WHEN_LABELS[filters.when] });
-  if (filters.category) active.push({ key: 'category', label: CATEGORY_LABELS[filters.category] });
-  if (filters.district) active.push({ key: 'district', label: filters.district });
-  if (filters.via) active.push({ key: 'via', label: VIA_LABELS[filters.via] });
+  // One removable chip per chosen value.
+  const active: { label: string; remove: (f: Filters) => Filters }[] = [
+    ...(filters.when !== 'all'
+      ? [{ label: WHEN_LABELS[filters.when], remove: (f: Filters) => ({ ...f, when: 'all' as When }) }]
+      : []),
+    ...filters.category.map((c) => ({
+      label: CATEGORY_LABELS[c],
+      remove: (f: Filters) => ({ ...f, category: f.category.filter((x) => x !== c) }),
+    })),
+    ...filters.via.map((v) => ({
+      label: VIA_LABELS[v],
+      remove: (f: Filters) => ({ ...f, via: f.via.filter((x) => x !== v) }),
+    })),
+    ...filters.district.map((d) => ({
+      label: d,
+      remove: (f: Filters) => ({ ...f, district: f.district.filter((x) => x !== d) }),
+    })),
+  ];
   const clear = () => {
     setQState('');
     setSearch({});
@@ -167,12 +191,12 @@ export function BrowsePage() {
           <div className="flex flex-wrap gap-1.5 pb-2.5">
             {active.map((a) => (
               <Button
-                key={a.key}
+                key={a.label}
                 variant="dark"
                 size="sm"
                 className="min-h-8 px-2"
                 aria-label={`Remove filter ${a.label}`}
-                onClick={() => setFilters((f) => ({ ...f, [a.key]: a.key === 'when' ? 'all' : undefined }))}
+                onClick={() => setFilters(a.remove)}
               >
                 {a.label}
                 <X className="size-3.5" aria-hidden />
@@ -303,8 +327,8 @@ function FilterSheet({
             {categories.map((c) => (
               <Chip
                 key={c}
-                pressed={filters.category === c}
-                onClick={() => onChange({ ...filters, category: filters.category === c ? undefined : c })}
+                pressed={filters.category.includes(c)}
+                onClick={() => onChange({ ...filters, category: toggle(filters.category, c) })}
               >
                 <CategoryDot category={c} className="size-2" />
                 {CATEGORY_LABELS[c]}
@@ -318,8 +342,8 @@ function FilterSheet({
               .map((v) => (
                 <Chip
                   key={v}
-                  pressed={filters.via === v}
-                  onClick={() => onChange({ ...filters, via: filters.via === v ? undefined : v })}
+                  pressed={filters.via.includes(v)}
+                  onClick={() => onChange({ ...filters, via: toggle(filters.via, v) })}
                 >
                   {VIA_LABELS[v]}
                 </Chip>
@@ -330,8 +354,8 @@ function FilterSheet({
             {DISTRICTS.map((d) => (
               <Chip
                 key={d}
-                pressed={filters.district === d}
-                onClick={() => onChange({ ...filters, district: filters.district === d ? undefined : d })}
+                pressed={filters.district.includes(d)}
+                onClick={() => onChange({ ...filters, district: toggle(filters.district, d) })}
               >
                 {d}
               </Chip>
@@ -339,7 +363,7 @@ function FilterSheet({
           </div>
         </div>
         <SheetFooter className="flex-row gap-2 pb-[calc(16px+env(safe-area-inset-bottom,0px))]">
-          <Button size="lg" className="w-28" onClick={() => onChange({ when: 'all' })}>
+          <Button size="lg" className="w-28" onClick={() => onChange(NO_FILTERS)}>
             Reset
           </Button>
           <Button size="lg" variant="default" className="flex-1" onClick={() => onOpenChange(false)}>

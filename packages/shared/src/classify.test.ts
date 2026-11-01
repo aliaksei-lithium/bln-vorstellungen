@@ -6,6 +6,9 @@ describe('guessCategory', () => {
   it.each([
     ['Die Zauberflöte – Oper in zwei Aufzügen', 'opera'],
     ['Halloween Party with DJs', 'club'],
+    ['Agents in Prod | Berlin meetup', 'talk'],
+    ['BIG BERLIN HACK - 350+ Builders from all over Europe', 'talk'],
+    ['Freelance Barcamp Berlin - Unconference for Self-Employed', 'talk'],
     ['Sex-positive Play Party', 'kink'],
     ['Fetisch-Nacht: Techno & Latex', 'kink'],
     ['Kinky Rave with DJs', 'kink'],
@@ -20,7 +23,7 @@ describe('guessCategory', () => {
 
   it('does not read street names or business jargon as markets', () => {
     expect(guessCategory('Coffee & Lift at Holmes Place Gendarmenmarkt')).toBeNull();
-    expect(guessCategory('GTM Hackathon: go-to-market for founders')).toBeNull();
+    expect(guessCategory('GTM Hackathon: go-to-market for founders')).toBe('talk'); // not a market
     expect(guessCategory('Vintage Market at Arena')).toBe('market');
   });
 

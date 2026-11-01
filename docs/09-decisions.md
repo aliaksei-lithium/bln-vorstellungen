@@ -208,6 +208,13 @@ Format: date · decision · why · alternatives rejected. Newer entries supersed
   "something different" (best-scored events from categories none of the five has, score 25-70); sorting removes
   one, "Show more picks" starts another round. No counts, no progress bar, no badge on the nav. Supersedes the
   "12 of 40" triage queue of docs/07.
+- **2026-11-01 · Filters add up; meetups count as talks; installable app.** Within a Browse filter group the choices
+  add up (any of them matches): `category`, `district` and `via` take comma lists in the API and the address.
+  Luma's feed is mostly tech meetups, hackathons and barcamps, which the keyword classifier left as `other`, so a
+  switched-off Talk did not hide them: those words now mean `talk`, Luma's source falls back to `talk`, and the inbox
+  leaves out switched-off categories at read time (not only through scores). The site is a PWA: manifest, icons
+  (192/512, maskable), iOS home-screen tags, and a service worker that only keeps the app shell (network first,
+  never the API).
 - **2026-10-02 · React + Vite + TanStack + Tailwind + shadcn/ui.** Best coverage by design tools and implementing
   models. Rejected: SvelteKit (good, but weaker design-tool output), Next.js on Workers via OpenNext (heavier than
   needed; no SSR requirement since public pages can be cached JSON + client render; revisit if SEO matters).

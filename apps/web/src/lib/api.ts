@@ -57,8 +57,11 @@ const enc = encodeURIComponent;
 export const api = {
   health: () => getJson('/api/health', HealthResponse),
   events: (q: EventsQuery) => {
+    // Lists (category, district, via) go as comma values: ?category=concert,theatre.
     const params = new URLSearchParams(
-      Object.entries(q).filter((e): e is [string, string] => typeof e[1] === 'string' && e[1] !== ''),
+      Object.entries(q).flatMap(([k, v]): [string, string][] =>
+        Array.isArray(v) ? (v.length ? [[k, v.join(',')]] : []) : typeof v === 'string' && v ? [[k, v]] : [],
+      ),
     );
     return getJson(`/api/events?${params}`, EventsResponse);
   },
