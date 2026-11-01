@@ -105,6 +105,10 @@ Format: date · decision · why · alternatives rejected. Newer entries supersed
   ($0.10/$0.50 per M tokens, cheaper than the Haiku 4.5 docs/05 planned for) uses structured outputs
   (`output_config.format`, closed schema), effort `low`, thinking off, cacheable system prompt. Rejected: a
   `ANTHROPIC_API_KEY` Worker secret calling api.anthropic.com directly (no gateway logs/limits, key in the Worker).
+- **2026-11-01 · Extraction switched to Claude Haiku 5.5** (owner's Anthropic key stored on the gateway). Same
+  6/6 golden examples on both models; on a real Deutsches Theater chunk Claude took 16 s against 58 s, kept per-date
+  notes (room, premiere, "nur noch wenige Karten") and cost $0.003 (15 events against Gemma's 17). Expected spend
+  for the three theatre pages: ~$0.025/day. Workers AI stays the per-item fallback and still runs embeddings.
 - **2026-10-02 · React + Vite + TanStack + Tailwind + shadcn/ui.** Best coverage by design tools and implementing
   models. Rejected: SvelteKit (good, but weaker design-tool output), Next.js on Workers via OpenNext (heavier than
   needed; no SSR requirement since public pages can be cached JSON + client render; revisit if SEO matters).
