@@ -1,14 +1,29 @@
-import { CATEGORY_LABELS, formatDay, formatPrice, formatTime } from '@bln/shared';
-import { useQuery } from '@tanstack/react-query';
+import { CATEGORY_LABELS, formatDay, formatPrice, formatTime, type MyEvent, type UserState } from '@bln/shared';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useRouter } from '@tanstack/react-router';
-import { ChevronDown, ChevronLeft, ExternalLink, MapPin, Ticket } from 'lucide-react';
+import {
+  Check,
+  ChevronDown,
+  ChevronLeft,
+  EyeOff,
+  ExternalLink,
+  Heart,
+  HelpCircle,
+  MapPin,
+  Plus,
+  Ticket,
+  X,
+} from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { CategoryChip } from '@/components/CategoryChip';
 import { EventRow, hatchAngle } from '@/components/EventRow';
+import { WhyThis } from '@/components/Score';
 import { EmptyState, ErrorState } from '@/components/States';
 import { Button } from '@/components/ui/button';
 import { ApiError, api } from '@/lib/api';
+import { useMe } from '@/lib/auth';
 import { relativeDay } from '@/lib/dates';
+import { cn } from '@/lib/utils';
 
 function Box({ title, right, children }: { title: string; right?: ReactNode; children: ReactNode }) {
   return (
@@ -26,6 +41,22 @@ export function EventPage({ slug }: { slug: string }) {
   const router = useRouter();
   const [showAll, setShowAll] = useState(false);
   const ev = useQuery({ queryKey: ['event', slug], queryFn: () => api.event(slug) });
+  const { user } = useMe();
+  const qc = useQueryClient();
+  const mine = useQuery({ queryKey: ['my-event', slug], queryFn: () => api.myEvent(slug), enabled: !!user });
+  const mark = useMutation({
+    mutationFn: (u: { state: UserState | null; occurrenceId?: string }) => api.setState(slug, u),
+    onMutate: (u) =>
+      qc.setQueryData<MyEvent>(['my-event', slug], (d) =>
+        d ? { ...d, state: u.state, occurrenceId: u.occurrenceId ?? (u.state ? d.occurrenceId : null) } : d,
+      ),
+    onSettled: () => {
+      void qc.invalidateQueries({ queryKey: ['my-event', slug] });
+      void qc.invalidateQueries({ queryKey: ['inbox'] });
+      void qc.invalidateQueries({ queryKey: ['agenda'] });
+    },
+  });
+  const my = mine.data;
 
   const head = (
     <div className="sticky top-[env(safe-area-inset-top,0px)] z-10 -mx-2 grid h-14 grid-cols-[44px_1fr_44px] items-center bg-background">
@@ -95,10 +126,50 @@ export function EventPage({ slug }: { slug: string }) {
           </p>
         </div>
 
+        {my && (
+          <section className="border border-ink bg-surface">
+            {my.score !== null && (
+              <div className="border-b border-line p-3">
+                <WhyThis score={my.score} reasons={my.reasons} />
+              </div>
+            )}
+            <div className="grid grid-cols-4 gap-1.5 p-2" role="group" aria-label="Your choice">
+              {(
+                [
+                  ['interested', 'Interested', Heart],
+                  ['maybe', 'Maybe', HelpCircle],
+                  ['skipped', 'Skip', X],
+                  ['hidden', 'Hide', EyeOff],
+                ] as const
+              ).map(([state, label, Icon]) => {
+                const on = my.state === state;
+                return (
+                  <Button
+                    key={state}
+                    size="sm"
+                    variant={on && state === 'interested' ? 'default' : 'outline'}
+                    aria-pressed={on}
+                    className="min-h-11 flex-col gap-0.5 px-1 text-[12px]"
+                    onClick={() => mark.mutate({ state: on ? null : state })}
+                  >
+                    <Icon className="size-[18px]" strokeWidth={on ? 2.4 : 1.75} aria-hidden />
+                    {label}
+                  </Button>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
         <Box title="Dates" right={<span className="tabular-nums">{upcoming.length}</span>}>
           {dates.length === 0 && <p className="p-3 text-sub">No upcoming dates.</p>}
           {dates.map((o) => {
             const day = o.startLocal.slice(0, 10);
+            // With no date picked, the agenda uses the next one.
+            const inAgenda =
+              !!my &&
+              (my.state === 'interested' || my.state === 'maybe') &&
+              (my.occurrenceId ? my.occurrenceId === o.id : o.id === upcoming[0]?.id);
             return (
               <div
                 key={o.id}
@@ -108,10 +179,37 @@ export function EventPage({ slug }: { slug: string }) {
                   <b>{formatDay(o.startLocal)}</b> · {formatTime(o.startLocal)}
                   {relativeDay(day) && <span className="text-sub"> · {relativeDay(day)}</span>}
                 </span>
-                {o.status !== 'scheduled' && (
+                {o.status !== 'scheduled' ? (
                   <span className="text-xs font-extrabold tracking-[.05em] text-warn uppercase">
                     {o.status === 'sold_out' ? 'Sold out' : 'Cancelled'}
                   </span>
+                ) : (
+                  my && (
+                    <Button
+                      size="sm"
+                      variant={inAgenda ? 'default' : 'outline'}
+                      aria-pressed={inAgenda}
+                      className={cn('shrink-0', inAgenda && 'pointer-events-none')}
+                      onClick={() =>
+                        mark.mutate({
+                          state: my.state === 'interested' || my.state === 'maybe' ? my.state : 'interested',
+                          occurrenceId: o.id,
+                        })
+                      }
+                    >
+                      {inAgenda ? (
+                        <>
+                          <Check strokeWidth={2.4} aria-hidden />
+                          In agenda
+                        </>
+                      ) : (
+                        <>
+                          <Plus strokeWidth={2} aria-hidden />
+                          This date
+                        </>
+                      )}
+                    </Button>
+                  )
                 )}
               </div>
             );

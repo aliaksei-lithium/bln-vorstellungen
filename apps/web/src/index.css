@@ -235,3 +235,27 @@
     opacity: 1;
   }
 }
+
+/* Keyboard hints: only for a real keyboard and a wide screen, never on phones (mockup feedback). */
+kbd {
+  display: none;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid currentColor;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  opacity: 0.7;
+  text-transform: lowercase;
+}
+@media (hover: hover) and (pointer: fine) and (min-width: 700px) {
+  kbd {
+    display: inline-flex;
+  }
+  .kbd-help {
+    display: flex !important;
+  }
+}

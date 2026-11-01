@@ -109,6 +109,23 @@ Format: date · decision · why · alternatives rejected. Newer entries supersed
   6/6 golden examples on both models; on a real Deutsches Theater chunk Claude took 16 s against 58 s, kept per-date
   notes (room, premiere, "nur noch wenige Karten") and cost $0.003 (15 events against Gemma's 17). Expected spend
   for the three theatre pages: ~$0.025/day. Workers AI stays the per-item fallback and still runs embeddings.
+- **2026-11-01 · Pre-defined users with one-time login links; supersedes "better-auth for web and MCP auth"
+  (2026-10-02) for the web.** The owner wants invite-only accounts, no Google/GitHub, no registration. The owner
+  creates users (`POST /api/admin/users`) and gets a login link; opening it signs in for 180 days (sliding). Links
+  work once, expire after 7 days and are redeemed by a POST from the page, so chat-app link previews cannot use
+  them up. A signed-in user can mint a link for another device. Passwords were rejected: PBKDF2/scrypt costs more
+  CPU than the free plan's 10 ms per request, and there would be resets to build. Only SHA-256 hashes of link,
+  session and calendar tokens are stored (reusing the `verifications`, `sessions` and `api_keys` tables). The admin
+  API accepts an owner session or the `ADMIN_TOKEN` bearer. Cross-site writes are refused on Origin mismatch.
+  MCP auth (API keys) stays as planned for phase 3.
+- **2026-11-01 · Scoring as built.** Stage 1 per user: category/price filters from prefs, then cosine(taste
+  embedding, event embedding) mapped linearly from 0.30-0.60 to 0-60 (hand-checked: taste-to-event cosines sit lower
+  than event-to-event ones). Stage 2: the 60 best candidates with base >= 15 go to `SCORE_MODEL` (Claude Haiku 5.5)
+  in batches of 20, numbered rather than by id so the model cannot invent ids; reply must cover at least half the
+  batch or it is retried. Every score row stores the profile version; saving the taste bumps it and re-scores in the
+  background. The cron dispatches a run per user when new events were embedded. Measured locally with a real taste
+  text: 233 events scored, 60 by Claude, top matches with concrete reasons, about $0.01. Spotify boosts and feedback
+  learning are still to come.
 - **2026-10-02 · React + Vite + TanStack + Tailwind + shadcn/ui.** Best coverage by design tools and implementing
   models. Rejected: SvelteKit (good, but weaker design-tool output), Next.js on Workers via OpenNext (heavier than
   needed; no SSR requirement since public pages can be cached JSON + client render; revisit if SEO matters).

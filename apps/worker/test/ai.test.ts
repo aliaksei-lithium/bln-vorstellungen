@@ -136,7 +136,7 @@ describe('extractItem (LLM path)', () => {
       note: 'Berliner Ensemble, Großes Haus',
       dates: 2,
       model: MODELS.extract.id,
-      prompt_version: 'extract@4',
+      prompt_version: 'extract@5',
     });
     const item = await env.DB.prepare(`SELECT extraction_status FROM raw_items WHERE id = 'raw-be-1'`).first();
     expect(item).toEqual({ extraction_status: 'done' });

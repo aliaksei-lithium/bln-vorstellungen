@@ -234,3 +234,110 @@ export const EventDetail = Event.extend({
   performers: z.array(Performer.pick({ id: true, name: true, kind: true })),
 });
 export type EventDetail = z.infer<typeof EventDetail>;
+
+/* ---------- people (phase 2) ---------- */
+
+/** Pre-defined users only: the owner creates them, they sign in with one-time login links (docs/09). */
+export const Me = z.object({
+  id: z.string(),
+  name: z.string(),
+  email: z.string(),
+  isOwner: z.boolean(),
+});
+export type Me = z.infer<typeof Me>;
+
+export const MeResponse = z.object({ user: Me.nullable() });
+export type MeResponse = z.infer<typeof MeResponse>;
+
+export const LoginRequest = z.object({ token: z.string().min(20).max(200) });
+
+export const LoginLink = z.object({ url: z.url(), expiresAt: UtcInstant });
+export type LoginLink = z.infer<typeof LoginLink>;
+
+export const UserCreate = z.object({
+  name: z.string().trim().min(1).max(80),
+  email: z.email().max(200),
+  owner: z.boolean().default(false),
+});
+export type UserCreate = z.infer<typeof UserCreate>;
+
+export const TASTE_MAX = 600;
+
+export const Prefs = z.object({
+  /** Categories the user never wants to see in the inbox. */
+  categoriesOff: z.array(Category).default([]),
+  /** Events whose lowest price is above this are filtered out. Null = no limit. */
+  maxPrice: z.number().int().min(0).max(1000).nullable().default(null),
+});
+export type Prefs = z.infer<typeof Prefs>;
+
+export const Profile = z.object({
+  tasteText: z.string().max(TASTE_MAX),
+  prefs: Prefs,
+  /** Bumps on every change; scores computed for an older version are recomputed. */
+  version: z.number().int(),
+});
+export type Profile = z.infer<typeof Profile>;
+
+export const ProfileUpdate = z.object({ tasteText: z.string().max(TASTE_MAX), prefs: Prefs });
+export type ProfileUpdate = z.infer<typeof ProfileUpdate>;
+
+export const UserState = z.enum(['interested', 'maybe', 'skipped', 'hidden', 'went']);
+export type UserState = z.infer<typeof UserState>;
+
+export const Reason = z.object({ kind: z.enum(['for', 'against', 'rule']), text: z.string() });
+export type Reason = z.infer<typeof Reason>;
+
+export const ScoredItem = EventListItem.extend({
+  score: z.number().int().min(0).max(100),
+  reasons: z.array(Reason),
+});
+export type ScoredItem = z.infer<typeof ScoredItem>;
+
+export const InboxResponse = z.object({
+  items: z.array(ScoredItem),
+  /** Scored upcoming events in range, sorted or not; `done` of them already have a state. */
+  total: z.number().int(),
+  done: z.number().int(),
+  /** Events still waiting for a score (embedding or scoring run pending). */
+  pending: z.number().int(),
+  /** False until the user has described their taste; ranking needs it. */
+  hasTaste: z.boolean(),
+});
+export type InboxResponse = z.infer<typeof InboxResponse>;
+
+export const StateUpdate = z.object({
+  /** Null removes the state (undo). */
+  state: UserState.nullable(),
+  occurrenceId: z.string().nullish(),
+});
+export type StateUpdate = z.infer<typeof StateUpdate>;
+
+/** The signed-in user's view of one event: score, reasons and their own state. */
+export const MyEvent = z.object({
+  score: z.number().int().nullable(),
+  reasons: z.array(Reason),
+  state: UserState.nullable(),
+  occurrenceId: z.string().nullable(),
+});
+export type MyEvent = z.infer<typeof MyEvent>;
+
+export const AgendaItem = z.object({
+  slug: z.string(),
+  title: z.string(),
+  category: Category,
+  venueName: z.string().nullable(),
+  priceMin: z.number().nullable(),
+  priceMax: z.number().nullable(),
+  isFree: z.boolean(),
+  state: z.enum(['interested', 'maybe']),
+  occurrenceId: z.string(),
+  startLocal: LocalDateTime,
+  endLocal: LocalDateTime.nullable(),
+});
+export type AgendaItem = z.infer<typeof AgendaItem>;
+
+export const AgendaResponse = z.object({ items: z.array(AgendaItem) });
+export type AgendaResponse = z.infer<typeof AgendaResponse>;
+
+export const CalendarLink = z.object({ url: z.url() });

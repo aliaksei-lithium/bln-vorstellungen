@@ -3,7 +3,10 @@ import { AppShell } from '@/components/AppShell';
 import { EmptyState } from '@/components/States';
 import { BrowsePage } from '@/pages/Browse';
 import { EventPage } from '@/pages/EventPage';
-import { AgendaPage, InboxPage, MePage } from '@/pages/Personal';
+import { AgendaPage } from '@/pages/Agenda';
+import { InboxPage } from '@/pages/Inbox';
+import { LoginPage } from '@/pages/Login';
+import { MePage } from '@/pages/Me';
 
 const rootRoute = createRootRoute({
   component: AppShell,
@@ -23,8 +26,17 @@ const routes = [
   createRoute({ getParentRoute: () => rootRoute, path: '/inbox', component: InboxPage }),
   createRoute({ getParentRoute: () => rootRoute, path: '/agenda', component: AgendaPage }),
   createRoute({ getParentRoute: () => rootRoute, path: '/me', component: MePage }),
+  createRoute({
+    getParentRoute: () => rootRoute,
+    path: '/login/$token',
+    component: function LoginRoute() {
+      const { token } = loginRoute.useParams();
+      return <LoginPage token={token} />;
+    },
+  }),
 ] as const;
 const eventRoute = routes[1];
+const loginRoute = routes[5];
 
 export const router = createRouter({
   routeTree: rootRoute.addChildren([...routes]),

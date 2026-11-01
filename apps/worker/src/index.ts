@@ -2,17 +2,21 @@ import type { HealthResponse } from '@bln/shared';
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { adminApi } from './api/admin';
+import { authApi, calendarApi, meApi } from './api/me';
+import { loadUser, sameOrigin, type AppEnv } from './auth';
 import { eventsApi } from './api/events';
 import { embedMissing } from './ai/embed';
+import { dispatchScoring } from './ai/score';
 import { markIndexStale, rebuildIndex } from './ai/vector-index';
 import { sweepPassedDates } from './pipeline/next-dates';
 import { dispatchDueSources } from './pipeline/scheduler';
 
 export { McpAgent } from './mcp';
+export { ScoreEventsWorkflow } from './pipeline/score-run';
 export { SourceRunWorkflow } from './pipeline/source-run';
-export { EnrichEventWorkflow, ExtractItemWorkflow, PhotoIngestWorkflow, ScoreEventsWorkflow } from './workflows';
+export { EnrichEventWorkflow, ExtractItemWorkflow, PhotoIngestWorkflow } from './workflows';
 
-const app = new Hono<{ Bindings: Env }>();
+const app = new Hono<AppEnv>();
 
 // Workers Caching stores any GET without an explicit policy (heuristically, for hours). Only routes that opt in
 // with their own Cache-Control are cacheable; everything else under /api is no-store.
@@ -20,6 +24,10 @@ app.use('/api/*', async (c, next) => {
   await next();
   if (!c.res.headers.has('Cache-Control')) c.res.headers.set('Cache-Control', 'no-store');
 });
+
+app.use('/api/*', sameOrigin);
+// Reads the session cookie (one indexed lookup) only when there is one; anonymous requests skip D1 entirely.
+app.use('/api/*', loadUser);
 
 app.get('/api/health', async (c) => {
   const t0 = Date.now();
@@ -35,6 +43,9 @@ app.get('/api/health', async (c) => {
 
 app.route('/api/events', eventsApi);
 app.route('/api/admin', adminApi);
+app.route('/api/auth', authApi);
+app.route('/api/me', meApi);
+app.route('/api/cal', calendarApi);
 
 app.all('/mcp/*', (c) => c.env.MCP_AGENT.get(c.env.MCP_AGENT.idFromName('default')).fetch(c.req.raw));
 app.all('/mcp', (c) => c.env.MCP_AGENT.get(c.env.MCP_AGENT.idFromName('default')).fetch(c.req.raw));
@@ -53,7 +64,7 @@ export default {
   fetch: app.fetch,
   /**
    * Every 15 min: move events past their next date on, start a SourceRun workflow per due source, embed new
-   * events and refresh the vector index.
+   * events, refresh the vector index and score the new events for every user.
    */
   async scheduled(controller, env) {
     const now = new Date(controller.scheduledTime);
@@ -66,6 +77,8 @@ export default {
       embedded = await embedMissing(env, now);
       if (embedded) await markIndexStale(env.CACHE);
       indexed = await rebuildIndex(env, now);
+      // New events are in the index now: score them for everyone (each run skips what is already scored).
+      if (embedded) await dispatchScoring(env, undefined, now);
     } catch (err) {
       console.error('embeddings', String(err));
     }
