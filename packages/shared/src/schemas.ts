@@ -324,6 +324,8 @@ export const SpotifyStatus = z.object({
   syncedAt: z.string().nullable(),
   /** Top artists first, then followed ones. */
   artists: z.array(z.string()),
+  /** Genres read from those artists, most weight first; added to the taste behind the scenes. */
+  genres: z.array(z.string()).default([]),
 });
 export type SpotifyStatus = z.infer<typeof SpotifyStatus>;
 export type PasswordStatus = z.infer<typeof PasswordStatus>;

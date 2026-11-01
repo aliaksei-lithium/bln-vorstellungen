@@ -1,11 +1,8 @@
-import { useQuery } from '@tanstack/react-query';
 import { Link, Outlet, useRouterState } from '@tanstack/react-router';
 import { CalendarDays, Camera, Inbox, List, User } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { ScanSheet } from './ScanSheet';
 import { Tower } from './Tower';
-import { api } from '@/lib/api';
-import { useMe } from '@/lib/auth';
 import { Toaster } from '@/lib/toast';
 import { cn } from '@/lib/utils';
 
@@ -83,9 +80,6 @@ export function AppShell() {
   const [scanOpen, setScanOpen] = useState(false);
   const pushed = path.startsWith('/e/') || path.startsWith('/scan/');
   const isActive = (to: string) => (to === '/' ? path === '/' : path.startsWith(to));
-  const { user } = useMe();
-  const inbox = useQuery({ queryKey: ['inbox', 'all'], queryFn: () => api.inbox('all'), enabled: !!user });
-  const toSort = inbox.data ? inbox.data.total - inbox.data.done : 0;
 
   return (
     <>
@@ -107,12 +101,12 @@ export function AppShell() {
         >
           <div className="mx-auto flex h-16 max-w-[600px] px-[env(safe-area-inset-left,0px)]">
             <NavLink {...NAV[0]} active={isActive('/')} />
-            <NavLink {...NAV[1]} active={isActive('/inbox')} badge={toSort} />
+            <NavLink {...NAV[1]} active={isActive('/inbox')} />
             <button
               type="button"
               onClick={() => setScanOpen(true)}
               aria-label="Scan or upload a photo"
-              className="flex w-[78px] flex-col items-center justify-center gap-[3px] bg-moss text-[11px] font-extrabold tracking-[.03em] text-on-moss uppercase"
+              className="my-1.5 flex w-[78px] flex-col items-center justify-center gap-[3px] border-2 border-moss text-[11px] font-extrabold tracking-[.03em] text-moss uppercase"
             >
               <Camera className="size-6" strokeWidth={2} aria-hidden />
               Scan

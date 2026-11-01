@@ -314,7 +314,7 @@ function SpotifyBox() {
           <>
             <p className="m-0 text-sm text-sub">
               Connect your Spotify account: concerts by artists you listen to and follow go to the top of your picks,
-              and Browse can show just those.
+              their genres join your taste in the ranking, and Browse can show just those artists.
             </p>
             <Button asChild variant="default" className="justify-self-start">
               <a href="/spotify/connect">Connect Spotify</a>
@@ -330,6 +330,13 @@ function SpotifyBox() {
               <p className="m-0 text-sm text-sub">
                 {s.artists.slice(0, 12).join(', ')}
                 {s.artists.length > 12 && ` and ${s.artists.length - 12} more`}
+              </p>
+            )}
+            {s.genres.length > 0 && (
+              <p className="m-0 text-sm">
+                <span className="text-xs font-extrabold tracking-[.08em] text-sub uppercase">Added to your taste</span>
+                <br />
+                {s.genres.join(' · ')}
               </p>
             )}
             <div className="flex flex-wrap gap-2">

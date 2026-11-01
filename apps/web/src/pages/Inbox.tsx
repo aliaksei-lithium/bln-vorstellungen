@@ -13,6 +13,7 @@ import { ChevronRight, Clock, Heart, HelpCircle, MapPin, Ticket, Undo2, X } from
 import {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type PointerEvent as ReactPointerEvent,
@@ -62,6 +63,25 @@ export function InboxPage() {
   return <Inbox />;
 }
 
+/** How many picks a round holds: the best matches, then a few from outside the usual (docs/09, 2026-11-01). */
+const TOP = 5;
+const DIFFERENT = 2;
+
+/**
+ * One round of picks: the TOP best, then DIFFERENT "something different": the best-scored events further down whose
+ * category none of the top ones has, with a middling score (a stretch, not a mismatch).
+ */
+function pickRound(items: ScoredItem[]): { slugs: string[]; different: Set<string> } {
+  const top = items.slice(0, TOP);
+  const cats = new Set(top.map((i) => i.category));
+  const extra = items
+    .slice(TOP)
+    .filter((i) => !cats.has(i.category) && i.score >= 25 && i.score <= 70)
+    .filter((i, n, all) => all.findIndex((j) => j.category === i.category) === n)
+    .slice(0, DIFFERENT);
+  return { slugs: [...top, ...extra].map((i) => i.slug), different: new Set(extra.map((i) => i.slug)) };
+}
+
 function Inbox() {
   const qc = useQueryClient();
   const navigate = useNavigate();
@@ -69,7 +89,13 @@ function Inbox() {
   const [cursor, setCursor] = useState(0);
   const [undo, setUndo] = useState<string[]>([]);
   const inbox = useQuery({ queryKey: ['inbox', range], queryFn: () => api.inbox(range) });
-  const items = inbox.data?.items ?? [];
+  // The round is fixed when the inbox loads; sorting an event takes it out, undo puts it back.
+  const [round, setRound] = useState<ReturnType<typeof pickRound> | null>(null);
+  useEffect(() => {
+    if (inbox.data && !round) setRound(pickRound(inbox.data.items));
+  }, [inbox.data, round]);
+  const bySlug = useMemo(() => new Map((inbox.data?.items ?? []).map((i) => [i.slug, i])), [inbox.data]);
+  const items = (round?.slugs ?? []).flatMap((s) => bySlug.get(s) ?? []);
   const current = items[Math.min(cursor, Math.max(0, items.length - 1))];
 
   const triage = useMutation({
@@ -128,20 +154,15 @@ function Inbox() {
   }, [act, undoLast, current, items.length, navigate]);
 
   const total = inbox.data?.total ?? 0;
-  const done = inbox.data?.done ?? 0;
-  const segments = Array.from({ length: 10 }, (_, i) => i < Math.round((done / Math.max(total, 1)) * 10));
+  const left = inbox.data?.items.length ?? 0;
 
   const head = (
     <TopBar right="Inbox">
       <div className="flex items-end justify-between gap-3 pb-3">
         <div>
-          <div className="eyebrow tabular-nums" aria-live="polite">
-            {total ? `${Math.min(done + 1, total)} of ${total}` : '0 of 0'}
-          </div>
-          <div className="mt-2 flex w-[150px] gap-0.5" aria-hidden>
-            {segments.map((on, i) => (
-              <span key={i} className={cn('h-2 flex-1 border border-ink', on ? 'bg-ink' : 'bg-surface')} />
-            ))}
+          <div className="eyebrow">Your picks</div>
+          <div className="mt-1 text-sm text-sub">
+            Best {TOP} for you, and {DIFFERENT} to try
           </div>
         </div>
         <div className="flex gap-2" role="group" aria-label="Range">
@@ -153,6 +174,7 @@ function Inbox() {
               onClick={() => {
                 setRange(r);
                 setCursor(0);
+                setRound(null);
               }}
             >
               {r === 'week' ? 'Next 7 days' : 'All'}
@@ -212,10 +234,21 @@ function Inbox() {
           </EmptyState>
         ) : (
           <EmptyState
-            title="Inbox done"
+            title="That's it for now"
             action={
               <div className="flex flex-wrap justify-center gap-2">
-                <Button asChild variant="default">
+                {left > 0 && (
+                  <Button
+                    variant="default"
+                    onClick={() => {
+                      setCursor(0);
+                      setRound(pickRound(inbox.data.items));
+                    }}
+                  >
+                    Show more picks
+                  </Button>
+                )}
+                <Button asChild variant={left > 0 ? 'outline' : 'default'}>
                   <Link to="/agenda">Open Agenda</Link>
                 </Button>
                 <Button asChild>
@@ -230,17 +263,22 @@ function Inbox() {
               </div>
             }
           >
-            You have sorted all {total} picks. New events land here ranked by your taste as sources update.
+            New picks come as venues and channels post new events.
           </EmptyState>
         )}
       </>
     );
   }
 
-  const next = items.slice(cursor + 1, cursor + 4);
+  const next = items.slice(cursor + 1);
   return (
     <InboxCard slug={current.slug}>
       {head}
+      {round?.different.has(current.slug) && (
+        <div className="mb-2 text-xs font-extrabold tracking-[.1em] text-moss uppercase">
+          Something different · outside your usual picks
+        </div>
+      )}
       <Deck
         key={current.slug}
         item={current}
@@ -281,7 +319,7 @@ function Inbox() {
       )}
       {next.length > 0 && (
         <>
-          <div className="mt-5 mb-2 text-xs font-extrabold tracking-[.1em] text-sub uppercase">Up next</div>
+          <div className="mt-5 mb-2 text-xs font-extrabold tracking-[.1em] text-sub uppercase">Next in this round</div>
           <section className="border border-ink bg-surface">
             {next.map((n) => (
               <Link
