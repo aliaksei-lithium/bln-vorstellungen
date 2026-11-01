@@ -22,7 +22,7 @@ export function ErrorState({ message, onRetry }: { message: string; onRetry: () 
 /** Skeleton for the day-grouped list: same frame and row height as the real thing. */
 export function ListSkeleton() {
   return (
-    <div className="border border-ink bg-surface-a" aria-busy="true" aria-label="Loading events">
+    <div className="border border-ink bg-surface" aria-busy="true" aria-label="Loading events">
       <div className="h-8 bg-ink" />
       {Array.from({ length: 6 }, (_, i) => (
         <div key={i} className="flex h-16 items-center gap-3 border-b border-line px-3 last:border-b-0">

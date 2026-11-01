@@ -1,10 +1,13 @@
 /**
- * The Fernsehturm with pulsing rings, drawn behind everything. Coordinates are page pixels inside a 390-wide frame
- * pinned to the right edge of the content column: the spire tip ends just under the header date, the rings are
- * centred on the sphere.
+ * The Fernsehturm with pulsing rings, drawn behind everything. Its centre line sits on the window's right edge, so
+ * only the left half shows, on phones and wide screens alike; the spire tip ends just under the header date and the
+ * rings are centred on the sphere.
  */
 const CX = 337;
 const CY = 237.6;
+/** Frame and view box: the tower's centre is FRAME_RIGHT px from the frame's right edge. */
+const FRAME_W = 430;
+const FRAME_RIGHT = FRAME_W - (CX + 20);
 
 function Rings({ start }: { start: number }) {
   const radii: number[] = [];
@@ -21,12 +24,13 @@ function Rings({ start }: { start: number }) {
 export function Tower() {
   return (
     <div aria-hidden="true" className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
-      <div className="relative mx-auto h-full max-w-[600px]">
+      <div className="relative h-full">
         <svg
-          className="absolute -top-[15px] -right-5 overflow-visible"
-          width={430}
+          className="absolute -top-[15px] overflow-visible"
+          style={{ right: -FRAME_RIGHT }}
+          width={FRAME_W}
           height={874}
-          viewBox="-20 -15 430 874"
+          viewBox={`-20 -15 ${FRAME_W} 874`}
         >
           <Rings start={60} />
           <Rings start={80} />

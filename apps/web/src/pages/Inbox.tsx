@@ -282,7 +282,7 @@ function Inbox() {
       {next.length > 0 && (
         <>
           <div className="mt-5 mb-2 text-xs font-extrabold tracking-[.1em] text-sub uppercase">Up next</div>
-          <section className="border border-ink bg-surface-a">
+          <section className="border border-ink bg-surface">
             {next.map((n) => (
               <Link
                 key={n.slug}

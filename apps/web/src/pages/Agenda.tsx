@@ -87,7 +87,7 @@ function Agenda() {
           {days.map((day) => {
             const its = shown.filter((a) => a.startLocal.startsWith(day));
             return (
-              <section key={day} className="border border-ink bg-surface-a" aria-label={formatDay(`${day}T00:00`)}>
+              <section key={day} className="border border-ink bg-surface" aria-label={formatDay(`${day}T00:00`)}>
                 <div className="flex h-8 items-center justify-between bg-ink px-3 text-xs font-extrabold tracking-[.08em] text-on-ink uppercase">
                   <span className="tabular-nums">
                     {formatDay(`${day}T00:00`)}

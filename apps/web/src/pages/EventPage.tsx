@@ -319,7 +319,7 @@ function Similar({ slug }: { slug: string }) {
   const items = similar.data?.items ?? [];
   if (!items.length) return null;
   return (
-    <section className="border border-ink bg-surface-a" aria-label="Similar events">
+    <section className="border border-ink bg-surface" aria-label="Similar events">
       <div className="flex h-9 items-center bg-ink px-3 text-xs font-extrabold tracking-[.1em] text-on-ink uppercase">
         More like this
       </div>

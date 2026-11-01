@@ -157,7 +157,7 @@ export function BrowsePage() {
           )
         ) : (
           groups.map(([day, items]) => (
-            <section key={day} aria-label={formatDay(`${day}T00:00`)} className="border border-ink bg-surface-a">
+            <section key={day} aria-label={formatDay(`${day}T00:00`)} className="border border-ink bg-surface">
               <div className="flex h-8 items-center justify-between bg-ink px-3 text-xs font-extrabold tracking-[.08em] text-on-ink uppercase">
                 <span className="tabular-nums">
                   {formatDay(`${day}T00:00`)}
@@ -172,7 +172,7 @@ export function BrowsePage() {
           ))
         )}
         {query.length >= 3 && related.length > 0 && (
-          <section className="border border-ink bg-surface-a" aria-label="Related by meaning">
+          <section className="border border-ink bg-surface" aria-label="Related by meaning">
             <div className="flex h-8 items-center justify-between bg-moss px-3 text-xs font-extrabold tracking-[.08em] text-on-moss uppercase">
               <span>Related by meaning</span>
               <span className="tabular-nums">{related.length}</span>
