@@ -35,4 +35,20 @@ describe('telegram', () => {
     expect(again.items).toEqual([]);
     expect(() => TelegramConfig.parse({ channel: 'https://t.me/x' })).toThrow();
   });
+
+  it('reads a long photo post from the flyer when its text gives no date', async () => {
+    const { hasDateHint } = await import('../src/telegram');
+    expect(hasDateHint('Freitag, 09.10. @ loge.')).toBe(true);
+    expect(hasDateHint('Friday, November 13, 2026')).toBe(true);
+    expect(hasDateHint('TONIGHT: karaoke')).toBe(true);
+    expect(
+      hasDateHint('Oso Polar präsentiert… Sofoquina (Valencia/Exp. Folk), experimental synth, krautrock and dub'),
+    ).toBe(false);
+  });
+
+  it('does not take ordinary words for dates', async () => {
+    const { hasDateHint } = await import('../src/telegram');
+    expect(hasDateHint('so good, we do separate sets at the market, may be loud')).toBe(false);
+    expect(hasDateHint('Fr 13.11. und Sa 14.11.')).toBe(true);
+  });
 });

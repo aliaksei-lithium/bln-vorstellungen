@@ -67,6 +67,37 @@ describe('resolveEvent', () => {
     expect(src).toEqual({ model: 'adapter:test@1', confidence: 0.95 });
   });
 
+  it('recognises the same night under another title by venue, start and a shared act', async () => {
+    const venues = await VenueIndex.load(env.DB);
+    const night = {
+      category: 'concert' as const,
+      occurrences: [{ start: `${plus(12)}T20:00` }],
+      venue: { name: 'OGH' },
+    };
+    const a = await resolveEvent(
+      env.DB,
+      venues,
+      candidate({ ...night, title: 'Sofoquina', performers: [{ name: 'Sofoquina' }, { name: 'Ross Peacock' }] }),
+      prov,
+    );
+    const b = await resolveEvent(
+      env.DB,
+      venues,
+      candidate({ ...night, title: 'Oso Polar präsentiert', performers: [{ name: 'Ross Peacock' }] }),
+      prov,
+    );
+    expect(a.created).toBe(true);
+    expect(b).toEqual({ eventId: a.eventId, created: false });
+    // A different show at the same time and place, with other acts, stays separate.
+    const c = await resolveEvent(
+      env.DB,
+      venues,
+      candidate({ ...night, title: 'Other room', performers: [{ name: 'Someone Else' }] }),
+      prov,
+    );
+    expect(c.created).toBe(true);
+  });
+
   it('merges another date of the same production into the same event', async () => {
     const venues = await VenueIndex.load(env.DB);
     const a = await resolveEvent(env.DB, venues, candidate({ occurrences: [{ start: `${plus(9)}T19:30` }] }), prov);

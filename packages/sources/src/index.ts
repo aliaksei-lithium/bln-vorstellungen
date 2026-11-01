@@ -7,4 +7,4 @@ export { icalAdapter, IcalConfig } from './ical';
 export { jsonldAdapter, JsonLdConfig } from './jsonld';
 export { rssAdapter, RssConfig } from './rss';
 export { htmlAdapter, HtmlConfig, chunkMarkdown } from './html';
-export { telegramAdapter, TelegramConfig, parseTelegramPage } from './telegram';
+export { telegramAdapter, TelegramConfig, parseTelegramPage, hasDateHint } from './telegram';

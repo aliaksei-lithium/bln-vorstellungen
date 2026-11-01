@@ -23,6 +23,11 @@ export const TelegramConfig = z.object({
   maxPhotos: z.number().int().min(0).max(20).default(5),
   /** A post with less text than this and a photo is read from the photo. */
   photoTextBelow: z.number().int().min(0).max(2000).default(280),
+  /**
+   * Where the channel's events usually happen ("OGH, Neukölln"). Only a hint for the extractor: a post that names
+   * another venue keeps it.
+   */
+  venueHint: z.string().trim().min(2).max(200).optional(),
 });
 export type TelegramConfig = z.infer<typeof TelegramConfig>;
 
@@ -49,6 +54,26 @@ export function parseTelegramPage(html: string, channel: string): TelegramPost[]
 
 const day = (iso: string | null) => (iso ? iso.slice(0, 10) : 'unknown date');
 
+/**
+ * Whether a post's text says when: a numeric date, a month or weekday name (en/de), or "today/tonight/heute". A
+ * photo post without one carries its date on the flyer, so it is read from the photo however long the text is.
+ */
+const DATE_HINT = new RegExp(
+  [
+    String.raw`\b\d{1,2}[./]\d{1,2}\b`, // 13.11. or 13/11
+    String.raw`\b\d{1,2}(st|nd|rd|th)\b`, // 13th
+    String.raw`\b(january|february|march|april|june|july|august|september|october|november|december)\b`,
+    String.raw`\b(januar|februar|märz|mai|juni|juli|oktober|dezember)\b`,
+    String.raw`\b(jan|feb|mar|apr|may|jun|jul|aug|sept?|oct|okt|nov|dec|dez)\.?\s*\d`, // Nov 13
+    String.raw`\b(mon|tues|wednes|thurs|fri|satur|sun)day\b`,
+    String.raw`\b(montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonnabend|sonntag)\b`,
+    String.raw`\b(mo|di|mi|do|fr|sa|so)\.?,?\s+\d`, // Fr 13.11.
+    String.raw`\b(today|tonight|tomorrow|heute|morgen)\b`,
+  ].join('|'),
+  'i',
+);
+export const hasDateHint = (text: string) => DATE_HINT.test(text);
+
 export const telegramAdapter: SourceAdapter<TelegramConfig> = {
   type: 'telegram',
   configSchema: TelegramConfig,
@@ -64,9 +89,11 @@ export const telegramAdapter: SourceAdapter<TelegramConfig> = {
     const fresh = posts.filter((p) => p.id > last);
 
     const items: RawItem[] = [];
-    const flyers = fresh.filter((p) => p.photos.length && p.text.length < config.photoTextBelow);
+    const flyers = fresh.filter(
+      (p) => p.photos.length && (p.text.length < config.photoTextBelow || !hasDateHint(p.text)),
+    );
     for (const p of flyers.slice(0, config.maxPhotos)) {
-      const content = `Post ${p.id}, published ${day(p.date)}:\n${p.text}\n\n[Photo: ${p.photos[0]}]`;
+      const content = `Post ${p.id}, published ${day(p.date)}:\n${truncate(p.text, 600)}\n\n[Photo: ${p.photos[0]}]`;
       items.push({
         externalId: `${config.channel}/${p.id}`,
         contentHash: await contentHash(content),

@@ -136,7 +136,7 @@ describe('extractItem (LLM path)', () => {
       note: 'Berliner Ensemble, Großes Haus',
       dates: 2,
       model: MODELS.extract.id,
-      prompt_version: 'extract@7',
+      prompt_version: 'extract@8',
     });
     const item = await env.DB.prepare(`SELECT extraction_status FROM raw_items WHERE id = 'raw-be-1'`).first();
     expect(item).toEqual({ extraction_status: 'done' });
@@ -239,5 +239,24 @@ describe('Claude provider', () => {
       { provider: 'anthropic/claude-haiku-5.5' },
     );
     expect(c).toMatchObject({ model: 'anthropic/claude-haiku-5.5', usd: 0.1, neurons: 0 });
+  });
+});
+
+describe('toExtracted titles', () => {
+  it('names a night after its first act when the model used the venue as the title', () => {
+    const e = toExtracted(
+      {
+        title: 'OGH',
+        lang: 'en',
+        category: 'concert',
+        dates: [{ start: '2099-01-02T20:00' }],
+        venue: 'OGH',
+        performers: ['Sofoquina', 'Ross Peacock'],
+        confidence: 0.8,
+        quote: 'OGH',
+      } as never,
+      '2099-01-01',
+    );
+    expect(e?.title).toBe('Sofoquina');
   });
 });
