@@ -7,6 +7,7 @@ import { AgendaPage } from '@/pages/Agenda';
 import { InboxPage } from '@/pages/Inbox';
 import { LoginPage } from '@/pages/Login';
 import { MePage } from '@/pages/Me';
+import { ScanPage } from '@/pages/ScanPage';
 
 const rootRoute = createRootRoute({
   component: AppShell,
@@ -34,9 +35,18 @@ const routes = [
       return <LoginPage token={token} />;
     },
   }),
+  createRoute({
+    getParentRoute: () => rootRoute,
+    path: '/scan/$id',
+    component: function ScanRoute() {
+      const { id } = scanRoute.useParams();
+      return <ScanPage id={id} />;
+    },
+  }),
 ] as const;
 const eventRoute = routes[1];
 const loginRoute = routes[5];
+const scanRoute = routes[6];
 
 export const router = createRouter({
   routeTree: rootRoute.addChildren([...routes]),

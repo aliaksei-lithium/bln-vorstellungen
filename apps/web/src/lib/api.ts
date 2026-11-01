@@ -1,6 +1,9 @@
 import {
   AgendaResponse,
   MyStates,
+  Scan,
+  ScanCreated,
+  type ScanConfirm,
   CalendarLink,
   EventDetail,
   EventsList,
@@ -71,5 +74,18 @@ export const api = {
     request(`/api/me/events/${enc(slug)}/state`, z.unknown(), { method: 'PUT', body: u }),
   agenda: () => getJson('/api/me/agenda', AgendaResponse),
   states: () => getJson('/api/me/states', MyStates),
+  scan: (id: string) => getJson(`/api/me/scans/${enc(id)}`, Scan),
+  scanText: (text: string) => request('/api/me/scans', ScanCreated, { method: 'POST', body: { text } }),
+  scanPhoto: async (photo: Blob, takenAt?: string) => {
+    const form = new FormData();
+    form.append('image', photo, 'photo.jpg');
+    if (takenAt) form.append('takenAt', takenAt);
+    const res = await fetch('/api/me/scans', { method: 'POST', body: form, credentials: 'same-origin' });
+    const body: unknown = await res.json().catch(() => null);
+    if (!res.ok) throw new ApiError(res.status, (body as { error?: string } | null)?.error ?? 'Upload failed');
+    return ScanCreated.parse(body);
+  },
+  confirmScan: (id: string, body: ScanConfirm) =>
+    request(`/api/me/scans/${enc(id)}/confirm`, Scan.shape.result.unwrap(), { method: 'POST', body }),
   calendarLink: () => request('/api/me/calendar-link', CalendarLink, { method: 'POST', body: {} }),
 };

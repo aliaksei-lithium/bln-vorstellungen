@@ -131,6 +131,32 @@ export const ExtractedEvent = z.object({
 });
 export type ExtractedEvent = z.infer<typeof ExtractedEvent>;
 
+/** A photo or pasted text turned into candidate events for review (docs/09, 2026-11-01 "Scans"). */
+export const ScanStatus = z.enum(['queued', 'reading', 'ready', 'failed', 'done']);
+export const Scan = z.object({
+  id: z.string(),
+  kind: z.enum(['photo', 'text']),
+  status: ScanStatus,
+  createdAt: z.string(),
+  candidates: z.array(ExtractedEvent),
+  /** After confirming: what was added and what merged into events that were already listed. */
+  result: z
+    .object({
+      added: z.number(),
+      merged: z.number(),
+      events: z.array(z.object({ slug: z.string(), title: z.string(), created: z.boolean() })),
+    })
+    .nullable(),
+  error: z.string().nullable(),
+});
+export type Scan = z.infer<typeof Scan>;
+
+export const ScanText = z.object({ text: z.string().trim().min(10, 'Paste a bit more text.').max(20000) });
+export const ScanCreated = z.object({ id: z.string() });
+export type ScanCreated = z.infer<typeof ScanCreated>;
+export const ScanConfirm = z.object({ events: z.array(ExtractedEvent).min(1, 'Pick at least one event.').max(100) });
+export type ScanConfirm = z.infer<typeof ScanConfirm>;
+
 export const SourceVisibility = z.enum(['public', 'private']);
 
 /** A `sources` row as created or edited by the owner. `config` is validated by the adapter's own schema. */

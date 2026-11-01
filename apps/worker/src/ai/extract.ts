@@ -2,6 +2,7 @@ import { Category, ExtractedEvent, berlinToday, cleanTitle, truncate } from '@bl
 import { isUpcoming, looksFree } from '@bln/sources';
 import { callJson, providerFrom, type LlmProvider } from './llm';
 import * as prompt from './prompts/extract';
+import * as photo from './prompts/photo';
 
 /**
  * LLM extraction (docs/03 step 2): Markdown/text → ExtractedEvent[]. The model's JSON is mapped and validated
@@ -136,6 +137,41 @@ export async function extractEvents(
     dropped: events.length - ok.length,
     model: r.model,
     promptVersion: prompt.version,
+    neurons: r.neurons,
+    usd: r.usd,
+    raw: r.value,
+  };
+}
+
+/**
+ * A photo (poster, flyer, magazine page, listing) → ExtractedEvent[], through Claude vision only. Dense listings can
+ * hold 60 events, hence the large output budget; the reply is mapped exactly like the text path.
+ */
+export async function extractFromImage(
+  env: Env,
+  image: { mediaType: string; data: string },
+  opts: { today?: string; takenAt?: string; note?: string } = {},
+): Promise<ExtractResult> {
+  const today = opts.today ?? berlinToday();
+  // The photo date anchors day-only dates ("Wed 4"); a photo from last month still means last month's listing.
+  const anchor = opts.takenAt && opts.takenAt < today ? opts.takenAt : today;
+  const r = await callJson(env, {
+    provider: configuredProvider(env),
+    system: photo.system({ today: anchor }),
+    user: photo.user({ takenAt: opts.takenAt, note: opts.note }),
+    images: [image],
+    schema: prompt.strictSchema,
+    parse: parseResponse,
+    maxTokens: 20000,
+    metric: 'ai_extract_calls',
+  });
+  const events = r.value.map((m) => toExtracted(m, today));
+  const ok = events.filter((e): e is ExtractedEvent => !!e);
+  return {
+    events: ok,
+    dropped: events.length - ok.length,
+    model: r.model,
+    promptVersion: photo.version,
     neurons: r.neurons,
     usd: r.usd,
     raw: r.value,
