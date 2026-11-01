@@ -22,7 +22,7 @@ eventsApi.get('/', async (c) => {
   const q = EventsQuery.safeParse(c.req.query());
   if (!q.success) throw new HTTPException(400, { message: q.error.issues[0]?.message ?? 'Invalid query' });
   // "My Spotify artists" depends on who asks: never cached publicly.
-  const mine = q.data.via === 'spotify';
+  const mine = !!q.data.via?.includes('spotify');
   const { rowsRead, ...body } = await listEvents(c.env.DB, q.data, undefined, undefined, c.get('user')?.id);
   c.header('Cache-Control', mine ? 'private, no-store' : CACHE_CONTROL);
   if (!mine) c.header('Cache-Tag', CACHE_TAG);

@@ -260,14 +260,32 @@ export const HealthResponse = z.object({
 });
 export type HealthResponse = z.infer<typeof HealthResponse>;
 
+/** Several values: "concert,theatre" in a query string, an array in code. Any of them matches. */
+const anyOf = <T extends z.ZodType>(item: T) =>
+  z
+    .preprocess(
+      (v) =>
+        typeof v === 'string'
+          ? v
+              .split(',')
+              .map((s) => s.trim())
+              .filter(Boolean)
+          : v,
+      z.array(item).max(12),
+    )
+    .optional();
+
+export const Via = z.enum(['telegram', 'scans', 'spotify']);
+export type Via = z.infer<typeof Via>;
+
 export const EventsQuery = z.object({
   from: z.iso.date().optional(),
   to: z.iso.date().optional(),
-  category: Category.optional(),
-  district: z.string().optional(),
+  category: anyOf(Category),
+  district: anyOf(z.string().max(40)),
   q: z.string().max(100).optional(),
-  /** Only events that came this way: from Telegram channels, or added by people from photos and text. */
-  via: z.enum(['telegram', 'scans', 'spotify']).optional(),
+  /** Only events that came this way: Telegram channels, added by people from photos and text, my Spotify artists. */
+  via: anyOf(Via),
   /** Opaque, from the previous page's `nextCursor`. */
   cursor: z.string().max(100).optional(),
 });

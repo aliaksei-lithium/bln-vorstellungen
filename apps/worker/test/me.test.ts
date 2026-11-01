@@ -414,6 +414,17 @@ describe('how often a category comes up', () => {
     // Mixing only swaps similar scores: the concert at 64 is too far below the theatre at 88 to move up.
     expect(inbox.items.map((i) => i.slug)).toEqual(['fq_t1', 'fq_t2', 'fq_c1']);
     expect(inbox.total).toBe(3);
+
+    // Switched off now, out now: no re-scoring needed.
+    await env.DB.prepare(`UPDATE user_profiles SET prefs = ? WHERE user_id = ?`)
+      .bind(
+        JSON.stringify({ frequency: { theatre: 'rarely', exhibition: 'less' }, categoriesOff: ['concert'] }),
+        u.user.id,
+      )
+      .run();
+    const after = InboxResponse.parse(await (await as(cookie)('/api/me/inbox')).json());
+    expect(after.items.map((i) => i.slug)).toEqual(['fq_t1', 'fq_t2']);
+    expect(after.total).toBe(2);
   });
 });
 

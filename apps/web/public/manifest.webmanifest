@@ -1,0 +1,33 @@
+{
+  "id": "/",
+  "name": "BLN Vorstellungen",
+  "short_name": "BLN",
+  "description": "What's on in Berlin tonight, read from the venues' own programmes, ranked for your taste.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#EEEDE8",
+  "theme_color": "#EEEDE8",
+  "categories": ["entertainment", "lifestyle"],
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ],
+  "shortcuts": [
+    {
+      "name": "Inbox",
+      "short_name": "Inbox",
+      "url": "/inbox",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Agenda",
+      "short_name": "Agenda",
+      "url": "/agenda",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}

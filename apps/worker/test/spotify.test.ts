@@ -112,8 +112,8 @@ describe('spotify', () => {
     expect(hot?.score).toBe(92);
     expect(JSON.parse(hot!.reasons)[0].text).toBe('You listen to Hot Chip on Spotify');
 
-    const mine = await listEvents(env.DB, { via: 'spotify' }, undefined, undefined, uid);
+    const mine = await listEvents(env.DB, { via: ['spotify'] }, undefined, undefined, uid);
     expect(mine.items.map((e) => e.title)).toEqual(['Hot Chip']);
-    expect((await listEvents(env.DB, { via: 'spotify' })).items).toEqual([]); // nobody asking: nothing
+    expect((await listEvents(env.DB, { via: ['spotify'] })).items).toEqual([]); // nobody asking: nothing
   });
 });

@@ -69,36 +69,41 @@ export async function listEvents(
 
   const filters: string[] = [];
   const filterArgs: unknown[] = [];
-  if (q.category) {
+  const marks = (n: number) => Array.from({ length: n }, () => '?').join(',');
+  if (q.category?.length) {
     // Asking for a category by name shows it, opt-in or not; the UI only offers those the user switched on.
-    filters.push('e.category = ?');
-    filterArgs.push(q.category);
+    filters.push(`e.category IN (${marks(q.category.length)})`);
+    filterArgs.push(...q.category);
   } else if (hidden.length) {
     filters.push(`e.category NOT IN (${hidden.map(() => '?').join(',')})`);
     filterArgs.push(...hidden);
   }
-  if (q.district) {
-    filters.push('v.district = ?');
-    filterArgs.push(q.district);
+  if (q.district?.length) {
+    filters.push(`v.district IN (${marks(q.district.length)})`);
+    filterArgs.push(...q.district);
   }
-  if (q.via === 'spotify') {
-    // Same rule as the ranking boost (spotify.ts artistMatch): a performer, or a concert-type title, by name.
-    filters.push(`(e.id IN (SELECT ep.event_id FROM event_performers ep JOIN performers p ON p.id = ep.performer_id
+  if (q.via?.length) {
+    // Any of the chosen ways in. Provenance: every event keeps the raw items it was read from (event_sources).
+    const ways: string[] = [];
+    for (const via of q.via) {
+      if (via === 'spotify') {
+        // Same rule as the ranking boost (spotify.ts artistMatch): a performer, or a concert-type title, by name.
+        ways.push(`e.id IN (SELECT ep.event_id FROM event_performers ep JOIN performers p ON p.id = ep.performer_id
                             JOIN user_artists ua ON ua.name_lc = lower(p.name) WHERE ua.user_id = ?)
                    OR (e.category IN ('concert', 'club', 'festival') AND EXISTS (
                          SELECT 1 FROM user_artists ua WHERE ua.user_id = ? AND (lower(e.title) = ua.name_lc
-                           OR lower(e.title) LIKE ua.name_lc || ' %' OR lower(e.title) LIKE ua.name_lc || ':%'))))`);
-    filterArgs.push(userId ?? '', userId ?? '');
-  } else if (q.via) {
-    // Provenance: every event keeps the raw items it was read from (event_sources).
-    filters.push(
-      q.via === 'scans'
-        ? `e.id IN (SELECT es.event_id FROM event_sources es JOIN raw_items r ON r.id = es.raw_item_id
-                     WHERE r.source_id IS NULL)`
-        : `e.id IN (SELECT es.event_id FROM event_sources es JOIN raw_items r ON r.id = es.raw_item_id
-                     JOIN sources so ON so.id = r.source_id WHERE so.type = ?)`,
-    );
-    if (q.via !== 'scans') filterArgs.push(q.via);
+                           OR lower(e.title) LIKE ua.name_lc || ' %' OR lower(e.title) LIKE ua.name_lc || ':%')))`);
+        filterArgs.push(userId ?? '', userId ?? '');
+      } else if (via === 'scans') {
+        ways.push(`e.id IN (SELECT es.event_id FROM event_sources es JOIN raw_items r ON r.id = es.raw_item_id
+                             WHERE r.source_id IS NULL)`);
+      } else {
+        ways.push(`e.id IN (SELECT es.event_id FROM event_sources es JOIN raw_items r ON r.id = es.raw_item_id
+                             JOIN sources so ON so.id = r.source_id WHERE so.type = ?)`);
+        filterArgs.push(via);
+      }
+    }
+    filters.push(`(${ways.map((w) => `(${w})`).join(' OR ')})`);
   }
   if (q.q) {
     filters.push('e.id IN (SELECT event_id FROM events_fts WHERE events_fts MATCH ?)');
@@ -119,7 +124,7 @@ export async function listEvents(
       .prepare(
         `SELECT e.rowid AS cur_rowid, e.next_start_utc AS next_utc, e.next_start_local AS next_local,
                 MAX(e.upcoming_count - 1, 0) AS more_dates, ${select}
-           FROM events e INDEXED BY ${q.category ? 'events_category_next_idx' : 'events_next_idx'}
+           FROM events e INDEXED BY ${q.category?.length === 1 ? 'events_category_next_idx' : 'events_next_idx'}
            LEFT JOIN venues v ON v.id = e.venue_id
           WHERE ${where.join(' AND ')}
           ORDER BY e.next_start_utc, e.rowid

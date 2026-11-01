@@ -76,7 +76,8 @@ describe('scans', () => {
     await expect(confirmScan(e, uid, id, scan.candidates)).rejects.toThrow('already added');
 
     // The Browse source filter: added from photos & text, not from Telegram.
-    const titles = async (via: 'scans' | 'telegram') => (await listEvents(env.DB, { via })).items.map((i) => i.title);
+    const titles = async (via: 'scans' | 'telegram') =>
+      (await listEvents(env.DB, { via: [via] })).items.map((i) => i.title);
     expect(await titles('scans')).toContain('Royal Blood (edited)');
     expect(await titles('telegram')).not.toContain('Royal Blood (edited)');
 

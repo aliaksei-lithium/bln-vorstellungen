@@ -53,6 +53,12 @@ describe('api', () => {
       await (await exports.default.fetch('https://x/api/events?category=opera')).json(),
     );
     expect(none.items).toHaveLength(0);
+    // Several values add up: any of them matches.
+    const any = EventsResponse.parse(
+      await (await exports.default.fetch('https://x/api/events?category=opera,theatre')).json(),
+    );
+    expect(any.items.map((i) => i.slug)).toContain('hamlet');
+    expect((await exports.default.fetch('https://x/api/events?category=opera,circus')).status).toBe(400);
     const hit = EventsResponse.parse(await (await exports.default.fetch('https://x/api/events?q=haml')).json());
     expect(hit.items.map((i) => i.slug)).toEqual(['hamlet']);
   });

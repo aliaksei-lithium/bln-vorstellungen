@@ -120,7 +120,12 @@ export function buildServer(
         if (a.category && hidden.includes(a.category)) return switchedOff(a.category);
         const from = a.from ?? berlinToday();
         const to = a.to ?? plusDays(from, 14);
-        const res = await listEvents(env.DB, { from, to, category: a.category, q: a.query }, a.limit, hidden);
+        const res = await listEvents(
+          env.DB,
+          { from, to, category: a.category ? [a.category] : undefined, q: a.query },
+          a.limit,
+          hidden,
+        );
         const scores = await scoresBySlug(
           env.DB,
           userId,
