@@ -208,7 +208,11 @@ export type ExtractStepResult = ResolveStepResult & { budgetExhausted?: boolean;
  */
 export async function extractItem(env: Env, sourceId: string, rawItemId: string): Promise<ExtractStepResult> {
   const source = await loadSource(env, sourceId);
-  const config = JSON.parse(source.config) as { venue?: { name: string; address?: string } };
+  const config = JSON.parse(source.config) as { venue?: { name: string; address?: string }; venueHint?: string };
+  // A soft default (telegram channels): the model is told, but a post naming another venue keeps it.
+  const venueText = config.venue
+    ? [config.venue.name, config.venue.address].filter(Boolean).join(', ')
+    : config.venueHint;
   const row = await env.DB.prepare(
     `SELECT id, content, url, published_at FROM raw_items WHERE id = ? AND extraction_status = 'pending'`,
   )
@@ -223,17 +227,20 @@ export async function extractItem(env: Env, sourceId: string, rawItemId: string)
     const photo = /\[Photo: (https:\/\/[^\]\s]+)\]/.exec(row.content)?.[1];
     const r = photo
       ? await extractFromImage(env, await downloadImage(photo), {
-          note: row.content
-            .replace(/\[Photo: [^\]]+\]/, '')
-            .trim()
-            .slice(0, 300),
+          note: [
+            venueText ? `Unless the flyer says otherwise, the venue is ${venueText}.` : '',
+            row.content.replace(/\[Photo: [^\]]+\]/, '').trim(),
+          ]
+            .filter(Boolean)
+            .join('\n')
+            .slice(0, 700),
           ...(row.published_at ? { takenAt: row.published_at.slice(0, 10) } : {}),
         })
       : await extractEvents(env, {
           content: row.content,
           sourceName: source.name,
           ...(row.url ? { url: row.url } : {}),
-          ...(config.venue ? { venue: [config.venue.name, config.venue.address].filter(Boolean).join(', ') } : {}),
+          ...(venueText ? { venue: venueText } : {}),
           ...(row.published_at ? { publishedAt: row.published_at } : {}),
         });
     out.neurons = Math.round(r.neurons);
@@ -257,6 +264,10 @@ export async function extractItem(env: Env, sourceId: string, rawItemId: string)
     await mark('done');
   } catch (err) {
     if (err instanceof BudgetExhausted) return { ...out, budgetExhausted: true };
+    if (err instanceof TryLater) {
+      console.warn('extract later', { rawItemId, err: err.message });
+      return out;
+    }
     console.error('extract failed', { rawItemId, err: String(err) });
     await mark('failed');
     out.failed++;
@@ -264,9 +275,18 @@ export async function extractItem(env: Env, sourceId: string, rawItemId: string)
   return out;
 }
 
+/** The flyer's host failed for now (5xx, network); the item stays pending for the source's next run. */
+class TryLater extends Error {}
+
 /** A flyer from a public URL (Telegram's CDN), as base64 for the vision call. Only images, at most 6 MB. */
 async function downloadImage(url: string): Promise<{ mediaType: string; data: string }> {
-  const res = await fetch(url, { headers: { 'user-agent': USER_AGENT } });
+  let res: Response | null = null;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    if (attempt) await new Promise((r) => setTimeout(r, 1500));
+    res = await fetch(url, { headers: { 'user-agent': USER_AGENT } }).catch(() => null);
+    if (res && res.status < 500) break;
+  }
+  if (!res || res.status >= 500) throw new TryLater(`Flyer host unavailable (${res?.status ?? 'network'})`);
   const type = res.headers.get('content-type')?.split(';')[0] ?? '';
   if (!res.ok || !type.startsWith('image/')) throw new Error(`Flyer not available (${res.status} ${type})`);
   const bytes = new Uint8Array(await res.arrayBuffer());

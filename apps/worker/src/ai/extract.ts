@@ -85,14 +85,20 @@ export function toExtracted(m: prompt.ModelEvent, today = berlinToday()): Extrac
   const free = m.free === true || max === 0 || looksFree(evidence);
   const official = url(m.url);
   const tickets = url(m.ticketsUrl);
+  // A title that is only the venue's name says nothing; the first act names the night better.
+  const venue = venueOf(m.venue, m.address);
+  const acts = (m.performers ?? []).filter((p) => typeof p === 'string' && p.trim());
+  const rawTitle = cleanTitle(m.title ?? '');
+  const title =
+    venue && acts.length && rawTitle.toLowerCase() === venue.name.toLowerCase() ? cleanTitle(acts[0]!) : rawTitle;
   const r = ExtractedEvent.safeParse({
-    title: cleanTitle(m.title ?? ''),
+    title,
     ...(m.description?.trim() ? { description: truncate(m.description.trim(), 2000) } : {}),
     lang: ['de', 'en'].includes(m.lang) ? m.lang : 'other',
     category: Category.safeParse(m.category).data ?? 'other',
     genres: (m.genres ?? []).filter((g) => typeof g === 'string' && g.trim()).slice(0, 5),
     occurrences: unique,
-    venue: venueOf(m.venue, m.address),
+    venue,
     performers: (m.performers ?? [])
       .filter((p) => typeof p === 'string' && p.trim())
       .slice(0, 20)

@@ -188,6 +188,11 @@ Format: date · decision · why · alternatives rejected. Newer entries supersed
   under 280 characters of text is a flyer and goes through photo reading (at most 5 per run). Relative dates are
   read from each post's published date (extract@7). Browse gets a Source filter by kind, not by single venue:
   Telegram channels, Added from photos & text, and Spotify once it exists (`EventsQuery.via`, from provenance).
+  After the first real channels (2026-11-01): a photo post whose text has no date is read from the flyer however
+  long the text; channels can carry a `venueHint` (a soft default, unlike `venue`); one night with several acts is
+  one event (extract@8); the same night under another title merges on same venue + start + a shared act (concert-
+  type categories only, company credits ignored); a flyer the image host refuses with 5xx stays pending for the next
+  run instead of failing. We fetch as ourselves (our user agent), never as a browser.
 - **2026-10-02 · React + Vite + TanStack + Tailwind + shadcn/ui.** Best coverage by design tools and implementing
   models. Rejected: SvelteKit (good, but weaker design-tool output), Next.js on Workers via OpenNext (heavier than
   needed; no SSR requirement since public pages can be cached JSON + client render; revisit if SEO matters).

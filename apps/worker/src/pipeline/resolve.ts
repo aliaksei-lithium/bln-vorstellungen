@@ -84,6 +84,41 @@ type ExistingEvent = { id: string; last_start_at: string | null };
 
 export type ResolveResult = { eventId: string; created: boolean };
 
+/**
+ * A second way to find a known event when titles differ ("Sofoquina" vs "Oso Polar presents…"): same venue, same
+ * start, and an act in common. Only for nights of acts (concerts, clubs, parties): theatres credit whole companies
+ * ("Ensemble Schaubühne"), which two plays on two stages at 19:30 would share. Company-style credits never count.
+ */
+const NIGHTS_OF_ACTS = new Set(['concert', 'club', 'kink', 'festival', 'other']);
+const COMPANY = /\b(ensemble|company|kompanie|orchest(er|ra)|chor|choir)\b/i;
+async function sameNight(
+  db: D1Database,
+  venueId: string | null,
+  firstLocal: string,
+  ev: ExtractedEvent,
+): Promise<ExistingEvent | null> {
+  if (!venueId || !NIGHTS_OF_ACTS.has(ev.category)) return null;
+  const names = new Set(
+    [ev.title, ...ev.performers.map((p) => p.name)].filter((n) => !COMPANY.test(n)).map(normalizeTitle),
+  );
+  if (!ev.performers.length || !names.size) return null;
+  const { results } = await db
+    .prepare(
+      `SELECT e.id, e.title, e.last_start_at,
+              (SELECT group_concat(p.name, '|') FROM event_performers ep JOIN performers p ON p.id = ep.performer_id
+                WHERE ep.event_id = e.id) AS acts
+         FROM occurrences o JOIN events e ON e.id = o.event_id
+        WHERE o.start_utc = ? AND e.venue_id = ? AND e.status != 'merged'
+        LIMIT 10`,
+    )
+    .bind(berlinLocalToUtc(firstLocal.slice(0, 16)), venueId)
+    .all<ExistingEvent & { title: string; acts: string | null }>();
+  return (
+    results.find((r) => [r.title, ...(r.acts?.split('|') ?? [])].map(normalizeTitle).some((n) => n && names.has(n))) ??
+    null
+  );
+}
+
 export async function resolveEvent(
   db: D1Database,
   venues: VenueIndex,
@@ -105,7 +140,9 @@ export async function resolveEvent(
     .bind(prefix, `${prefix}￿`)
     .first<ExistingEvent>();
   const windowStart = new Date(now.getTime() - MERGE_WINDOW_DAYS * DAY_MS).toISOString();
-  const match = existing && (!existing.last_start_at || existing.last_start_at >= windowStart) ? existing : null;
+  const match =
+    (existing && (!existing.last_start_at || existing.last_start_at >= windowStart) ? existing : null) ??
+    (await sameNight(db, venueId, firstLocal, ev));
 
   const eventId = match?.id ?? crypto.randomUUID();
   const price = ev.price;
