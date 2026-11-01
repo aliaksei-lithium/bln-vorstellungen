@@ -2,13 +2,14 @@ import { EventsQuery, type EventsList, type EventsResponse } from '@bln/shared';
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { z } from 'zod';
+import type { AppEnv } from '../auth';
 import { eventDetail, listEvents, searchByMeaning, similarEvents } from '../services/events';
 
 /**
  * Public, read-only event API over services/events. Responses carry `Cache-Control` with `s-maxage`, which Workers
  * Caching honours (wrangler.jsonc `cache.enabled`).
  */
-export const eventsApi = new Hono<{ Bindings: Env }>();
+export const eventsApi = new Hono<AppEnv>();
 
 /**
  * Workers Caching keeps public responses 2 min at the edge, browsers 1 min, so a fresh import shows up within a
@@ -20,9 +21,11 @@ const CACHE_TAG = 'events';
 eventsApi.get('/', async (c) => {
   const q = EventsQuery.safeParse(c.req.query());
   if (!q.success) throw new HTTPException(400, { message: q.error.issues[0]?.message ?? 'Invalid query' });
-  const { rowsRead, ...body } = await listEvents(c.env.DB, q.data);
-  c.header('Cache-Control', CACHE_CONTROL);
-  c.header('Cache-Tag', CACHE_TAG);
+  // "My Spotify artists" depends on who asks: never cached publicly.
+  const mine = q.data.via === 'spotify';
+  const { rowsRead, ...body } = await listEvents(c.env.DB, q.data, undefined, undefined, c.get('user')?.id);
+  c.header('Cache-Control', mine ? 'private, no-store' : CACHE_CONTROL);
+  if (!mine) c.header('Cache-Tag', CACHE_TAG);
   c.header('X-D1-Rows-Read', String(rowsRead));
   return c.json(body satisfies EventsResponse);
 });

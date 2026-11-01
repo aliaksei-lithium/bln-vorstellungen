@@ -2,6 +2,7 @@ import {
   AgendaResponse,
   MyStates,
   PasswordStatus,
+  SpotifyStatus,
   UsageOverview,
   Scan,
   ScanCreated,
@@ -70,6 +71,9 @@ export const api = {
   passwordLogin: (email: string, password: string) =>
     request('/api/auth/password', MeResponse, { method: 'POST', body: { email, password } }),
   passwordStatus: () => getJson('/api/me/password', PasswordStatus),
+  spotify: () => getJson('/api/me/spotify', SpotifyStatus),
+  spotifySync: () => request('/api/me/spotify/sync', SpotifyStatus, { method: 'POST', body: {} }),
+  spotifyDisconnect: () => request('/api/me/spotify', SpotifyStatus, { method: 'DELETE' }),
   setPassword: (body: { password: string; current?: string }) =>
     request('/api/me/password', PasswordStatus, { method: 'PUT', body }),
   loginLink: () => request('/api/me/login-link', LoginLink, { method: 'POST', body: {} }),

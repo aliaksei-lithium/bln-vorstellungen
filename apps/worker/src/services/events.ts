@@ -55,6 +55,8 @@ export async function listEvents(
   q: EventsQuery,
   pageSize = PAGE_SIZE,
   hidden: readonly Category[] = OPT_IN_CATEGORIES,
+  /** Needed for `via: 'spotify'` (the user's own artists); without it that filter lists nothing. */
+  userId?: string,
 ): Promise<EventsResponse & { rowsRead: number }> {
   const today = berlinToday();
   const from = q.from ?? today;
@@ -79,7 +81,15 @@ export async function listEvents(
     filters.push('v.district = ?');
     filterArgs.push(q.district);
   }
-  if (q.via) {
+  if (q.via === 'spotify') {
+    // Same rule as the ranking boost (spotify.ts artistMatch): a performer, or a concert-type title, by name.
+    filters.push(`(e.id IN (SELECT ep.event_id FROM event_performers ep JOIN performers p ON p.id = ep.performer_id
+                            JOIN user_artists ua ON ua.name_lc = lower(p.name) WHERE ua.user_id = ?)
+                   OR (e.category IN ('concert', 'club', 'festival') AND EXISTS (
+                         SELECT 1 FROM user_artists ua WHERE ua.user_id = ? AND (lower(e.title) = ua.name_lc
+                           OR lower(e.title) LIKE ua.name_lc || ' %' OR lower(e.title) LIKE ua.name_lc || ':%'))))`);
+    filterArgs.push(userId ?? '', userId ?? '');
+  } else if (q.via) {
     // Provenance: every event keeps the raw items it was read from (event_sources).
     filters.push(
       q.via === 'scans'

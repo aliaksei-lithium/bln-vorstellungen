@@ -6,6 +6,7 @@ import { authApi, calendarApi, meApi } from './api/me';
 import { loadUser, sameOrigin, type AppEnv } from './auth';
 import { eventsApi } from './api/events';
 import { scansApi } from './api/scans';
+import { spotifyApi, spotifyPages } from './api/spotify';
 import { authorize, oauth } from './mcp/oauth';
 import { embedMissing } from './ai/embed';
 import { dispatchScoring, rescoreAfterPromptChange } from './ai/score';
@@ -46,12 +47,16 @@ app.route('/api/events', eventsApi);
 app.route('/api/admin', adminApi);
 app.route('/api/auth', authApi);
 app.route('/api/me/scans', scansApi);
+app.route('/api/me/spotify', spotifyApi);
 app.route('/api/me', meApi);
 app.route('/api/cal', calendarApi);
 
 // MCP (docs/06) and its OAuth endpoints. /authorize is the consent page for the signed-in user; discovery,
 // registration and tokens are the library's; /mcp checks the bearer token and runs the stateless MCP server.
 app.on(['GET', 'POST'], '/authorize', loadUser, authorize);
+// Spotify's consent screen comes back here with the signed-in user's session.
+app.use('/spotify/*', loadUser);
+app.route('/spotify', spotifyPages);
 // Hono types the runtime's ExecutionContext without its `props`; the object is the same.
 const to = (pick: (o: ReturnType<typeof oauth>) => typeof o.as | typeof o.rs) => (c: Context<AppEnv>) =>
   pick(oauth(c.env)).fetch(c.req.raw, c.env, c.executionCtx as ExecutionContext<unknown>);

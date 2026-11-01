@@ -315,6 +315,28 @@ export const uploads = sqliteTable('uploads', {
 });
 
 /**
+ * Artists a user listens to (Spotify: top and followed), for the ranking boost and the "Spotify" source filter.
+ * `nameLc` is the lower-cased name the matching compares against.
+ */
+export const userArtists = sqliteTable(
+  'user_artists',
+  {
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    nameLc: text('name_lc').notNull(),
+    name: text('name').notNull(),
+    genres: json<string[]>('genres').notNull().default([]),
+    source: text('source', { enum: ['spotify'] })
+      .notNull()
+      .default('spotify'),
+    /** Order of importance: top artists first, then followed. */
+    rank: integer('rank').notNull().default(0),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.nameLc] }), index('user_artists_name_idx').on(t.nameLc)],
+);
+
+/**
  * A photo or pasted text a user wants turned into events (docs/09, 2026-11-01). The workflow fills `candidates`
  * (ExtractedEvent[] as JSON); nothing becomes an event until the user confirms on the review page.
  */

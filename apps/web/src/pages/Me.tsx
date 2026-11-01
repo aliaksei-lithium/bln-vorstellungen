@@ -1,4 +1,12 @@
-import { CATEGORY_LABELS, Category, OPT_IN_CATEGORIES, TASTE_MAX, type Prefs, type UsageDay } from '@bln/shared';
+import {
+  CATEGORY_LABELS,
+  Category,
+  OPT_IN_CATEGORIES,
+  TASTE_MAX,
+  type Prefs,
+  type SpotifyStatus,
+  type UsageDay,
+} from '@bln/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { LogOut, Plus, Smartphone } from 'lucide-react';
@@ -53,6 +61,7 @@ export function MePage() {
               </div>
             </div>
             <TasteForm />
+            <SpotifyBox />
             <PasswordBox />
             <OtherDevice />
           </>
@@ -266,6 +275,82 @@ function TasteForm() {
 const fieldLabel = 'grid gap-1 text-xs font-extrabold tracking-[.08em] text-sub uppercase';
 const fieldInput =
   'h-11 w-full border border-ink bg-surface px-3 text-[15px] font-semibold tracking-normal text-ink normal-case outline-none focus-visible:outline-2 focus-visible:outline-moss';
+
+const SPOTIFY_RESULT: Record<string, string> = {
+  connected: 'Spotify connected. Your picks are being re-ranked with your artists.',
+  denied: 'Spotify was not connected: the permission was declined.',
+  'not-allowed': 'Spotify refused: this account is not on the app’s list yet. Ask the owner to add your Spotify email.',
+  failed: 'Spotify could not be connected. Try again in a minute.',
+};
+
+/** Connect Spotify: top and followed artists boost concerts by them and back the "My Spotify artists" filter. */
+function SpotifyBox() {
+  const qc = useQueryClient();
+  const status = useQuery({ queryKey: ['spotify'], queryFn: api.spotify });
+  const done = (s: SpotifyStatus) => {
+    qc.setQueryData(['spotify'], s);
+    void qc.invalidateQueries({ queryKey: ['inbox'] });
+  };
+  const sync = useMutation({ mutationFn: api.spotifySync, onSuccess: (s) => (done(s), toast('Artists updated')) });
+  const drop = useMutation({
+    mutationFn: api.spotifyDisconnect,
+    onSuccess: (s) => (done(s), toast('Spotify disconnected')),
+  });
+  // The callback lands here with ?spotify=connected|denied|not-allowed|failed.
+  useEffect(() => {
+    const result = new URLSearchParams(window.location.search).get('spotify');
+    if (!result) return;
+    toast(SPOTIFY_RESULT[result] ?? SPOTIFY_RESULT.failed!);
+    window.history.replaceState(null, '', window.location.pathname);
+    void qc.invalidateQueries({ queryKey: ['spotify'] });
+  }, [qc]);
+  const s = status.data;
+  return (
+    <Box title="Spotify">
+      <div id="spotify" className="grid gap-3 p-3">
+        {!s ? (
+          <p className="m-0 text-sm text-sub">Loading…</p>
+        ) : !s.connected ? (
+          <>
+            <p className="m-0 text-sm text-sub">
+              Connect your Spotify account: concerts by artists you listen to and follow go to the top of your picks,
+              and Browse can show just those.
+            </p>
+            <Button asChild variant="default" className="justify-self-start">
+              <a href="/spotify/connect">Connect Spotify</a>
+            </Button>
+          </>
+        ) : (
+          <>
+            <p className="m-0 text-sm">
+              <b>{s.artists.length}</b> artists from your Spotify
+              {s.syncedAt && <span className="text-sub"> · updated {s.syncedAt.slice(0, 10)}</span>}
+            </p>
+            {s.artists.length > 0 && (
+              <p className="m-0 text-sm text-sub">
+                {s.artists.slice(0, 12).join(', ')}
+                {s.artists.length > 12 && ` and ${s.artists.length - 12} more`}
+              </p>
+            )}
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" disabled={sync.isPending} onClick={() => sync.mutate()}>
+                Update artists
+              </Button>
+              <Button size="sm" variant="ghost" disabled={drop.isPending} onClick={() => drop.mutate()}>
+                Disconnect
+              </Button>
+            </div>
+          </>
+        )}
+        {(sync.isError || drop.isError) && (
+          <p role="alert" className="m-0 text-sm font-semibold text-danger">
+            {(sync.error ?? drop.error)?.message}
+          </p>
+        )}
+      </div>
+    </Box>
+  );
+}
 
 /** Signed out: email and password, for people who set one; everyone else starts from a login link. */
 function SignIn() {

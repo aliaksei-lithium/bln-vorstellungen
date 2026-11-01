@@ -1,4 +1,5 @@
 import { CATEGORY_LABELS, Prefs, formatPrice, hiddenCategories, type Category, type Reason } from '@bln/shared';
+import { artistMatch } from '../spotify';
 import { cosine, embedTexts, EMBED_MODEL_TAG } from './embed';
 import { callJson, providerFrom } from './llm';
 import * as prompt from './prompts/score';
@@ -57,6 +58,24 @@ export async function saveProfile(env: Env, userId: string, tasteText: string, p
   return row!.profile_version;
 }
 
+/** The user's artists by lower-cased name (Spotify), for the rule-stage boost. */
+async function userArtists(db: D1Database, userId: string): Promise<Map<string, string>> {
+  const { results } = await db
+    .prepare(`SELECT name_lc, name FROM user_artists WHERE user_id = ?`)
+    .bind(userId)
+    .all<{ name_lc: string; name: string }>();
+  return new Map(results.map((r) => [r.name_lc, r.name]));
+}
+
+/** Context for the model: who they listen to, so similar acts rank higher too. */
+async function topArtistsLine(db: D1Database, userId: string): Promise<string> {
+  const { results } = await db
+    .prepare(`SELECT name FROM user_artists WHERE user_id = ? ORDER BY rank LIMIT 15`)
+    .bind(userId)
+    .all<{ name: string }>();
+  return results.length ? `listens to ${results.map((r) => r.name).join(', ')}` : '';
+}
+
 export const baseFromCosine = (cos: number) =>
   Math.round(Math.max(0, Math.min(1, (cos - COS_LOW) / (COS_HIGH - COS_LOW))) * BASE_MAX);
 
@@ -81,7 +100,9 @@ export async function scoreByRules(
   const profile = await loadProfile(env.DB, userId);
   const index = await loadIndex(env.CACHE);
   const { results } = await env.DB.prepare(
-    `SELECT e.id, e.title, e.category, e.price_min, e.price_max, e.is_free
+    `SELECT e.id, e.title, e.category, e.price_min, e.price_max, e.is_free,
+            (SELECT group_concat(p.name, '|') FROM event_performers ep JOIN performers p ON p.id = ep.performer_id
+              WHERE ep.event_id = e.id) AS acts
        FROM events e INDEXED BY events_next_idx
       WHERE e.next_start_utc >= ? AND e.status = 'published'
         AND EXISTS (SELECT 1 FROM event_embeddings ee WHERE ee.event_id = e.id)
@@ -92,7 +113,8 @@ export async function scoreByRules(
       LIMIT 600`,
   )
     .bind(now.toISOString(), userId, profile.version, prompt.version)
-    .all<Candidate>();
+    .all<Candidate & { acts: string | null }>();
+  const artists = await userArtists(env.DB, userId);
 
   const rows: { id: string; score: number; reasons: Reason[] }[] = [];
   const llm: { id: string; base: number }[] = [];
@@ -116,6 +138,12 @@ export async function scoreByRules(
     }
     if (profile.prefs.maxPrice != null && !e.is_free && e.price_min != null && e.price_min > profile.prefs.maxPrice) {
       rows.push({ id: e.id, score: 0, reasons: [{ kind: 'rule', text: `From ${e.price_min} €, above your limit` }] });
+      continue;
+    }
+    // An artist the user listens to is a near-certain match: no model needed.
+    const artist = artists.size ? artistMatch(e, artists) : null;
+    if (artist) {
+      rows.push({ id: e.id, score: 92, reasons: [{ kind: 'for', text: `You listen to ${artist} on Spotify` }] });
       continue;
     }
     const v = index && vectorOf(index, e.id);
@@ -165,6 +193,7 @@ export async function scoreWithLlm(env: Env, userId: string, eventIds: string[],
       ? `not interested in ${profile.prefs.categoriesOff.map((c) => CATEGORY_LABELS[c]).join(', ')}`
       : '',
     profile.prefs.maxPrice != null ? `pays at most ${profile.prefs.maxPrice} €` : '',
+    await topArtistsLine(env.DB, userId),
   ]
     .filter(Boolean)
     .join('; ');

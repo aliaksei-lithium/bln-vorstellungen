@@ -36,7 +36,11 @@ type Via = NonNullable<EventsQuery['via']>;
 type Filters = { when: When; category?: Category; district?: string; via?: Via };
 
 /** Source kinds, not single venues (docs/09): where an event came from. Spotify joins when it is connected. */
-const VIA_LABELS: Record<Via, string> = { telegram: 'Telegram channels', scans: 'Added from photos & text' };
+const VIA_LABELS: Record<Via, string> = {
+  spotify: 'My Spotify artists',
+  telegram: 'Telegram channels',
+  scans: 'Added from photos & text',
+};
 
 function groupByDay(items: EventListItem[]) {
   const groups = new Map<string, EventListItem[]>();
@@ -239,6 +243,7 @@ function FilterSheet({
   const { user } = useMe();
   const profile = useQuery({ queryKey: ['profile'], queryFn: api.profile, enabled: !!user && open });
   const categories = listCategories(profile.data?.prefs);
+  const spotify = useQuery({ queryKey: ['spotify'], queryFn: api.spotify, enabled: !!user && open });
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="bottom" className="mx-auto max-h-[88vh] max-w-[600px] overflow-y-auto border-x border-ink">
@@ -269,15 +274,17 @@ function FilterSheet({
           </div>
           <div className={label}>Source</div>
           <div className="flex flex-wrap gap-2">
-            {(Object.keys(VIA_LABELS) as Via[]).map((v) => (
-              <Chip
-                key={v}
-                pressed={filters.via === v}
-                onClick={() => onChange({ ...filters, via: filters.via === v ? undefined : v })}
-              >
-                {VIA_LABELS[v]}
-              </Chip>
-            ))}
+            {(Object.keys(VIA_LABELS) as Via[])
+              .filter((v) => v !== 'spotify' || spotify.data?.connected)
+              .map((v) => (
+                <Chip
+                  key={v}
+                  pressed={filters.via === v}
+                  onClick={() => onChange({ ...filters, via: filters.via === v ? undefined : v })}
+                >
+                  {VIA_LABELS[v]}
+                </Chip>
+              ))}
           </div>
           <div className={label}>District</div>
           <div className="flex flex-wrap gap-2">

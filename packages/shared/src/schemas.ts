@@ -251,7 +251,7 @@ export const EventsQuery = z.object({
   district: z.string().optional(),
   q: z.string().max(100).optional(),
   /** Only events that came this way: from Telegram channels, or added by people from photos and text. */
-  via: z.enum(['telegram', 'scans']).optional(),
+  via: z.enum(['telegram', 'scans', 'spotify']).optional(),
   /** Opaque, from the previous page's `nextCursor`. */
   cursor: z.string().max(100).optional(),
 });
@@ -317,6 +317,15 @@ export const PasswordSet = z.object({
 });
 export type PasswordSet = z.infer<typeof PasswordSet>;
 export const PasswordStatus = z.object({ set: z.boolean() });
+
+/** Spotify connection (docs/09, 2026-11-01): the artists that boost ranking and back the "My artists" filter. */
+export const SpotifyStatus = z.object({
+  connected: z.boolean(),
+  syncedAt: z.string().nullable(),
+  /** Top artists first, then followed ones. */
+  artists: z.array(z.string()),
+});
+export type SpotifyStatus = z.infer<typeof SpotifyStatus>;
 export type PasswordStatus = z.infer<typeof PasswordStatus>;
 
 export const LoginLink = z.object({ url: z.url(), expiresAt: UtcInstant });
