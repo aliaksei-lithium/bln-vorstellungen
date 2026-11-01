@@ -213,6 +213,11 @@ export function buildServer(
         const filters = [
           p.prefs.categoriesOff.length ? `Never shows: ${p.prefs.categoriesOff.join(', ')}` : '',
           p.prefs.categoriesOn.length ? `Opted in to: ${p.prefs.categoriesOn.join(', ')}` : '',
+          Object.keys(p.prefs.frequency).length
+            ? `Comes up less often (only strong matches): ${Object.entries(p.prefs.frequency)
+                .map(([c, f]) => `${c} ${f}`)
+                .join(', ')}`
+            : '',
           p.prefs.maxPrice != null ? `Max price: ${p.prefs.maxPrice} €` : '',
         ].filter(Boolean);
         return text([p.tasteText ? `Taste:\n${p.tasteText}` : 'No taste description yet.', ...filters].join('\n\n'));

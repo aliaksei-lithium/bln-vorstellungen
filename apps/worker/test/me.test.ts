@@ -368,3 +368,43 @@ describe('scoring', () => {
     expect(r.candidates).toContain('sc_kink');
   });
 });
+
+describe('how often a category comes up', () => {
+  it('keeps less and rarely categories to strong matches and mixes the order', async () => {
+    const u = await createUser('Fia', 'fia@example.org');
+    const cookie = await login(u.loginLink.url);
+    const rows = [
+      ['fq_t1', 'theatre', 92],
+      ['fq_t2', 'theatre', 88],
+      ['fq_t3', 'theatre', 70],
+      ['fq_c1', 'concert', 64],
+      ['fq_e1', 'exhibition', 55],
+    ] as const;
+    await env.DB.batch([
+      env.DB.prepare(
+        `UPDATE user_profiles SET taste_text = 'x', prefs = ?, profile_version = 1 WHERE user_id = ?`,
+      ).bind(JSON.stringify({ frequency: { theatre: 'rarely', exhibition: 'less' } }), u.user.id),
+      ...rows.flatMap(([id, cat, score], i) => [
+        env.DB.prepare(
+          `INSERT INTO events (id, slug, title, lang, category, dedup_key, created_by) VALUES (?, ?, ?, 'en', ?, ?, 't')`,
+        ).bind(id, id, id, cat, `fq${i}`),
+        env.DB.prepare(`INSERT INTO occurrences (id, event_id, start_local, start_utc) VALUES (?, ?, ?, ?)`).bind(
+          `${id}_o`,
+          id,
+          local(3 + i),
+          berlinLocalToUtc(local(3 + i)),
+        ),
+        env.DB.prepare(
+          `INSERT INTO user_event_scores (user_id, event_id, score, reasons, profile_version, computed_at)
+           VALUES (?, ?, ?, '[]', 1, '2026-01-01T00:00:00Z')`,
+        ).bind(u.user.id, id, score),
+      ]),
+    ]);
+    await refreshAllNextDates(env.DB);
+    const inbox = InboxResponse.parse(await (await as(cookie)('/api/me/inbox')).json());
+    // Rarely: theatre only from 75 (t3 at 70 stays out); less: exhibition only from 60 (e1 at 55 stays out).
+    // Mixing only swaps similar scores: the concert at 64 is too far below the theatre at 88 to move up.
+    expect(inbox.items.map((i) => i.slug)).toEqual(['fq_t1', 'fq_t2', 'fq_c1']);
+    expect(inbox.total).toBe(3);
+  });
+});

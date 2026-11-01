@@ -173,6 +173,14 @@ Format: date · decision · why · alternatives rejected. Newer entries supersed
   per account per 15 minutes (rows in `verifications`), the same answer and a dummy hash for unknown emails, and a
   stored cost that is raised on the next sign-in if the constant goes up. Passkeys (one signature check, under 1
   ms) remain the better long-term option.
+- **2026-11-01 · How often per category, and a mixed inbox.** Too much theatre: four of nine sources are theatres
+  with nightly programmes, and a category was only on or off. `prefs.frequency` adds `less` (inbox and picks only
+  from score 60) and `rarely` (from 75); `often` is the default and off stays `categoriesOff`. Applied at read time in
+  the inbox query and its counts, so changing a level needs no re-scoring. The inbox order then goes through
+  `mixCategories`: no category holds more than a third of the places so far, but an event only jumps ahead when it
+  scores within 15 points of the best one left, so mixing never lifts a weak match over a strong one; none is
+  dropped. Browse is unchanged except for off. Rejected for now: weekly caps per category (harder to explain,
+  needs per-week counting). The lasting fix is more non-theatre sources.
 - **2026-10-02 · React + Vite + TanStack + Tailwind + shadcn/ui.** Best coverage by design tools and implementing
   models. Rejected: SvelteKit (good, but weaker design-tool output), Next.js on Workers via OpenNext (heavier than
   needed; no SSR requirement since public pages can be cached JSON + client render; revisit if SEO matters).

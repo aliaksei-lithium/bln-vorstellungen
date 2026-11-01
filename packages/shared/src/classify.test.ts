@@ -61,3 +61,24 @@ describe('text', () => {
     expect(cleanTitle('JAZZFEST &quot;DREAM&quot;:&lt;br&gt;TAG 3')).toBe('JAZZFEST "DREAM" · TAG 3');
   });
 });
+
+describe('mixCategories', () => {
+  it('interleaves categories of similar score, never lifting a weak match over a strong one', async () => {
+    const { mixCategories } = await import('./categories');
+    const ev = (id: string, category: 'theatre' | 'concert' | 'exhibition', score: number) => ({ id, category, score });
+    const ranked = [
+      ev('t1', 'theatre', 90),
+      ev('t2', 'theatre', 88),
+      ev('t3', 'theatre', 86),
+      ev('c1', 'concert', 80),
+      ev('e1', 'exhibition', 78),
+      ev('t4', 'theatre', 70),
+      ev('e2', 'exhibition', 30),
+    ];
+    expect(mixCategories(ranked).map((x) => x.id)).toEqual(['t1', 'c1', 'e1', 't2', 't3', 't4', 'e2']);
+    // Nothing close enough to mix in: the order stays as ranked.
+    expect(
+      mixCategories([ev('t1', 'theatre', 90), ev('t2', 'theatre', 88), ev('e2', 'exhibition', 30)]).map((x) => x.id),
+    ).toEqual(['t1', 't2', 'e2']);
+  });
+});
