@@ -200,6 +200,14 @@ Format: date · decision · why · alternatives rejected. Newer entries supersed
   stage with "You listen to … on Spotify", no model call; the scoring model also sees the top 15 names, so similar
   acts rank higher. "My Spotify artists" is a Browse source filter (per user, never cached publicly). The app is in
   Spotify's development mode: up to 25 users, each added by email in Spotify's dashboard.
+  Music taste from Spotify is used implicitly: genres of the user's artists (weighted by rank) and the leading
+  artists join the taste embedding and the scoring prompt, never the user's own taste text; the Me page shows what
+  was added. Spotify as a concert source is not possible (no public concerts API); Bandsintown's artist events,
+  fed with these artists, is the candidate for later (needs an app id).
+- **2026-11-01 · The inbox is a short round, not a queue.** Opening it fixes a round of the 5 best picks plus 2
+  "something different" (best-scored events from categories none of the five has, score 25-70); sorting removes
+  one, "Show more picks" starts another round. No counts, no progress bar, no badge on the nav. Supersedes the
+  "12 of 40" triage queue of docs/07.
 - **2026-10-02 · React + Vite + TanStack + Tailwind + shadcn/ui.** Best coverage by design tools and implementing
   models. Rejected: SvelteKit (good, but weaker design-tool output), Next.js on Workers via OpenNext (heavier than
   needed; no SSR requirement since public pages can be cached JSON + client render; revisit if SEO matters).

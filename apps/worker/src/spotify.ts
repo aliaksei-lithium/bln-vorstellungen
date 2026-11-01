@@ -148,6 +148,7 @@ export async function spotifyStatus(db: D1Database, userId: string): Promise<Spo
     connected: !!synced,
     syncedAt: synced ? String(synced) : null,
     artists: (artists?.results ?? []).map((r) => String(r.name)),
+    genres: synced ? (await musicTaste(db, userId)).genres : [],
   };
 }
 
@@ -177,4 +178,33 @@ export function artistMatch(
     if (t === lc || t.startsWith(`${lc} `) || t.startsWith(`${lc}:`)) return name;
   }
   return null;
+}
+
+/**
+ * The user's music taste as read from Spotify: genres weighted by artist rank (top artists count most), and the
+ * leading artists. Added to the taste behind the scenes (embedding and scoring), never into the user's own text.
+ */
+export async function musicTaste(db: D1Database, userId: string): Promise<{ genres: string[]; artists: string[] }> {
+  const { results } = await db
+    .prepare(`SELECT name, genres FROM user_artists WHERE user_id = ? AND source = 'spotify' ORDER BY rank LIMIT 120`)
+    .bind(userId)
+    .all<{ name: string; genres: string }>();
+  const weight = new Map<string, number>();
+  results.forEach((a, rank) => {
+    for (const g of JSON.parse(a.genres || '[]') as string[]) weight.set(g, (weight.get(g) ?? 0) + 1 / (1 + rank / 10));
+  });
+  return {
+    genres: [...weight.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10)
+      .map(([g]) => g),
+    artists: results.slice(0, 12).map((a) => a.name),
+  };
+}
+
+/** One line for prompts and the taste embedding, or '' when nothing is connected. */
+export async function musicTasteLine(db: D1Database, userId: string): Promise<string> {
+  const m = await musicTaste(db, userId);
+  if (!m.artists.length) return '';
+  return `Music they listen to (Spotify): ${m.genres.length ? `${m.genres.join(', ')}; ` : ''}artists such as ${m.artists.join(', ')}.`;
 }

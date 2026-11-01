@@ -1,5 +1,5 @@
 import { CATEGORY_LABELS, Prefs, formatPrice, hiddenCategories, type Category, type Reason } from '@bln/shared';
-import { artistMatch } from '../spotify';
+import { artistMatch, musicTasteLine } from '../spotify';
 import { cosine, embedTexts, EMBED_MODEL_TAG } from './embed';
 import { callJson, providerFrom } from './llm';
 import * as prompt from './prompts/score';
@@ -42,10 +42,28 @@ export async function loadProfile(db: D1Database, userId: string) {
   };
 }
 
+/** What the taste vector is made of: the user's own words plus, when connected, their music from Spotify. */
+async function tasteVector(env: Env, userId: string, text: string): Promise<Int8Array | null> {
+  const full = [text, await musicTasteLine(env.DB, userId)].filter(Boolean).join('\n');
+  return full ? (await embedTexts(env, [full]))[0]! : null;
+}
+
+/** Re-embeds the taste after Spotify changed and bumps the version, so everything is re-scored. */
+export async function refreshTaste(env: Env, userId: string): Promise<void> {
+  const p = await loadProfile(env.DB, userId);
+  const vector = await tasteVector(env, userId, p.tasteText);
+  await env.DB.prepare(
+    `UPDATE user_profiles SET profile_embedding = ?, profile_version = profile_version + 1,
+       updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE user_id = ?`,
+  )
+    .bind(vector ? vector.buffer : null, userId)
+    .run();
+}
+
 /** Saves taste + prefs, embeds the taste text and bumps the version (which makes every score stale). */
 export async function saveProfile(env: Env, userId: string, tasteText: string, prefs: Prefs): Promise<number> {
   const text = tasteText.trim();
-  const [vector] = text ? await embedTexts(env, [text]) : [null];
+  const vector = await tasteVector(env, userId, text);
   const row = await env.DB.prepare(
     `INSERT INTO user_profiles (user_id, taste_text, prefs, profile_embedding, profile_version) VALUES (?, ?, ?, ?, 2)
      ON CONFLICT (user_id) DO UPDATE SET taste_text = excluded.taste_text, prefs = excluded.prefs,
@@ -65,15 +83,6 @@ async function userArtists(db: D1Database, userId: string): Promise<Map<string, 
     .bind(userId)
     .all<{ name_lc: string; name: string }>();
   return new Map(results.map((r) => [r.name_lc, r.name]));
-}
-
-/** Context for the model: who they listen to, so similar acts rank higher too. */
-async function topArtistsLine(db: D1Database, userId: string): Promise<string> {
-  const { results } = await db
-    .prepare(`SELECT name FROM user_artists WHERE user_id = ? ORDER BY rank LIMIT 15`)
-    .bind(userId)
-    .all<{ name: string }>();
-  return results.length ? `listens to ${results.map((r) => r.name).join(', ')}` : '';
 }
 
 export const baseFromCosine = (cos: number) =>
@@ -193,7 +202,7 @@ export async function scoreWithLlm(env: Env, userId: string, eventIds: string[],
       ? `not interested in ${profile.prefs.categoriesOff.map((c) => CATEGORY_LABELS[c]).join(', ')}`
       : '',
     profile.prefs.maxPrice != null ? `pays at most ${profile.prefs.maxPrice} €` : '',
-    await topArtistsLine(env.DB, userId),
+    await musicTasteLine(env.DB, userId),
   ]
     .filter(Boolean)
     .join('; ');

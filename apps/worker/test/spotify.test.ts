@@ -65,7 +65,7 @@ describe('spotify', () => {
     await expect(finishConnect(spotifyEnv, uid, 'code', state, fakeSpotify())).rejects.toThrow('expired');
 
     await disconnect(env.DB, uid);
-    expect(await spotifyStatus(env.DB, uid)).toEqual({ connected: false, syncedAt: null, artists: [] });
+    expect(await spotifyStatus(env.DB, uid)).toEqual({ connected: false, syncedAt: null, artists: [], genres: [] });
   });
 
   it('matches by performer anywhere, and by title only for concert-type events', () => {
