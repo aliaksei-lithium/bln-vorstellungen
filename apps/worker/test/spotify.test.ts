@@ -22,7 +22,12 @@ function fakeSpotify(seen: string[] = []): typeof fetch {
       return Response.json({ access_token: 'acc', refresh_token: 'ref', expires_in: 3600, scope: 'user-top-read' });
     }
     if (url.includes('/me/top/artists')) {
-      return Response.json({ items: [{ name: 'Slowdive', genres: ['shoegaze'] }, { name: 'Hot Chip', genres: [] }] });
+      return Response.json({
+        items: [
+          { name: 'Slowdive', genres: ['shoegaze'] },
+          { name: 'Hot Chip', genres: [] },
+        ],
+      });
     }
     if (url.includes('/me/following')) {
       return Response.json({ artists: { items: [{ name: 'slowdive' }, { name: 'Sofoquina' }], next: null } });
@@ -99,7 +104,9 @@ describe('spotify', () => {
 
     const r = await scoreByRules(env, uid);
     expect(r.candidates).not.toContain('sp_hot'); // no model call needed for a sure match
-    const hot = await env.DB.prepare(`SELECT score, reasons FROM user_event_scores WHERE user_id = ? AND event_id = 'sp_hot'`)
+    const hot = await env.DB.prepare(
+      `SELECT score, reasons FROM user_event_scores WHERE user_id = ? AND event_id = 'sp_hot'`,
+    )
       .bind(uid)
       .first<{ score: number; reasons: string }>();
     expect(hot?.score).toBe(92);
