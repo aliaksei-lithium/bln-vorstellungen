@@ -12,6 +12,7 @@ import { HTTPException } from 'hono/http-exception';
 import { embedTexts } from '../ai/embed';
 import { neuronsLeft } from '../ai/models';
 import { loadIndex, nearest, vectorOf } from '../ai/vector-index';
+import { eventSources } from './sources';
 
 /**
  * Public event reads, shared by the REST API and the MCP tools. One row per event at its next occurrence in range
@@ -281,6 +282,7 @@ export async function eventDetail(db: D1Database, slug: string): Promise<EventDe
   ]);
 
   const v = venue?.results[0];
+  const sources = await eventSources(db, String(ev.id));
   return EventDetail.parse({
     id: ev.id,
     slug: ev.slug,
@@ -307,6 +309,7 @@ export async function eventDetail(db: D1Database, slug: string): Promise<EventDe
     createdBy: ev.created_by,
     createdAt: ev.created_at,
     updatedAt: ev.updated_at,
+    sources,
     venue: v
       ? {
           id: v.id,

@@ -4,6 +4,7 @@ import { useCallback } from 'react';
 import { api } from './api';
 import { useMe } from './auth';
 import { toast } from './toast';
+import { useVisitorSources } from './visitorSources';
 
 /** The signed-in user's marks by slug, shared by every list row (one small request, cached). */
 export function useMyStates() {
@@ -59,13 +60,14 @@ export function useMark() {
 /**
  * Whether a list row shows for this user: never an event they hid, not a category they switched off on the Me page
  * (unless they picked that category in the filter themselves), and not an event all of whose sources they switched
- * off. Signed out, everything shows.
+ * off. Signed out, only the source switches apply, kept in this browser.
  */
 export function useListFilter(picked: Category[] = []) {
   const { signedIn, states } = useMyStates();
   const profile = useQuery({ queryKey: ['profile'], queryFn: api.profile, enabled: signedIn, staleTime: 60_000 });
   const off = profile.data?.prefs.categoriesOff ?? [];
-  const srcOff = profile.data?.prefs.sourcesOff ?? [];
+  const visitor = useVisitorSources(!signedIn);
+  const srcOff = signedIn ? (profile.data?.prefs.sourcesOff ?? []) : visitor.off;
   return useCallback(
     (e: { slug: string; category: Category; sources?: string[] }) =>
       states[e.slug] !== 'hidden' &&

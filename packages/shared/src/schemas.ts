@@ -216,7 +216,7 @@ export const UsageOverview = z.object({
 });
 export type UsageOverview = z.infer<typeof UsageOverview>;
 
-/** Read-only overview of where events come from, for signed-in users (Me page). No URLs or settings. */
+/** Read-only overview of where events come from (Me page; public at /api/sources). No feed URLs or settings. */
 export const SourceSummary = z.object({
   id: z.string(),
   name: z.string(),
@@ -230,6 +230,8 @@ export const SourceSummary = z.object({
   nextRunAt: z.string().nullable(),
   /** Upcoming events this source contributed to. */
   upcoming: z.number(),
+  /** Off for visitors until they switch it on. */
+  defaultOff: z.boolean().default(false),
 });
 export type SourceSummary = z.infer<typeof SourceSummary>;
 export const SourcesOverview = z.object({ sources: z.array(SourceSummary) });
@@ -368,6 +370,8 @@ export const EventDetail = Event.extend({
   venue: Venue.nullable(),
   occurrences: z.array(Occurrence),
   performers: z.array(Performer.pick({ id: true, name: true, kind: true })),
+  /** The sources that list this event, with a link to each source's own page. */
+  sources: z.array(z.object({ id: z.string(), name: z.string(), link: z.string().nullable() })).default([]),
 });
 export type EventDetail = z.infer<typeof EventDetail>;
 

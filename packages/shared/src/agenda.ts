@@ -38,3 +38,35 @@ export function clashes(items: AgendaItem[]): Map<string, string> {
   }
   return out;
 }
+
+const addMinutes = (local: string, minutes: number) =>
+  new Date(Date.parse(`${local}:00Z`) + minutes * 60_000).toISOString().slice(0, 16);
+const compact = (local: string) => `${local.replace(/[-:]/g, '').slice(0, 13)}00`;
+
+/**
+ * A Google Calendar "add event" link for one date. Berlin wall-clock with `ctz`, so 20:00 stays 20:00; a date
+ * without a time from the source becomes an all-day entry. Without an end, the category's typical length.
+ */
+export function googleCalendarUrl(e: {
+  title: string;
+  category: Category;
+  startLocal: string;
+  endLocal?: string | null;
+  location?: string | null;
+  url: string;
+}): string {
+  const dates = hasTime(e.startLocal, e.category)
+    ? `${compact(e.startLocal)}/${compact(e.endLocal ?? addMinutes(e.startLocal, typicalMinutes(e.category)))}`
+    : `${e.startLocal.slice(0, 10).replace(/-/g, '')}/${addMinutes(e.startLocal, 24 * 60)
+        .slice(0, 10)
+        .replace(/-/g, '')}`;
+  const q: [string, string][] = [
+    ['action', 'TEMPLATE'],
+    ['text', e.title],
+    ['dates', dates],
+    ['ctz', 'Europe/Berlin'],
+    ['details', e.url],
+  ];
+  if (e.location) q.push(['location', e.location]);
+  return `https://calendar.google.com/calendar/render?${q.map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join('&')}`;
+}

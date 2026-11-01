@@ -266,6 +266,8 @@ export const sources = sqliteTable(
     config: json<Record<string, unknown>>('config').notNull(),
     scheduleMinutes: integer('schedule_minutes').notNull(),
     enabled: integer('enabled', { mode: 'boolean' }).notNull().default(true),
+    /** Off for visitors until they switch it on (signed-in users choose with prefs.sourcesOff). */
+    defaultOff: integer('default_off', { mode: 'boolean' }).notNull().default(false),
     cursor: text('cursor'),
     nextRunAt: text('next_run_at'),
     lastRunAt: text('last_run_at'),

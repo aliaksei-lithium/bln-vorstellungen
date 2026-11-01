@@ -527,7 +527,7 @@ describe('browse default', () => {
 
 describe('sourceLink', () => {
   it('links to the channel, an explicit page, or the site without feed parameters', async () => {
-    const { sourceLink } = await import('../src/api/me');
+    const { sourceLink } = await import('../src/services/sources');
     expect(sourceLink('telegram', '{"channel":"everydaythings"}')).toBe('https://t.me/everydaythings');
     expect(
       sourceLink('ical', '{"url":"https://api.lu.ma/ics/get?entity=discover","link":"https://lu.ma/berlin"}'),

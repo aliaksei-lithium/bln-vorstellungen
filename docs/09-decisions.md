@@ -243,6 +243,13 @@ Format: date · decision · why · alternatives rejected. Newer entries supersed
   first acts of every ticked event first, at most 25 events and 40 acts (the free plan's 50 subrequests). Spotify's
   2026 API changes shape this: no top-tracks endpoint, so tracks come from search; playlist items go to
   `/playlists/{id}/items`; artist genres may be empty; and a development-mode app serves at most 5 users.
+- **2026-11-02 · Visitors get source switches; event pages name their sources and add dates to calendars.**
+  `GET /api/sources` lists public, enabled sources for everyone; a new `sources.default_off` marks the ones a visitor
+  starts without (Privatclub, A-Trane, The Left Berlin, Bar jeder Vernunft). A visitor's switches live in their
+  browser (localStorage); until they touch one, the defaults apply. Signed-in users keep `prefs.sourcesOff` and are not
+  affected by the defaults. Event pages list their public sources with links, or "Added from a photo or text". Each
+  date offers "Add to calendar": a Google Calendar link built in the browser, or `GET /api/events/:slug/ics?date=`
+  (one VEVENT, Berlin wall-clock with TZID, all-day when the source gave no time). Both work without signing in.
 - **2026-10-02 · React + Vite + TanStack + Tailwind + shadcn/ui.** Best coverage by design tools and implementing
   models. Rejected: SvelteKit (good, but weaker design-tool output), Next.js on Workers via OpenNext (heavier than
   needed; no SSR requirement since public pages can be cached JSON + client render; revisit if SEO matters).

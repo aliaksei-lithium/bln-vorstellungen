@@ -79,6 +79,7 @@ export const api = {
   passwordStatus: () => getJson('/api/me/password', PasswordStatus),
   spotify: () => getJson('/api/me/spotify', SpotifyStatus),
   sources: () => getJson('/api/me/sources', SourcesOverview),
+  publicSources: () => getJson('/api/sources', SourcesOverview),
   setBrowseDefault: (search: string) =>
     request('/api/me/browse-default', z.object({ search: z.string() }), { method: 'PUT', body: { search } }),
   setSource: (id: string, on: boolean) =>

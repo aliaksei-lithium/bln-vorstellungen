@@ -21,6 +21,7 @@ import { toast } from '@/lib/toast';
 import { useTheme, type Theme } from '@/lib/theme';
 import { cn } from '@/lib/utils';
 import { CopyField } from './Agenda';
+import { useVisitorSources } from '@/lib/visitorSources';
 
 const head = 'flex h-9 items-center bg-ink px-3 text-xs font-extrabold tracking-[.1em] text-on-ink uppercase';
 
@@ -91,7 +92,10 @@ export function MePage() {
             <OtherDevice />
           </>
         ) : (
-          <SignIn />
+          <>
+            <SignIn />
+            <SourcesBox visitor />
+          </>
         )}
         {user?.isOwner && <AiUsage />}
         <Appearance />
@@ -556,20 +560,26 @@ const SOURCE_KIND: Record<string, string> = {
 
 /**
  * Where events come from and when each source is checked. Switching one off takes its events out of this user's
- * Browse, inbox and picks (unless another source lists them too); the agenda and event pages keep them.
+ * Browse, inbox and picks (unless another source lists them too); the agenda and event pages keep them. Visitors get
+ * the same switches, kept in their browser, with a few venues off to start with.
  */
-function SourcesBox() {
+function SourcesBox({ visitor = false }: { visitor?: boolean }) {
   const qc = useQueryClient();
-  const q = useQuery({ queryKey: ['sources'], queryFn: api.sources, staleTime: 60_000 });
-  const profile = useQuery({ queryKey: ['profile'], queryFn: api.profile });
-  const off = profile.data?.prefs.sourcesOff ?? [];
-  const flip = useMutation({
+  const mine = useQuery({ queryKey: ['sources'], queryFn: api.sources, staleTime: 60_000, enabled: !visitor });
+  const profile = useQuery({ queryKey: ['profile'], queryFn: api.profile, enabled: !visitor });
+  const local = useVisitorSources(visitor);
+  const q = visitor ? local.sources : mine;
+  const off = visitor ? local.off : (profile.data?.prefs.sourcesOff ?? []);
+  const save = useMutation({
     mutationFn: ({ id, on }: { id: string; on: boolean }) => api.setSource(id, on),
     onSuccess: ({ sourcesOff }) => {
       qc.setQueryData<Profile>(['profile'], (p) => (p ? { ...p, prefs: { ...p.prefs, sourcesOff } } : p));
       void qc.invalidateQueries({ queryKey: ['inbox'] });
     },
   });
+  const flip = visitor
+    ? { isPending: false, mutate: ({ id, on }: { id: string; on: boolean }) => local.set(id, on) }
+    : save;
   const sources = q.data?.sources ?? [];
   const yours = sources.filter((s) => s.enabled && !off.includes(s.id)).length;
   return (
@@ -583,7 +593,9 @@ function SourcesBox() {
       ) : (
         <>
           <p className="m-0 border-b border-line px-3 py-2.5 text-sm text-sub">
-            Switch a source off to leave its events out of your Browse and Inbox. Your Agenda keeps what you planned.
+            {visitor
+              ? 'Switch a source off to leave its events out of Browse. Saved in this browser; a few venues start off.'
+              : 'Switch a source off to leave its events out of your Browse and Inbox. Your Agenda keeps what you planned.'}
           </p>
           <ul className="m-0 list-none p-0">
             {sources.map((s) => {

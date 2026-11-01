@@ -1,7 +1,17 @@
-import { CATEGORY_LABELS, actsOf, formatDay, formatPrice, formatTime, type MyEvent, type UserState } from '@bln/shared';
+import {
+  CATEGORY_LABELS,
+  actsOf,
+  formatDay,
+  googleCalendarUrl,
+  formatPrice,
+  formatTime,
+  type MyEvent,
+  type UserState,
+} from '@bln/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useRouter } from '@tanstack/react-router';
 import {
+  CalendarPlus,
   Check,
   ChevronDown,
   ChevronLeft,
@@ -45,6 +55,7 @@ function Box({ title, right, children }: { title: string; right?: ReactNode; chi
 export function EventPage({ slug }: { slug: string }) {
   const router = useRouter();
   const [showAll, setShowAll] = useState(false);
+  const [calFor, setCalFor] = useState<string | null>(null);
   const ev = useQuery({ queryKey: ['event', slug], queryFn: () => api.event(slug) });
   const { user } = useMe();
   const qc = useQueryClient();
@@ -180,47 +191,85 @@ export function EventPage({ slug }: { slug: string }) {
               !!my &&
               (my.state === 'interested' || my.state === 'maybe') &&
               (my.occurrenceId ? my.occurrenceId === o.id : o.id === upcoming[0]?.id);
+            const calOpen = calFor === o.id;
             return (
-              <div
-                key={o.id}
-                className="flex min-h-12 items-center justify-between gap-2.5 border-b border-line px-3 tabular-nums last:border-b-0"
-              >
-                <span>
-                  <b>{formatDay(o.startLocal)}</b>
-                  {formatTime(o.startLocal, e.category) && ` · ${formatTime(o.startLocal, e.category)}`}
-                  {relativeDay(day) && <span className="text-sub"> · {relativeDay(day)}</span>}
-                </span>
-                {o.status !== 'scheduled' ? (
-                  <span className="text-xs font-extrabold tracking-[.05em] text-warn uppercase">
-                    {o.status === 'sold_out' ? 'Sold out' : 'Cancelled'}
+              <div key={o.id} className="border-b border-line last:border-b-0">
+                <div className="flex min-h-12 items-center justify-between gap-2.5 px-3 tabular-nums">
+                  <span>
+                    <b>{formatDay(o.startLocal)}</b>
+                    {formatTime(o.startLocal, e.category) && ` · ${formatTime(o.startLocal, e.category)}`}
+                    {relativeDay(day) && <span className="text-sub"> · {relativeDay(day)}</span>}
                   </span>
-                ) : (
-                  my && (
-                    <Button
-                      size="sm"
-                      variant={inAgenda ? 'default' : 'outline'}
-                      aria-pressed={inAgenda}
-                      className={cn('shrink-0', inAgenda && 'pointer-events-none')}
-                      onClick={() =>
-                        mark.mutate({
-                          state: my.state === 'interested' || my.state === 'maybe' ? my.state : 'interested',
-                          occurrenceId: o.id,
-                        })
-                      }
-                    >
-                      {inAgenda ? (
-                        <>
-                          <Check strokeWidth={2.4} aria-hidden />
-                          In agenda
-                        </>
-                      ) : (
-                        <>
-                          <Plus strokeWidth={2} aria-hidden />
-                          This date
-                        </>
+                  {o.status !== 'scheduled' ? (
+                    <span className="text-xs font-extrabold tracking-[.05em] text-warn uppercase">
+                      {o.status === 'sold_out' ? 'Sold out' : 'Cancelled'}
+                    </span>
+                  ) : (
+                    <div className="flex shrink-0 items-center gap-1.5">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="px-2"
+                        aria-label="Add to calendar"
+                        aria-expanded={calOpen}
+                        onClick={() => setCalFor(calOpen ? null : o.id)}
+                      >
+                        <CalendarPlus aria-hidden />
+                      </Button>
+                      {my && (
+                        <Button
+                          size="sm"
+                          variant={inAgenda ? 'default' : 'outline'}
+                          aria-pressed={inAgenda}
+                          className={cn('shrink-0', inAgenda && 'pointer-events-none')}
+                          onClick={() =>
+                            mark.mutate({
+                              state: my.state === 'interested' || my.state === 'maybe' ? my.state : 'interested',
+                              occurrenceId: o.id,
+                            })
+                          }
+                        >
+                          {inAgenda ? (
+                            <>
+                              <Check strokeWidth={2.4} aria-hidden />
+                              In agenda
+                            </>
+                          ) : (
+                            <>
+                              <Plus strokeWidth={2} aria-hidden />
+                              This date
+                            </>
+                          )}
+                        </Button>
                       )}
-                    </Button>
-                  )
+                    </div>
+                  )}
+                </div>
+                {calOpen && (
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-3 pb-2.5 text-sm">
+                    <span className="text-sub">Add to calendar:</span>
+                    <a
+                      href={googleCalendarUrl({
+                        title: e.title,
+                        category: e.category,
+                        startLocal: o.startLocal,
+                        endLocal: o.endLocal,
+                        location: v ? `${v.name}, ${v.address ?? 'Berlin'}` : null,
+                        url: `${location.origin}/e/${e.slug}`,
+                      })}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="font-extrabold text-moss"
+                    >
+                      Google
+                    </a>
+                    <a
+                      href={`/api/events/${encodeURIComponent(e.slug)}/ics?date=${encodeURIComponent(o.id)}`}
+                      className="font-extrabold text-moss"
+                    >
+                      Apple, Outlook (.ics)
+                    </a>
+                  </div>
                 )}
               </div>
             );
@@ -270,6 +319,37 @@ export function EventPage({ slug }: { slug: string }) {
               <>
                 <dt className="pt-0.5 text-[11.5px] font-extrabold tracking-[.1em] text-sub uppercase">With</dt>
                 <dd>{e.performers.map((p) => p.name).join(', ')}</dd>
+              </>
+            )}
+            {(e.sources.length > 0 || e.createdBy.startsWith('user:')) && (
+              <>
+                <dt className="pt-0.5 text-[11.5px] font-extrabold tracking-[.1em] text-sub uppercase">
+                  {e.sources.length > 1 ? 'Sources' : 'Source'}
+                </dt>
+                <dd className="flex flex-wrap gap-x-3 gap-y-1">
+                  {e.sources.map((s) =>
+                    s.link ? (
+                      <a
+                        key={s.id}
+                        href={s.link}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="font-bold text-ink underline-offset-4 [overflow-wrap:anywhere] hover:underline"
+                      >
+                        {s.name}
+                        <ExternalLink
+                          className="ml-1 inline size-3.5 align-[-1px] text-sub"
+                          aria-label="(opens the site)"
+                        />
+                      </a>
+                    ) : (
+                      <span key={s.id} className="[overflow-wrap:anywhere]">
+                        {s.name}
+                      </span>
+                    ),
+                  )}
+                  {e.sources.length === 0 && <span className="text-sub">Added from a photo or text</span>}
+                </dd>
               </>
             )}
             {MUSIC.has(e.category) && actsOf(e).length > 0 && (
