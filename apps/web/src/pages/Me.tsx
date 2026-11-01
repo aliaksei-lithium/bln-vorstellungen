@@ -4,12 +4,13 @@ import {
   OPT_IN_CATEGORIES,
   TASTE_MAX,
   type Prefs,
+  type Profile,
   type SpotifyStatus,
   type UsageDay,
 } from '@bln/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
-import { ChevronRight, LogOut, Plus, Smartphone } from 'lucide-react';
+import { ChevronRight, LogOut, Smartphone } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { TopBar } from '@/components/AppShell';
 import { CategoryDot } from '@/components/CategoryChip';
@@ -64,15 +65,6 @@ function Box({
   );
 }
 
-const EXAMPLES: Record<string, string> = {
-  'Classic plays': 'Classic plays in German.',
-  'Chamber music': 'Chamber music in small halls.',
-  'Contemporary dance': 'Contemporary dance.',
-  'Jazz clubs': 'Jazz in small clubs.',
-  'Free exhibitions': 'Free exhibitions.',
-  'No techno': 'Not interested in techno parties.',
-};
-
 export function MePage() {
   const { user, isPending } = useMe();
   return (
@@ -117,7 +109,13 @@ function TasteForm() {
   const qc = useQueryClient();
   const profile = useQuery({ queryKey: ['profile'], queryFn: api.profile });
   const [taste, setTaste] = useState('');
-  const [prefs, setPrefs] = useState<Prefs>({ categoriesOff: [], maxPrice: null, categoriesOn: [], frequency: {} });
+  const [prefs, setPrefs] = useState<Prefs>({
+    categoriesOff: [],
+    maxPrice: null,
+    categoriesOn: [],
+    frequency: {},
+    sourcesOff: [],
+  });
   const [dirty, setDirty] = useState(false);
 
   useEffect(() => {
@@ -183,19 +181,6 @@ function TasteForm() {
           </label>
           <div className="-mt-1 text-right text-xs text-sub tabular-nums">
             {taste.length} / {TASTE_MAX}
-          </div>
-          <div className="text-xs font-extrabold tracking-[.1em] text-sub uppercase">Add an example</div>
-          <div className="flex flex-wrap gap-2">
-            {Object.entries(EXAMPLES).map(([label, text]) => (
-              <Button
-                key={label}
-                size="sm"
-                onClick={() => edit(() => setTaste((t) => `${t.trim()} ${text}`.trim().slice(0, TASTE_MAX)))}
-              >
-                <Plus aria-hidden />
-                {label}
-              </Button>
-            ))}
           </div>
           <p className="m-0 text-xs text-sub">
             Plain words work best; the AI reads this as written. Saving re-ranks every upcoming event, which takes a
@@ -573,39 +558,75 @@ const SOURCE_KIND: Record<string, string> = {
   telegram: 'Telegram channel',
 };
 
-/** Where events come from and when each source is checked (read-only; the owner manages them). */
+/**
+ * Where events come from and when each source is checked. Switching one off takes its events out of this user's
+ * Browse, inbox and picks (unless another source lists them too); the agenda and event pages keep them.
+ */
 function SourcesBox() {
+  const qc = useQueryClient();
   const q = useQuery({ queryKey: ['sources'], queryFn: api.sources, staleTime: 60_000 });
+  const profile = useQuery({ queryKey: ['profile'], queryFn: api.profile });
+  const off = profile.data?.prefs.sourcesOff ?? [];
+  const flip = useMutation({
+    mutationFn: ({ id, on }: { id: string; on: boolean }) => api.setSource(id, on),
+    onSuccess: ({ sourcesOff }) => {
+      qc.setQueryData<Profile>(['profile'], (p) => (p ? { ...p, prefs: { ...p.prefs, sourcesOff } } : p));
+      void qc.invalidateQueries({ queryKey: ['inbox'] });
+    },
+  });
   const sources = q.data?.sources ?? [];
-  const live = sources.filter((s) => s.enabled);
+  const yours = sources.filter((s) => s.enabled && !off.includes(s.id)).length;
   return (
-    <Box title="Sources" collapsed summary={q.data ? `${live.length} active` : undefined}>
+    <Box
+      title="Sources"
+      collapsed
+      summary={q.data ? `${yours} on${off.length ? ` · ${off.length} off for you` : ''}` : undefined}
+    >
       {!q.data ? (
         <p className="m-0 p-3 text-sm text-sub">{q.isError ? 'Could not load sources.' : 'Loading…'}</p>
       ) : (
-        <ul className="m-0 list-none p-0">
-          {sources.map((s) => (
-            <li
-              key={s.name}
-              className={cn(
-                'grid gap-0.5 border-b border-line px-3 py-2.5 last:border-b-0',
-                !s.enabled && 'opacity-55',
-              )}
-            >
-              <div className="flex items-baseline justify-between gap-3">
-                <span className="min-w-0 truncate font-bold">{s.name}</span>
-                <span className="shrink-0 text-sm tabular-nums">
-                  <b>{s.upcoming}</b> <span className="text-sub">upcoming</span>
-                </span>
-              </div>
-              <div className="text-xs text-sub">
-                {SOURCE_KIND[s.type] ?? s.type} · {s.enabled ? every(s.everyMinutes) : 'paused'} · last checked{' '}
-                {ago(s.lastRunAt)}
-                {s.lastStatus === 'error' && <span className="font-bold text-danger"> · last run failed</span>}
-              </div>
-            </li>
-          ))}
-        </ul>
+        <>
+          <p className="m-0 border-b border-line px-3 py-2.5 text-sm text-sub">
+            Switch a source off to leave its events out of your Browse and Inbox. Your Agenda keeps what you planned.
+          </p>
+          <ul className="m-0 list-none p-0">
+            {sources.map((s) => {
+              const on = !off.includes(s.id);
+              return (
+                <li
+                  key={s.id}
+                  className={cn(
+                    'flex items-center gap-3 border-b border-line px-3 py-2.5 last:border-b-0',
+                    (!s.enabled || !on) && 'opacity-60',
+                  )}
+                >
+                  <div className="grid min-w-0 flex-1 gap-0.5">
+                    <span className="font-bold [overflow-wrap:anywhere]">{s.name}</span>
+                    <span className="text-xs text-sub">
+                      <b className="text-ink tabular-nums">{s.upcoming}</b> upcoming · {SOURCE_KIND[s.type] ?? s.type} ·{' '}
+                      {s.enabled ? every(s.everyMinutes) : 'paused'} · checked {ago(s.lastRunAt)}
+                      {s.lastStatus === 'error' && <span className="font-bold text-danger"> · last run failed</span>}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={on}
+                    aria-label={s.name}
+                    disabled={flip.isPending}
+                    onClick={() => flip.mutate({ id: s.id, on: !on })}
+                    className={cn(
+                      'h-8 w-14 shrink-0 border border-ink text-xs font-extrabold tracking-[.08em] uppercase',
+                      on ? 'bg-moss text-on-moss' : 'bg-surface text-sub',
+                    )}
+                  >
+                    {on ? 'On' : 'Off'}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </>
       )}
     </Box>
   );

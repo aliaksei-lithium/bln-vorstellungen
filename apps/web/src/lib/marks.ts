@@ -57,16 +57,20 @@ export function useMark() {
 }
 
 /**
- * Whether a list row shows for this user: never an event they hid, and not a category they switched off on the Me
- * page, unless they picked that category in the filter themselves. Signed out, everything shows.
+ * Whether a list row shows for this user: never an event they hid, not a category they switched off on the Me page
+ * (unless they picked that category in the filter themselves), and not an event all of whose sources they switched
+ * off. Signed out, everything shows.
  */
 export function useListFilter(picked: Category[] = []) {
   const { signedIn, states } = useMyStates();
   const profile = useQuery({ queryKey: ['profile'], queryFn: api.profile, enabled: signedIn, staleTime: 60_000 });
   const off = profile.data?.prefs.categoriesOff ?? [];
+  const srcOff = profile.data?.prefs.sourcesOff ?? [];
   return useCallback(
-    (e: { slug: string; category: Category }) =>
-      states[e.slug] !== 'hidden' && (picked.includes(e.category) || !off.includes(e.category)),
-    [states, off, picked],
+    (e: { slug: string; category: Category; sources?: string[] }) =>
+      states[e.slug] !== 'hidden' &&
+      (picked.includes(e.category) || !off.includes(e.category)) &&
+      !(e.sources?.length && e.sources.every((s) => srcOff.includes(s))),
+    [states, off, srcOff, picked],
   );
 }

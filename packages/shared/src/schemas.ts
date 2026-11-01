@@ -180,6 +180,7 @@ export type UsageOverview = z.infer<typeof UsageOverview>;
 
 /** Read-only overview of where events come from, for signed-in users (Me page). No URLs or settings. */
 export const SourceSummary = z.object({
+  id: z.string(),
   name: z.string(),
   type: z.string(),
   enabled: z.boolean(),
@@ -192,6 +193,7 @@ export const SourceSummary = z.object({
 });
 export type SourceSummary = z.infer<typeof SourceSummary>;
 export const SourcesOverview = z.object({ sources: z.array(SourceSummary) });
+export const SourceSwitch = z.object({ on: z.boolean() });
 export type SourcesOverview = z.infer<typeof SourcesOverview>;
 
 export const SourceVisibility = z.enum(['public', 'private']);
@@ -305,6 +307,8 @@ export const EventListItem = z.object({
   moreDates: z.number().int().nonnegative(),
   /** Language of the title, for correct hyphenation of long German words. */
   lang: Lang.optional(),
+  /** Ids of the sources that list this event (none for events added from photos and text). */
+  sources: z.array(z.string()).optional(),
 });
 export type EventListItem = z.infer<typeof EventListItem>;
 
@@ -388,6 +392,11 @@ export const Prefs = z.object({
    * being in `categoriesOn` for opt-in ones). See FREQUENCY_MIN_SCORE.
    */
   frequency: z.partialRecord(Category, z.enum(['less', 'rarely'])).default({}),
+  /**
+   * Sources this user switched off: an event all of whose sources are off leaves their Browse, inbox and picks; their
+   * agenda keeps it. Set through PUT /api/me/sources/:id, never by saving the taste.
+   */
+  sourcesOff: z.array(z.string()).default([]),
 });
 export type Prefs = z.infer<typeof Prefs>;
 

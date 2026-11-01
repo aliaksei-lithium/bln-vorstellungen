@@ -62,9 +62,16 @@ export async function inbox(
   // Off now (switched off, or an opt-in one not switched on) stays out even before the next re-scoring, e.g. after
   // a source's events got a better category.
   const off = [...prefs.categoriesOff, ...hiddenCategories(prefs)];
+  // Sources switched off: the event stays only if some source of it is still on (or it was added by people).
+  const srcOff = prefs.sourcesOff;
   const notOff = (first: number) =>
-    off.length ? ` AND e.category NOT IN (${off.map((_, i) => `?${first + i}`).join(',')})` : '';
-  const args = [...levelArgs, ...off];
+    (off.length ? ` AND e.category NOT IN (${off.map((_, i) => `?${first + i}`).join(',')})` : '') +
+    (srcOff.length
+      ? ` AND EXISTS (SELECT 1 FROM event_sources es JOIN raw_items r ON r.id = es.raw_item_id
+                     WHERE es.event_id = e.id AND (r.source_id IS NULL
+                       OR r.source_id NOT IN (${srcOff.map((_, i) => `?${first + off.length + i}`).join(',')})))`
+      : '');
+  const args = [...levelArgs, ...off, ...srcOff];
   // A window that starts later (a weekend, say) matches any performance in it, shown as the event's date; the plain
   // inbox goes by the denormalized next date and reads no occurrences.
   const inWindow = `(SELECT o.start_utc || '|' || o.start_local FROM occurrences o
