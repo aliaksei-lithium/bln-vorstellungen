@@ -5,6 +5,7 @@ import { adminApi } from './api/admin';
 import { authApi, calendarApi, meApi } from './api/me';
 import { loadUser, sameOrigin, type AppEnv } from './auth';
 import { eventsApi } from './api/events';
+import { scansApi } from './api/scans';
 import { authorize, oauth } from './mcp/oauth';
 import { embedMissing } from './ai/embed';
 import { dispatchScoring } from './ai/score';
@@ -44,6 +45,7 @@ app.get('/api/health', async (c) => {
 app.route('/api/events', eventsApi);
 app.route('/api/admin', adminApi);
 app.route('/api/auth', authApi);
+app.route('/api/me/scans', scansApi);
 app.route('/api/me', meApi);
 app.route('/api/cal', calendarApi);
 

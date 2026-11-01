@@ -37,7 +37,18 @@ export type JsonCall<T> = {
   maxTokens?: number;
   /** Usage counter bumped once per model call, e.g. ai_extract_calls. */
   metric: Metric;
+  /** Images sent before the text (photos of posters). Claude only: there is no free fallback for them. */
+  images?: { mediaType: string; data: string }[];
+  /** Overrides the default `low` effort, for harder inputs such as dense photos. */
+  effort?: 'low' | 'medium' | 'high';
 };
+
+/** A call with images when Claude is unavailable (no key, refusal, outage) or its daily budget is spent. */
+export class VisionUnavailable extends Error {
+  constructor(reason: string) {
+    super(`Reading photos needs Claude, which is unavailable right now (${reason}). Try again later.`);
+  }
+}
 
 export type JsonResult<T> = { value: T; model: string; neurons: number; usd: number };
 
@@ -80,21 +91,23 @@ type ClaudeMessage = {
   usage?: { input_tokens?: number; output_tokens?: number };
 };
 
-async function claude(
-  env: Env,
-  model: ClaudeModel,
-  system: string,
-  user: string,
-  schema: Record<string, unknown>,
-  maxTokens: number,
-  metric: Metric,
-): Promise<Attempt> {
+async function claude(env: Env, model: ClaudeModel, req: JsonCall<unknown>, maxTokens: number): Promise<Attempt> {
+  const { system, user, schema, metric } = req;
+  const content = req.images?.length
+    ? [
+        ...req.images.map((i) => ({
+          type: 'image',
+          source: { type: 'base64', media_type: i.mediaType, data: i.data },
+        })),
+        { type: 'text', text: user },
+      ]
+    : user;
   const res = await runModel<ClaudeMessage>(env, model, {
     max_tokens: maxTokens,
     system: [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }],
-    messages: [{ role: 'user', content: user }],
+    messages: [{ role: 'user', content }],
     thinking: { type: 'disabled' },
-    output_config: { effort: 'low', format: { type: 'json_schema', schema } },
+    output_config: { effort: req.effort ?? 'low', format: { type: 'json_schema', schema } },
   });
   if (res.stop_reason === 'refusal') throw new Error('Claude declined this request');
   const usd = claudeUsd(model, res.usage);
@@ -109,7 +122,10 @@ async function claude(
 export async function callJson<T>(env: Env, req: JsonCall<T>): Promise<JsonResult<T>> {
   const maxTokens = req.maxTokens ?? 6000;
   let provider = req.provider;
+  const vision = !!req.images?.length;
+  if (vision && provider === 'workers-ai') throw new VisionUnavailable('no Claude model configured');
   if (provider !== 'workers-ai' && (await claudeUsdLeft(env)) <= 0) {
+    if (vision) throw new VisionUnavailable('the daily AI budget is used up');
     console.warn(new ClaudeBudgetExhausted().message);
     provider = 'workers-ai';
   }
@@ -118,8 +134,9 @@ export async function callJson<T>(env: Env, req: JsonCall<T>): Promise<JsonResul
       return workersAi(env, req.system + schemaInstruction(req.schema), req.user, maxTokens, req.metric);
     }
     try {
-      return await claude(env, provider, req.system, req.user, req.schema, maxTokens, req.metric);
+      return await claude(env, provider, req as JsonCall<unknown>, maxTokens);
     } catch (err) {
+      if (vision) throw new VisionUnavailable(String(err).slice(0, 120));
       // No key stored on the gateway, a refusal, or an outage: the free model still gets the job done.
       console.warn(`${req.metric}: Claude failed, using Workers AI`, String(err));
       provider = 'workers-ai';

@@ -146,6 +146,19 @@ Format: date · decision · why · alternatives rejected. Newer entries supersed
   responses stay user-independent and cacheable: an explicit `category=kink` request returns them, and the web app
   only offers that filter to users who opted in. Event pages stay reachable by link. Classified by keywords
   (fetish, BDSM, sex-positive, play party…) before `club`, and by the extraction prompt (extract@6).
+- **2026-11-01 · Scans: photo and pasted text, reviewed before anything is added.**
+  The browser resizes photos to at most 2400 px on the long edge (JPEG) before upload, so the Worker never decodes
+  images. `POST /api/me/scans` stores the image in R2 (`uploads` + `raw_items` kind `image`, or kind `text`) and a
+  `scans` row (new table: user, kind, status queued/reading/ready/failed/done, candidates JSON, model, prompt
+  version), then starts `PhotoIngestWorkflow`. The workflow sends the image to Claude Haiku 5.5 through AI Gateway
+  (base64 via `Buffer`, native), with the extract@6 rules plus photo rules (`photo@1`: every entry of a listing,
+  year headings such as "2027", day-only dates, multi-day fairs with opening hours as one event per day, presenter
+  lines are not titles). Output is mapped with `toExtracted`. The review page `/scan/$id` polls, lists candidates
+  with checkboxes and inline edits; confirming runs `resolveEvent` with `createdBy: user:<id>`, so duplicates merge.
+  No Workers AI vision fallback: when the Claude budget is spent the scan fails with a clear message. Test set: five
+  photos from 2026-11-01 (magazine kink calendar, two concert listing pages, a promoter list into 2027, a poster):
+  8/8, 42/42, 56/56 and 12/12 events read, the past poster explained as "no upcoming dates", about $0.003 a photo.
+  One wrong performer (copied from the next entry) is why the review page edits performers too.
 - **2026-10-02 · React + Vite + TanStack + Tailwind + shadcn/ui.** Best coverage by design tools and implementing
   models. Rejected: SvelteKit (good, but weaker design-tool output), Next.js on Workers via OpenNext (heavier than
   needed; no SSR requirement since public pages can be cached JSON + client render; revisit if SEO matters).

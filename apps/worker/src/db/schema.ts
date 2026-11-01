@@ -314,6 +314,35 @@ export const uploads = sqliteTable('uploads', {
   createdAt: createdAt(),
 });
 
+/**
+ * A photo or pasted text a user wants turned into events (docs/09, 2026-11-01). The workflow fills `candidates`
+ * (ExtractedEvent[] as JSON); nothing becomes an event until the user confirms on the review page.
+ */
+export const scans = sqliteTable(
+  'scans',
+  {
+    id: id(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id),
+    kind: text('kind', { enum: ['photo', 'text'] }).notNull(),
+    rawItemId: text('raw_item_id').references(() => rawItems.id),
+    status: text('status', { enum: ['queued', 'reading', 'ready', 'failed', 'done'] })
+      .notNull()
+      .default('queued'),
+    candidates: text('candidates'),
+    result: text('result'),
+    error: text('error'),
+    model: text('model'),
+    promptVersion: text('prompt_version'),
+    createdAt: createdAt(),
+    updatedAt: text('updated_at')
+      .notNull()
+      .default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ','now'))`),
+  },
+  (t) => [index('scans_user_idx').on(t.userId, t.createdAt)],
+);
+
 export const rawItems = sqliteTable(
   'raw_items',
   {
