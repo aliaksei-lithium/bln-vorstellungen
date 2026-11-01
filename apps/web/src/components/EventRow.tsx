@@ -73,7 +73,7 @@ function RowLink({
       to="/e/$slug"
       params={{ slug: item.slug }}
       draggable={false}
-      className="flex min-h-16 items-center gap-3 px-3 py-2 text-ink no-underline hover:bg-surface/60"
+      className="flex min-h-16 items-center gap-3 px-3 py-2 text-ink no-underline hover:bg-chip/60"
     >
       <div className="hatch size-12 shrink-0" style={{ ['--hatch-angle' as string]: hatchAngle(item.slug) }} />
       <div className="min-w-0 flex-1">
