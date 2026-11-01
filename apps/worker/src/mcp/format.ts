@@ -6,6 +6,7 @@ import {
   type AgendaItem,
   type EventDetail,
   type EventListItem,
+  type ExtractedEvent,
   type MyEvent,
   type Reason,
 } from '@bln/shared';
@@ -86,6 +87,28 @@ export function agendaMarkdown(origin: string, items: AgendaItem[]): string {
       const parts = [formatDateTime(a.startLocal, a.category), a.venueName, formatPrice(a), a.state].filter(Boolean);
       const warn = clash.get(a.occurrenceId);
       return `- [${a.title}](${link(origin, a.slug)}) · ${parts.join(' · ')}${warn ? ` · ⚠ clashes with ${warn}` : ''} · \`${a.slug}\``;
+    })
+    .join('\n');
+}
+
+/** Scan candidates, numbered for confirm_events. */
+export function candidateLines(events: ExtractedEvent[]): string {
+  return events
+    .map((e, i) => {
+      const first = e.occurrences[0]!;
+      const price = e.price
+        ? formatPrice({ isFree: !!e.price.free, priceMin: e.price.min ?? null, priceMax: e.price.max ?? null })
+        : null;
+      const parts = [
+        formatDateTime(first.start, e.category),
+        e.occurrences.length > 1 ? `+${e.occurrences.length - 1} more dates` : null,
+        e.venue?.name,
+        price,
+        CATEGORY_LABELS[e.category],
+        e.performers.length ? `with ${e.performers.map((p) => p.name).join(', ')}` : null,
+        e.needsReview ? 'uncertain, check it' : null,
+      ].filter(Boolean);
+      return `${i + 1}. **${e.title}** · ${parts.join(' · ')}`;
     })
     .join('\n');
 }

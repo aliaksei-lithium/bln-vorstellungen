@@ -218,6 +218,8 @@ describe('MCP server', () => {
     const tools = (await rpc(token, 'tools/list')).result as { tools: { name: string }[] };
     expect(tools.tools.map((t) => t.name).sort()).toEqual(
       [
+        'add_events_from_text',
+        'confirm_events',
         'get_event',
         'get_taste',
         'list_events',
@@ -264,5 +266,8 @@ describe('MCP server', () => {
     const res = await tool(token, 'mark_event', { slug: 'mcp-b', state: 'hidden' });
     expect(res.isError).toBe(true);
     expect(res.text).toContain('read-only');
+    const add = await tool(token, 'add_events_from_text', { text: 'Konzert am Freitag 20 Uhr im Lido, 15 €.' });
+    expect(add.isError).toBe(true);
+    expect(add.text).toContain('read-only');
   });
 });

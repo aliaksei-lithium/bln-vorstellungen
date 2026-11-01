@@ -7,9 +7,10 @@ this poster", "pause the Telegram source", "why did you score this 82?".
 
 Live at `<origin>/mcp`, stateless (`createMcpHandler`), OAuth in the same Worker; see docs/09 for why. Tools so far:
 `my_picks`, `list_events`, `search_events`, `get_event`, `my_agenda`, `get_taste` (read, scope `mcp:read`) and
-`mark_event`, `set_taste` (scope `mcp:write`); prompt `weekend_picks`. Inputs are the `Mcp*` schemas in
-`packages/shared/src/mcp.ts`; tools call `apps/worker/src/services/*`. Adding events (text, image), sources and the
-review queue come with the photo pipeline.
+`mark_event`, `set_taste`, `add_events_from_text`, `confirm_events` (scope `mcp:write`); prompt `weekend_picks`. The
+text tools make a scan (read inline, not through the workflow) and add only what `confirm_events` picks. Inputs are the `Mcp*` schemas in
+`packages/shared/src/mcp.ts`; tools call `apps/worker/src/services/*`. Managing sources and the
+review queue are still to come; photos go through the app's Scan button, since MCP clients rarely pass images.
 
 ## Transport and hosting (original plan)
 

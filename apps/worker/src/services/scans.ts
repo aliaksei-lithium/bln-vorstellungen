@@ -43,7 +43,14 @@ export type ScanInput =
   | { kind: 'photo'; bytes: ArrayBuffer; contentType: string; takenAt?: string; note?: string }
   | { kind: 'text'; text: string };
 
-export async function createScan(env: Env, userId: string, input: ScanInput, now = new Date()): Promise<string> {
+/** `start: false` leaves reading to the caller (the MCP tool reads inline instead of through the workflow). */
+export async function createScan(
+  env: Env,
+  userId: string,
+  input: ScanInput,
+  now = new Date(),
+  opts: { start?: boolean } = {},
+): Promise<string> {
   const today = await env.DB.prepare(`SELECT COUNT(*) AS n FROM scans WHERE user_id = ? AND created_at >= ?`)
     .bind(userId, now.toISOString().slice(0, 10))
     .first<{ n: number }>();
@@ -93,7 +100,7 @@ export async function createScan(env: Env, userId: string, input: ScanInput, now
     ),
   );
   await env.DB.batch(stmts);
-  await env.PHOTO_INGEST.create({ id, params: { scanId: id } });
+  if (opts.start !== false) await env.PHOTO_INGEST.create({ id, params: { scanId: id } });
   return id;
 }
 
