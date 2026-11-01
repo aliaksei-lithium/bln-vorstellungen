@@ -6,6 +6,7 @@ import {
   StateUpdate,
   type MyStates,
   type PasswordStatus,
+  type SourcesOverview,
   type Profile,
 } from '@bln/shared';
 import { Hono } from 'hono';
@@ -82,6 +83,34 @@ meApi.put('/password', async (c) => {
   const p = await body(c, PasswordSet);
   await setPassword(c.env.DB, user.id, p.password, p.current);
   return c.json({ set: true } satisfies PasswordStatus);
+});
+
+/** Where events come from and when each source is checked next; enabled ones first, busiest first. */
+meApi.get('/sources', async (c) => {
+  requireUser(c);
+  const { results } = await c.env.DB.prepare(
+    `SELECT s.name, s.type, s.enabled, s.schedule_minutes, s.last_run_at, s.last_status, s.next_run_at,
+            (SELECT COUNT(DISTINCT es.event_id) FROM raw_items r
+               JOIN event_sources es ON es.raw_item_id = r.id
+               JOIN events e ON e.id = es.event_id
+              WHERE r.source_id = s.id AND e.next_start_utc >= ?) AS upcoming
+       FROM sources s
+      ORDER BY s.enabled DESC, upcoming DESC, s.name`,
+  )
+    .bind(new Date().toISOString())
+    .all<Record<string, unknown>>();
+  return c.json({
+    sources: results.map((r) => ({
+      name: String(r.name),
+      type: String(r.type),
+      enabled: Boolean(r.enabled),
+      everyMinutes: Number(r.schedule_minutes),
+      lastRunAt: (r.last_run_at as string | null) ?? null,
+      lastStatus: (r.last_status as string | null) ?? null,
+      nextRunAt: (r.next_run_at as string | null) ?? null,
+      upcoming: Number(r.upcoming ?? 0),
+    })),
+  } satisfies SourcesOverview);
 });
 
 /* ---------- profile ---------- */
