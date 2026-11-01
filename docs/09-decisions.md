@@ -193,6 +193,13 @@ Format: date · decision · why · alternatives rejected. Newer entries supersed
   one event (extract@8); the same night under another title merges on same venue + start + a shared act (concert-
   type categories only, company credits ignored); a flyer the image host refuses with 5xx stays pending for the next
   run instead of failing. We fetch as ourselves (our user agent), never as a browser.
+- **2026-11-01 · Spotify: artists, not listening history.** Authorization code flow on the server (client secret as
+  a Worker secret), scopes `user-top-read user-follow-read` only. We keep the refresh token (`accounts`, provider
+  `spotify`) and store top (6 months) then followed artists in `user_artists`. An event by one of them (same
+  performer name; for concert-type events also a title that is or starts with the name) scores 92 in the rule
+  stage with "You listen to … on Spotify", no model call; the scoring model also sees the top 15 names, so similar
+  acts rank higher. "My Spotify artists" is a Browse source filter (per user, never cached publicly). The app is in
+  Spotify's development mode: up to 25 users, each added by email in Spotify's dashboard.
 - **2026-10-02 · React + Vite + TanStack + Tailwind + shadcn/ui.** Best coverage by design tools and implementing
   models. Rejected: SvelteKit (good, but weaker design-tool output), Next.js on Workers via OpenNext (heavier than
   needed; no SSR requirement since public pages can be cached JSON + client render; revisit if SEO matters).
