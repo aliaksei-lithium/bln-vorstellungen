@@ -1,4 +1,4 @@
-import type { AgendaItem, Category } from '@bln/shared';
+import { hasTime, type AgendaItem, type Category } from '@bln/shared';
 
 /**
  * iCalendar export of an agenda (RFC 5545). Times are Berlin wall-clock with TZID, so calendar apps keep 20:00 at
@@ -66,12 +66,20 @@ export function agendaIcs(items: AgendaItem[], origin: string, name: string, now
   const dtstamp = `${now.toISOString().replace(/[-:]/g, '').slice(0, 15)}Z`;
   const events = items.flatMap((it) => {
     const end = it.endLocal ?? addMinutes(it.startLocal, DURATION[it.category] ?? 120);
+    // No time from the source: an all-day entry instead of a fake midnight start.
+    const when = hasTime(it.startLocal, it.category)
+      ? [`DTSTART;TZID=Europe/Berlin:${stamp(it.startLocal)}`, `DTEND;TZID=Europe/Berlin:${stamp(end)}`]
+      : [
+          `DTSTART;VALUE=DATE:${it.startLocal.slice(0, 10).replace(/-/g, '')}`,
+          `DTEND;VALUE=DATE:${addMinutes(it.startLocal, 24 * 60)
+            .slice(0, 10)
+            .replace(/-/g, '')}`,
+        ];
     return [
       'BEGIN:VEVENT',
       `UID:${it.occurrenceId}@bln-vorstellungen`,
       `DTSTAMP:${dtstamp}`,
-      `DTSTART;TZID=Europe/Berlin:${stamp(it.startLocal)}`,
-      `DTEND;TZID=Europe/Berlin:${stamp(end)}`,
+      ...when,
       `SUMMARY:${escapeText(it.state === 'maybe' ? `(maybe) ${it.title}` : it.title)}`,
       ...(it.venueName ? [`LOCATION:${escapeText(`${it.venueName}, Berlin`)}`] : []),
       `URL:${origin}/e/${it.slug}`,

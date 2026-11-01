@@ -126,6 +126,9 @@ Format: date · decision · why · alternatives rejected. Newer entries supersed
   background. The cron dispatches a run per user when new events were embedded. Measured locally with a real taste
   text: 233 events scored, 60 by Claude, top matches with concrete reasons, about $0.01. Spotify boosts and feedback
   learning are still to come.
+- **2026-11-01 · 00:00 means "no time known".** Date-only sources store midnight. The UI shows only the day for
+  those, Agenda skips them in clash checks, and the calendar feed writes all-day entries. Clubs are the exception:
+  a club night can really start at 00:00. `hasTime()` in `packages/shared` is the one place this rule lives.
 - **2026-10-02 · React + Vite + TanStack + Tailwind + shadcn/ui.** Best coverage by design tools and implementing
   models. Rejected: SvelteKit (good, but weaker design-tool output), Next.js on Workers via OpenNext (heavier than
   needed; no SSR requirement since public pages can be cached JSON + client render; revisit if SEO matters).

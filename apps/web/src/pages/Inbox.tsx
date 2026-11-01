@@ -1,4 +1,12 @@
-import { formatDay, formatPrice, formatTime, type InboxResponse, type ScoredItem, type UserState } from '@bln/shared';
+import {
+  formatDateTime,
+  formatDay,
+  formatPrice,
+  formatTime,
+  type InboxResponse,
+  type ScoredItem,
+  type UserState,
+} from '@bln/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from '@tanstack/react-router';
 import { ChevronRight, Clock, Heart, HelpCircle, MapPin, Ticket, Undo2, X } from 'lucide-react';
@@ -286,7 +294,10 @@ function Inbox() {
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-[15.5px] leading-5 font-bold">{n.title}</div>
                   <div className="mt-[3px] truncate text-[12.5px] text-sub tabular-nums">
-                    <b className="text-ink">{formatTime(n.next.startLocal)}</b> · {formatDay(n.next.startLocal)}
+                    {formatTime(n.next.startLocal, n.category) && (
+                      <b className="text-ink">{formatTime(n.next.startLocal, n.category)} · </b>
+                    )}
+                    {formatDay(n.next.startLocal)}
                     {n.venueName ? ` · ${n.venueName}` : ''}
                   </div>
                 </div>
@@ -396,9 +407,7 @@ function Deck({ item, onAct, onOpen }: { item: ScoredItem; onAct: (s: UserState)
             <div className="flex items-center gap-2">
               <Clock className="size-[18px] shrink-0" aria-hidden />
               <span className="tabular-nums">
-                <b className="text-ink">
-                  {formatDay(item.next.startLocal)} · {formatTime(item.next.startLocal)}
-                </b>
+                <b className="text-ink">{formatDateTime(item.next.startLocal, item.category)}</b>
                 {item.moreDates > 0 && ` (+${item.moreDates} dates)`}
               </span>
             </div>

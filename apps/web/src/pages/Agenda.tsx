@@ -1,4 +1,4 @@
-import { formatDay, formatPrice, formatTime, type AgendaItem, type Category } from '@bln/shared';
+import { formatDay, formatPrice, formatTime, hasTime, type AgendaItem, type Category } from '@bln/shared';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { AlertTriangle, CalendarDays, Copy, Heart, HelpCircle } from 'lucide-react';
@@ -27,13 +27,15 @@ const MINUTES: Partial<Record<Category, number>> = {
 };
 const minutesOf = (local: string) => Number(local.slice(11, 13)) * 60 + Number(local.slice(14, 16));
 
-/** Items on the same day whose time ranges overlap; returns the title each one clashes with. */
+/** Items on the same day whose time ranges overlap; returns the title each one clashes with. Items without a known
+ * time cannot clash. */
 export function clashes(items: AgendaItem[]): Map<string, string> {
   const out = new Map<string, string>();
-  for (const a of items) {
+  const timed = items.filter((i) => hasTime(i.startLocal, i.category));
+  for (const a of timed) {
     const aStart = minutesOf(a.startLocal);
     const aEnd = a.endLocal ? minutesOf(a.endLocal) : aStart + (MINUTES[a.category] ?? 120);
-    for (const b of items) {
+    for (const b of timed) {
       if (a === b || a.startLocal.slice(0, 10) !== b.startLocal.slice(0, 10)) continue;
       const bStart = minutesOf(b.startLocal);
       const bEnd = b.endLocal ? minutesOf(b.endLocal) : bStart + (MINUTES[b.category] ?? 120);
@@ -132,7 +134,7 @@ function Agenda() {
                     className="flex min-h-16 items-center gap-3 border-b border-line px-3 py-2 text-ink no-underline last:border-b-0"
                   >
                     <div className="w-[52px] shrink-0 text-base font-extrabold tabular-nums">
-                      {formatTime(a.startLocal)}
+                      {formatTime(a.startLocal, a.category)}
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-[15.5px] leading-5 font-bold">{a.title}</div>

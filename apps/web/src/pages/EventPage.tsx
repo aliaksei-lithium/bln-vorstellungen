@@ -181,7 +181,8 @@ export function EventPage({ slug }: { slug: string }) {
                 className="flex min-h-12 items-center justify-between gap-2.5 border-b border-line px-3 tabular-nums last:border-b-0"
               >
                 <span>
-                  <b>{formatDay(o.startLocal)}</b> · {formatTime(o.startLocal)}
+                  <b>{formatDay(o.startLocal)}</b>
+                  {formatTime(o.startLocal, e.category) && ` · ${formatTime(o.startLocal, e.category)}`}
                   {relativeDay(day) && <span className="text-sub"> · {relativeDay(day)}</span>}
                 </span>
                 {o.status !== 'scheduled' ? (
