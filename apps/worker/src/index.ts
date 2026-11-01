@@ -8,7 +8,7 @@ import { eventsApi } from './api/events';
 import { scansApi } from './api/scans';
 import { authorize, oauth } from './mcp/oauth';
 import { embedMissing } from './ai/embed';
-import { dispatchScoring } from './ai/score';
+import { dispatchScoring, rescoreAfterPromptChange } from './ai/score';
 import { markIndexStale, rebuildIndex } from './ai/vector-index';
 import { sweepPassedDates } from './pipeline/next-dates';
 import { dispatchDueSources } from './pipeline/scheduler';
@@ -109,6 +109,7 @@ export default {
       indexed = await rebuildIndex(env, now);
       // New events are in the index now: score them for everyone (each run skips what is already scored).
       if (embedded) await dispatchScoring(env, undefined, now);
+      else await rescoreAfterPromptChange(env, now);
     } catch (err) {
       console.error('embeddings', String(err));
     }

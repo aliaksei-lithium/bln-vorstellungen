@@ -210,6 +210,9 @@ function TasteForm() {
               No limit
             </Button>
           )}
+          <p className="m-0 w-full text-xs text-sub">
+            Leave it empty for no limit. Price then plays no part in the ranking; free events are not preferred.
+          </p>
         </div>
       </Box>
 

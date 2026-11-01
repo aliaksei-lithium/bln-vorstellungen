@@ -85,11 +85,13 @@ export async function scoreByRules(
        FROM events e INDEXED BY events_next_idx
       WHERE e.next_start_utc >= ? AND e.status = 'published'
         AND EXISTS (SELECT 1 FROM event_embeddings ee WHERE ee.event_id = e.id)
+        -- Current means: this profile version, and either rules only or the current scoring prompt.
         AND NOT EXISTS (SELECT 1 FROM user_event_scores s
-                         WHERE s.user_id = ? AND s.event_id = e.id AND s.profile_version = ?)
+                         WHERE s.user_id = ? AND s.event_id = e.id AND s.profile_version = ?
+                           AND (s.prompt_version IS NULL OR s.prompt_version = ?))
       LIMIT 600`,
   )
-    .bind(now.toISOString(), userId, profile.version)
+    .bind(now.toISOString(), userId, profile.version, prompt.version)
     .all<Candidate>();
 
   const rows: { id: string; score: number; reasons: Reason[] }[] = [];
@@ -246,6 +248,18 @@ async function writeScores(
   );
   // D1 batches are transactions; keep each one modest.
   for (let i = 0; i < stmts.length; i += 100) await db.batch(stmts.slice(i, i + 100));
+}
+
+/**
+ * Once per scoring prompt version (KV flag): re-score everyone, since scores made with an older prompt count as
+ * stale. Called by the cron, so a deploy that bumps the prompt re-ranks within 15 minutes.
+ */
+export async function rescoreAfterPromptChange(env: Env, now = new Date()): Promise<boolean> {
+  const key = `rescored:${prompt.version}`;
+  if (await env.CACHE.get(key)) return false;
+  await dispatchScoring(env, undefined, now);
+  await env.CACHE.put(key, now.toISOString());
+  return true;
 }
 
 /** Starts a ScoreEvents run per user (all users, or one). Instance ids keep a re-dispatch within a minute idempotent. */
