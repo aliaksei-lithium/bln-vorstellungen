@@ -44,6 +44,52 @@ const as =
       headers: { cookie, origin: BASE, 'content-type': 'application/json', ...init.headers },
     });
 
+describe('optional passwords', () => {
+  const pw = (path: string, body: unknown, cookie?: string) =>
+    exports.default.fetch(`${BASE}${path}`, {
+      method: path.startsWith('/api/me') ? 'PUT' : 'POST',
+      headers: { 'content-type': 'application/json', origin: BASE, ...(cookie ? { cookie } : {}) },
+      body: JSON.stringify(body),
+    });
+
+  it('lets a signed-in user set a password, then sign in with email and password', async () => {
+    const { loginLink } = await createUser('Pat', 'Pat@Example.org');
+    const cookie = await login(loginLink.url);
+    expect(await (await as(cookie)('/api/me/password')).json()).toEqual({ set: false });
+    expect((await pw('/api/me/password', { password: 'short' }, cookie)).status).toBe(400);
+    expect((await pw('/api/me/password', { password: 'long enough secret' }, cookie)).status).toBe(200);
+    expect(await (await as(cookie)('/api/me/password')).json()).toEqual({ set: true });
+
+    const ok = await pw('/api/auth/password', { email: ' pat@example.org ', password: 'long enough secret' });
+    expect(ok.status).toBe(200);
+    expect(MeResponse.parse(await ok.json()).user).toMatchObject({ name: 'Pat' });
+    expect(ok.headers.get('set-cookie')).toMatch(/^bln_session=/);
+
+    // Changing needs the current password.
+    expect((await pw('/api/me/password', { password: 'another long one' }, cookie)).status).toBe(403);
+    expect(
+      (await pw('/api/me/password', { password: 'another long one', current: 'long enough secret' }, cookie)).status,
+    ).toBe(200);
+    expect((await pw('/api/auth/password', { email: 'pat@example.org', password: 'long enough secret' })).status).toBe(
+      401,
+    );
+  });
+
+  it('answers unknown emails like wrong passwords and locks after five wrong tries', async () => {
+    const unknown = await pw('/api/auth/password', { email: 'nobody@example.org', password: 'whatever it is' });
+    expect(unknown.status).toBe(401);
+    expect(await unknown.json()).toEqual({ error: 'Email or password is wrong.' });
+
+    const { loginLink } = await createUser('Lu', 'lu@example.org');
+    await pw('/api/me/password', { password: 'right password here' }, await login(loginLink.url));
+    for (let i = 0; i < 5; i++) {
+      expect((await pw('/api/auth/password', { email: 'lu@example.org', password: `wrong ${i}` })).status).toBe(401);
+    }
+    const locked = await pw('/api/auth/password', { email: 'lu@example.org', password: 'right password here' });
+    expect(locked.status).toBe(429);
+  });
+});
+
 describe('sign-in with pre-defined users', () => {
   it('logs in once per link, keeps the session, and signs out', async () => {
     const { loginLink } = await createUser('Ada', 'ada@example.org');

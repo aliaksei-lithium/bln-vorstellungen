@@ -1,4 +1,13 @@
-import { LoginRequest, ProfileUpdate, StateUpdate, type MyStates, type Profile } from '@bln/shared';
+import {
+  LoginRequest,
+  PasswordLogin,
+  PasswordSet,
+  ProfileUpdate,
+  StateUpdate,
+  type MyStates,
+  type PasswordStatus,
+  type Profile,
+} from '@bln/shared';
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { z } from 'zod';
@@ -14,6 +23,7 @@ import {
   type AppEnv,
 } from '../auth';
 import { agendaItems, eventIdBySlug, inbox, inboxUntil, myEvent, setEventState, statesBySlug } from '../services/me';
+import { hasPassword, setPassword, signInWithPassword } from '../passwords';
 import { agendaIcs } from './ics';
 
 /** Sign-in, the signed-in user's profile, inbox, triage and agenda. Never cached: every response is per user. */
@@ -43,6 +53,13 @@ authApi.post('/login', async (c) => {
   return c.json({ user });
 });
 
+authApi.post('/password', async (c) => {
+  const { email, password } = await body(c, PasswordLogin);
+  const user = await signInWithPassword(c.env.DB, email, password);
+  await startSession(c, user.id);
+  return c.json({ user });
+});
+
 authApi.post('/logout', async (c) => {
   await endSession(c);
   return c.json({ user: null });
@@ -54,6 +71,17 @@ meApi.get('/', (c) => c.json({ user: c.get('user') }));
 meApi.post('/login-link', async (c) => {
   const user = requireUser(c);
   return c.json(await createLoginLink(c.env.DB, user.id, new URL(c.req.url).origin), 201);
+});
+
+meApi.get('/password', async (c) =>
+  c.json({ set: await hasPassword(c.env.DB, requireUser(c).id) } satisfies PasswordStatus),
+);
+
+meApi.put('/password', async (c) => {
+  const user = requireUser(c);
+  const p = await body(c, PasswordSet);
+  await setPassword(c.env.DB, user.id, p.password, p.current);
+  return c.json({ set: true } satisfies PasswordStatus);
 });
 
 /* ---------- profile ---------- */
