@@ -1,5 +1,6 @@
 import {
   AgendaResponse,
+  MyStates,
   CalendarLink,
   EventDetail,
   EventsList,
@@ -69,5 +70,6 @@ export const api = {
   setState: (slug: string, u: StateUpdate) =>
     request(`/api/me/events/${enc(slug)}/state`, z.unknown(), { method: 'PUT', body: u }),
   agenda: () => getJson('/api/me/agenda', AgendaResponse),
+  states: () => getJson('/api/me/states', MyStates),
   calendarLink: () => request('/api/me/calendar-link', CalendarLink, { method: 'POST', body: {} }),
 };

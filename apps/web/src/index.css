@@ -172,6 +172,7 @@
   --color-moss-soft: var(--moss-soft);
   --color-warn: var(--warn);
   --color-danger: var(--danger);
+  --color-cal: var(--cal);
   --radius-sm: 0;
   --radius-md: 0;
   --radius-lg: 0;
@@ -236,6 +237,32 @@
   }
   .tower-ring:first-child {
     opacity: 1;
+  }
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+  }
+}
+.toast-in {
+  animation: toast-in 0.15s ease;
+}
+/* Swipeable list rows: the row follows the finger; it snaps with a short transition once released. */
+.swipe-row {
+  transition: transform 0.15s ease;
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.swipe-row.dragging {
+  transition: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .toast-in,
+  .swipe-row {
+    animation: none;
+    transition: none;
   }
 }
 

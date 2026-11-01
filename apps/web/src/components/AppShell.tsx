@@ -6,6 +6,7 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '
 import { Tower } from './Tower';
 import { api } from '@/lib/api';
 import { useMe } from '@/lib/auth';
+import { Toaster } from '@/lib/toast';
 import { cn } from '@/lib/utils';
 
 function useScrolled() {
@@ -121,6 +122,7 @@ export function AppShell() {
           </div>
         </nav>
       )}
+      <Toaster aboveNav={!pushed} />
       <Sheet open={scanOpen} onOpenChange={setScanOpen}>
         <SheetContent side="bottom" className="mx-auto max-w-[600px] border-x border-ink">
           <SheetHeader>

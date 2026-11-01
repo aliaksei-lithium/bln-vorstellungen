@@ -1,15 +1,17 @@
 import { clashes, formatDay, formatPrice, formatTime } from '@bln/shared';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
-import { AlertTriangle, CalendarDays, Copy, Heart, HelpCircle } from 'lucide-react';
+import { AlertTriangle, CalendarDays, Copy, Heart, HelpCircle, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { TopBar } from '@/components/AppShell';
+import { SwipeRow } from '@/components/SwipeRow';
 import { EmptyState, ErrorState, ListSkeleton } from '@/components/States';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { api } from '@/lib/api';
 import { useMe } from '@/lib/auth';
 import { relativeDay } from '@/lib/dates';
+import { useMark } from '@/lib/marks';
 import { SignedOut } from './Inbox';
 
 type Tab = 'all' | 'interested' | 'maybe';
@@ -33,6 +35,7 @@ function Agenda() {
   const [calUrl, setCalUrl] = useState<string | null>(null);
   const agenda = useQuery({ queryKey: ['agenda'], queryFn: api.agenda });
   const subscribe = useMutation({ mutationFn: api.calendarLink, onSuccess: (r) => setCalUrl(r.url) });
+  const mark = useMark();
 
   const items = agenda.data?.items ?? [];
   const clash = clashes(items);
@@ -93,40 +96,56 @@ function Agenda() {
                   <span className="tabular-nums">{its.length}</span>
                 </div>
                 {its.map((a) => (
-                  <Link
+                  <SwipeRow
                     key={a.occurrenceId}
-                    to="/e/$slug"
-                    params={{ slug: a.slug }}
-                    className="flex min-h-16 items-center gap-3 border-b border-line px-3 py-2 text-ink no-underline last:border-b-0"
+                    id={a.occurrenceId}
+                    enabled
+                    actions={[
+                      {
+                        label: 'Remove',
+                        icon: <Trash2 className="size-[22px]" strokeWidth={2} aria-hidden />,
+                        className: 'bg-danger text-on-ink',
+                        // Skipped, not cleared: Undo then brings back the picked date too.
+                        run: () =>
+                          mark(a.slug, 'skipped', { message: `Removed “${a.title}” from Agenda`, prev: a.state }),
+                      },
+                    ]}
                   >
-                    <div className="w-[52px] shrink-0 text-base font-extrabold tabular-nums">
-                      {formatTime(a.startLocal, a.category)}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-[15.5px] leading-5 font-bold">{a.title}</div>
-                      <div className="mt-[3px] truncate text-[12.5px] text-sub">{a.venueName}</div>
-                      {clash.has(a.occurrenceId) && (
-                        <div className="mt-1.5 inline-flex items-center gap-1 border border-danger px-1.5 py-0.5 text-[11.5px] font-bold text-danger">
-                          <AlertTriangle className="size-3" strokeWidth={2.2} aria-hidden />
-                          Clash with {clash.get(a.occurrenceId)}
-                        </div>
-                      )}
-                    </div>
-                    <div className="grid shrink-0 justify-items-end gap-1">
-                      {a.state === 'interested' ? (
-                        <span className="inline-flex items-center gap-1 bg-moss px-1.5 py-0.5 text-[11px] font-extrabold tracking-[.06em] text-on-moss uppercase">
-                          <Heart className="size-3" strokeWidth={2.4} aria-hidden />
-                          Going
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 border border-ink px-1.5 py-0.5 text-[11px] font-extrabold tracking-[.06em] uppercase">
-                          <HelpCircle className="size-3" strokeWidth={2.4} aria-hidden />
-                          Maybe
-                        </span>
-                      )}
-                      <span className="text-[13px] font-bold tabular-nums">{formatPrice(a) ?? ''}</span>
-                    </div>
-                  </Link>
+                    <Link
+                      to="/e/$slug"
+                      params={{ slug: a.slug }}
+                      draggable={false}
+                      className="flex min-h-16 items-center gap-3 px-3 py-2 text-ink no-underline"
+                    >
+                      <div className="w-[52px] shrink-0 text-base font-extrabold tabular-nums">
+                        {formatTime(a.startLocal, a.category)}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-[15.5px] leading-5 font-bold">{a.title}</div>
+                        <div className="mt-[3px] truncate text-[12.5px] text-sub">{a.venueName}</div>
+                        {clash.has(a.occurrenceId) && (
+                          <div className="mt-1.5 inline-flex items-center gap-1 border border-danger px-1.5 py-0.5 text-[11.5px] font-bold text-danger">
+                            <AlertTriangle className="size-3" strokeWidth={2.2} aria-hidden />
+                            Clash with {clash.get(a.occurrenceId)}
+                          </div>
+                        )}
+                      </div>
+                      <div className="grid shrink-0 justify-items-end gap-1">
+                        {a.state === 'interested' ? (
+                          <span className="inline-flex items-center gap-1 bg-moss px-1.5 py-0.5 text-[11px] font-extrabold tracking-[.06em] text-on-moss uppercase">
+                            <Heart className="size-3" strokeWidth={2.4} aria-hidden />
+                            Going
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 border border-ink px-1.5 py-0.5 text-[11px] font-extrabold tracking-[.06em] uppercase">
+                            <HelpCircle className="size-3" strokeWidth={2.4} aria-hidden />
+                            Maybe
+                          </span>
+                        )}
+                        <span className="text-[13px] font-bold tabular-nums">{formatPrice(a) ?? ''}</span>
+                      </div>
+                    </Link>
+                  </SwipeRow>
                 ))}
               </section>
             );

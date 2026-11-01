@@ -5,6 +5,8 @@ import {
   type Category,
   type EventListItem,
   type InboxResponse,
+  type MyStates,
+  type UserState,
   type StateUpdate,
 } from '@bln/shared';
 import { HTTPException } from 'hono/http-exception';
@@ -214,4 +216,15 @@ export async function agendaItems(db: D1Database, userId: string, now = new Date
         endLocal: r.end_local ?? null,
       }),
     );
+}
+
+/** Every mark of the user, by event slug (a few hundred rows at most), for list rows. */
+export async function statesBySlug(db: D1Database, userId: string): Promise<MyStates['states']> {
+  const { results } = await db
+    .prepare(
+      `SELECT e.slug, st.state FROM user_event_state st JOIN events e ON e.id = st.event_id WHERE st.user_id = ?`,
+    )
+    .bind(userId)
+    .all<{ slug: string; state: UserState }>();
+  return Object.fromEntries(results.map((r) => [r.slug, r.state]));
 }
