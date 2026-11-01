@@ -302,6 +302,21 @@ export type MeResponse = z.infer<typeof MeResponse>;
 
 export const LoginRequest = z.object({ token: z.string().min(20).max(200) });
 
+/** Optional passwords (docs/09, 2026-11-01): sign in with email and password once one is set. */
+export const PasswordLogin = z.object({
+  email: z.string().trim().min(3).max(200),
+  password: z.string().min(1).max(200),
+});
+export type PasswordLogin = z.infer<typeof PasswordLogin>;
+export const PasswordSet = z.object({
+  password: z.string().max(200),
+  /** Needed when a password is already set. */
+  current: z.string().max(200).optional(),
+});
+export type PasswordSet = z.infer<typeof PasswordSet>;
+export const PasswordStatus = z.object({ set: z.boolean() });
+export type PasswordStatus = z.infer<typeof PasswordStatus>;
+
 export const LoginLink = z.object({ url: z.url(), expiresAt: UtcInstant });
 export type LoginLink = z.infer<typeof LoginLink>;
 

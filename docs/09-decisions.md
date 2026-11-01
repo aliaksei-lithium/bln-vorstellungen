@@ -164,6 +164,15 @@ Format: date · decision · why · alternatives rejected. Newer entries supersed
   exhibition…"). The prompt now says price counts only against a stated limit. Scores keep their prompt version;
   a score from an older prompt counts as stale, and the cron re-scores everyone once per new prompt version (KV
   flag `rescored:<version>`).
+- **2026-11-01 · Optional passwords; supersedes "No passwords" in "Pre-defined users with one-time login links".**
+  Opening a new link on every device was too much friction. Users still start from a login link; signed in, they
+  can set a password on the Me page and then sign in with email and password. Hash: PBKDF2-SHA256 through
+  WebCrypto, 30,000 iterations and a 16-byte salt per password, stored as `pbkdf2-sha256$<iterations>$<salt>$<hash>`
+  in `accounts.password` (provider `credential`). That is far below OWASP's 600k, chosen because 100k took 13.5 ms of
+  CPU and the free plan allows 10 ms per request. The difference is made up by at least 10 characters, 5 wrong tries
+  per account per 15 minutes (rows in `verifications`), the same answer and a dummy hash for unknown emails, and a
+  stored cost that is raised on the next sign-in if the constant goes up. Passkeys (one signature check, under 1
+  ms) remain the better long-term option.
 - **2026-10-02 · React + Vite + TanStack + Tailwind + shadcn/ui.** Best coverage by design tools and implementing
   models. Rejected: SvelteKit (good, but weaker design-tool output), Next.js on Workers via OpenNext (heavier than
   needed; no SSR requirement since public pages can be cached JSON + client render; revisit if SEO matters).

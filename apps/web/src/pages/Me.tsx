@@ -8,6 +8,7 @@ import { CategoryDot } from '@/components/CategoryChip';
 import { Button } from '@/components/ui/button';
 import { api } from '@/lib/api';
 import { useMe } from '@/lib/auth';
+import { toast } from '@/lib/toast';
 import { useTheme, type Theme } from '@/lib/theme';
 import { cn } from '@/lib/utils';
 import { CopyField } from './Agenda';
@@ -52,15 +53,11 @@ export function MePage() {
               </div>
             </div>
             <TasteForm />
+            <PasswordBox />
             <OtherDevice />
           </>
         ) : (
-          <Box title="Account">
-            <p className="p-3 text-sub">
-              Everything on this site is open to everyone. Personal picks, an agenda and a calendar feed are for invited
-              people: ask the owner for a login link.
-            </p>
-          </Box>
+          <SignIn />
         )}
         {user?.isOwner && <AiUsage />}
         <Appearance />
@@ -236,6 +233,145 @@ function TasteForm() {
       </div>
       {save.isError && <p className="m-0 text-sm text-danger">{save.error.message}</p>}
     </>
+  );
+}
+
+const fieldLabel = 'grid gap-1 text-xs font-extrabold tracking-[.08em] text-sub uppercase';
+const fieldInput =
+  'h-11 w-full border border-ink bg-surface px-3 text-[15px] font-semibold tracking-normal text-ink normal-case outline-none focus-visible:outline-2 focus-visible:outline-moss';
+
+/** Signed out: email and password, for people who set one; everyone else starts from a login link. */
+function SignIn() {
+  const qc = useQueryClient();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const signIn = useMutation({
+    mutationFn: () => api.passwordLogin(email, password),
+    onSuccess: (r) => {
+      qc.setQueryData(['me'], r);
+      void qc.invalidateQueries();
+    },
+  });
+  return (
+    <Box title="Sign in">
+      <form
+        className="grid gap-3 p-3"
+        onSubmit={(e) => {
+          e.preventDefault();
+          signIn.mutate();
+        }}
+      >
+        <p className="m-0 text-sm text-sub">
+          Everything on this site is open to everyone. Personal picks, an agenda and a calendar feed are for invited
+          people.
+        </p>
+        <label className={fieldLabel}>
+          Email
+          <input
+            className={fieldInput}
+            type="email"
+            autoComplete="username"
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+        </label>
+        <label className={fieldLabel}>
+          Password
+          <input
+            className={fieldInput}
+            type="password"
+            autoComplete="current-password"
+            required
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+        </label>
+        {signIn.isError && (
+          <p role="alert" className="m-0 text-sm font-semibold text-danger">
+            {signIn.error.message}
+          </p>
+        )}
+        <Button type="submit" variant="default" disabled={signIn.isPending}>
+          Sign in
+        </Button>
+        <p className="m-0 text-xs text-sub">
+          No password yet? Open the login link the owner sent you, then set one on this page.
+        </p>
+      </form>
+    </Box>
+  );
+}
+
+/** Signed in: set a password once, or change it with the current one. */
+function PasswordBox() {
+  const qc = useQueryClient();
+  const { user } = useMe();
+  const status = useQuery({ queryKey: ['password'], queryFn: api.passwordStatus });
+  const [current, setCurrent] = useState('');
+  const [next, setNext] = useState('');
+  const save = useMutation({
+    mutationFn: () => api.setPassword({ password: next, ...(status.data?.set ? { current } : {}) }),
+    onSuccess: (s) => {
+      qc.setQueryData(['password'], s);
+      setCurrent('');
+      setNext('');
+      toast('Password saved');
+    },
+  });
+  const isSet = !!status.data?.set;
+  return (
+    <Box title="Password">
+      <form
+        className="grid gap-3 p-3"
+        onSubmit={(e) => {
+          e.preventDefault();
+          save.mutate();
+        }}
+      >
+        <p className="m-0 text-sm text-sub">
+          {isSet
+            ? 'You can sign in with your email and password on any device.'
+            : 'Set a password to sign in on other devices with your email, without a new login link each time.'}
+        </p>
+        {/* Lets password managers file the password under the right account. */}
+        <input type="hidden" autoComplete="username" value={user?.email ?? ''} readOnly />
+        {isSet && (
+          <label className={fieldLabel}>
+            Current password
+            <input
+              className={fieldInput}
+              type="password"
+              autoComplete="current-password"
+              required
+              value={current}
+              onChange={(e) => setCurrent(e.target.value)}
+            />
+          </label>
+        )}
+        <label className={fieldLabel}>
+          {isSet ? 'New password' : 'Password'}
+          <input
+            className={fieldInput}
+            type="password"
+            autoComplete="new-password"
+            minLength={10}
+            required
+            value={next}
+            onChange={(e) => setNext(e.target.value)}
+          />
+        </label>
+        <p className="-mt-1.5 m-0 text-xs text-sub">At least 10 characters. A few words in a row work well.</p>
+        {save.isError && (
+          <p role="alert" className="m-0 text-sm font-semibold text-danger">
+            {save.error.message}
+          </p>
+        )}
+        <Button type="submit" className="justify-self-start" disabled={save.isPending || !status.data}>
+          {isSet ? 'Change password' : 'Set password'}
+        </Button>
+      </form>
+    </Box>
   );
 }
 

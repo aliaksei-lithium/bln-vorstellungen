@@ -1,6 +1,7 @@
 import {
   AgendaResponse,
   MyStates,
+  PasswordStatus,
   UsageOverview,
   Scan,
   ScanCreated,
@@ -66,6 +67,11 @@ export const api = {
   me: () => getJson('/api/me', MeResponse),
   login: (token: string) => request('/api/auth/login', MeResponse, { method: 'POST', body: { token } }),
   logout: () => request('/api/auth/logout', MeResponse, { method: 'POST', body: {} }),
+  passwordLogin: (email: string, password: string) =>
+    request('/api/auth/password', MeResponse, { method: 'POST', body: { email, password } }),
+  passwordStatus: () => getJson('/api/me/password', PasswordStatus),
+  setPassword: (body: { password: string; current?: string }) =>
+    request('/api/me/password', PasswordStatus, { method: 'PUT', body }),
   loginLink: () => request('/api/me/login-link', LoginLink, { method: 'POST', body: {} }),
   profile: () => getJson('/api/me/profile', Profile),
   saveProfile: (p: ProfileUpdate) => request('/api/me/profile', Profile, { method: 'PUT', body: p }),
