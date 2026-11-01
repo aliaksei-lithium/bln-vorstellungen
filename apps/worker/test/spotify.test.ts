@@ -6,7 +6,7 @@ import { MODELS } from '../src/ai/models';
 import { scoreByRules } from '../src/ai/score';
 import { refreshAllNextDates } from '../src/pipeline/next-dates';
 import { listEvents } from '../src/services/events';
-import { artistMatch, connectUrl, disconnect, finishConnect, spotifyStatus } from '../src/spotify';
+import { artistMatch, connectUrl, disconnect, finishConnect, musicLike, spotifyStatus } from '../src/spotify';
 
 /** The Spotify connection against a stand-in for Spotify's token and Web API endpoints. */
 
@@ -115,5 +115,33 @@ describe('spotify', () => {
     const mine = await listEvents(env.DB, { via: ['spotify'] }, undefined, undefined, uid);
     expect(mine.items.map((e) => e.title)).toEqual(['Hot Chip']);
     expect((await listEvents(env.DB, { via: ['spotify'] })).items).toEqual([]); // nobody asking: nothing
+  });
+
+  it('finds events close to my taste by genre words, not just my artists', async () => {
+    const uid = await user('Noa');
+    const url = new URL(await connectUrl(spotifyEnv, uid));
+    await finishConnect(spotifyEnv, uid, 'code', url.searchParams.get('state')!, fakeSpotify());
+    const like = await musicLike(env, uid);
+    expect(like.terms).toContain('shoegaze'); // from Slowdive's genres
+    await env.DB.batch([
+      env.DB.prepare(
+        `INSERT INTO events (id, slug, title, description, lang, category, dedup_key, created_by)
+         VALUES ('lk_a', 'lk-a', 'Wall of Sound Night', 'Three loud shoegaze bands from Leipzig', 'en', 'concert', 'lk0', 't'),
+                ('lk_b', 'lk-b', 'Shoegaze talk', 'A lecture about shoegaze history', 'en', 'talk', 'lk1', 't'),
+                ('lk_c', 'lk-c', 'Jazz Trio', 'Standards and ballads', 'en', 'concert', 'lk2', 't')`,
+      ),
+      ...['lk_a', 'lk_b', 'lk_c'].map((id, i) =>
+        env.DB.prepare(`INSERT INTO occurrences (id, event_id, start_local, start_utc) VALUES (?, ?, ?, ?)`).bind(
+          `${id}_o`,
+          id,
+          local(8 + i),
+          berlinLocalToUtc(local(8 + i)),
+        ),
+      ),
+    ]);
+    await refreshAllNextDates(env.DB);
+    const r = await listEvents(env.DB, { via: ['spotifylike'] }, undefined, undefined, uid, like);
+    // Concert-type events only: the talk about shoegaze is not a night out.
+    expect(r.items.map((e) => e.title)).toEqual(['Wall of Sound Night']);
   });
 });

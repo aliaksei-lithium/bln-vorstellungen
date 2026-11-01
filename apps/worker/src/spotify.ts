@@ -1,5 +1,7 @@
 import type { SpotifyStatus } from '@bln/shared';
 import { HTTPException } from 'hono/http-exception';
+import { embedTexts } from './ai/embed';
+import { loadIndex, nearest } from './ai/vector-index';
 import { newToken, sha256 } from './auth';
 
 /**
@@ -207,4 +209,60 @@ export async function musicTasteLine(db: D1Database, userId: string): Promise<st
   const m = await musicTaste(db, userId);
   if (!m.artists.length) return '';
   return `Music they listen to (Spotify): ${m.genres.length ? `${m.genres.join(', ')}; ` : ''}artists such as ${m.artists.join(', ')}.`;
+}
+
+/** Only strong meaning matches count: below this, any concert looks a little like any music taste. */
+const LIKE_MIN = 0.5;
+const LIKE_MAX = 150;
+/** Words too broad to say anything about a taste on their own ("dream pop" still matches as a whole). */
+const BROAD = new Set([
+  'pop',
+  'music',
+  'new',
+  'wave',
+  'alternative',
+  'indie',
+  'modern',
+  'classic',
+  'dance',
+  'contemporary',
+  'german',
+  'berlin',
+  'deep',
+  'art',
+]);
+
+/**
+ * What "close to my Spotify taste" matches on: genre words from the user's artists (whole genres, plus their
+ * distinctive words: "crust punk" → "crust punk", "crust", "punk") for event texts, and the ids of events whose
+ * meaning is strongly close to the taste line (cached vector in KV until the artists change).
+ */
+export async function musicLike(env: Env, userId: string): Promise<{ ids: string[]; terms: string[] }> {
+  const m = await musicTaste(env.DB, userId);
+  if (!m.artists.length) return { ids: [], terms: [] };
+  const terms = [
+    ...new Set(
+      m.genres.flatMap((g) => [
+        g.toLowerCase(),
+        ...g
+          .toLowerCase()
+          .split(/[\s-]+/)
+          .filter((w) => w.length >= 4 && !BROAD.has(w)),
+      ]),
+    ),
+  ].slice(0, 20);
+  const line = await musicTasteLine(env.DB, userId);
+  const index = await loadIndex(env.CACHE);
+  if (!index?.ids.length) return { ids: [], terms };
+  const key = `music:${userId}`;
+  const hash = await sha256(line);
+  const cached = await env.CACHE.getWithMetadata<{ h: string }>(key, 'arrayBuffer');
+  let vec: Int8Array | undefined =
+    cached.value && cached.metadata?.h === hash ? new Int8Array(cached.value) : undefined;
+  if (!vec) {
+    [vec] = await embedTexts(env, [line]);
+    if (!vec) return { ids: [], terms };
+    await env.CACHE.put(key, vec.slice().buffer as ArrayBuffer, { metadata: { h: hash } });
+  }
+  return { ids: nearest(index, vec, LIKE_MAX, { min: LIKE_MIN }).map((h) => h.id), terms };
 }
