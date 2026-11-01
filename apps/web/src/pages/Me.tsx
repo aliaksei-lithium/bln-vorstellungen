@@ -115,6 +115,7 @@ function TasteForm() {
     categoriesOn: [],
     frequency: {},
     sourcesOff: [],
+    browseDefault: '',
   });
   const [dirty, setDirty] = useState(false);
 

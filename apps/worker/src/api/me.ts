@@ -4,6 +4,7 @@ import {
   PasswordSet,
   ProfileUpdate,
   SourceSwitch,
+  BrowseDefault,
   StateUpdate,
   type MyStates,
   type PasswordStatus,
@@ -132,6 +133,22 @@ meApi.put('/sources/:id', async (c) => {
   return c.json({ sourcesOff });
 });
 
+/** Saves (or clears, with '') the Browse filters to start from. Only known filter keys are kept. No re-scoring. */
+meApi.put('/browse-default', async (c) => {
+  const user = requireUser(c);
+  const { search } = await body(c, BrowseDefault);
+  const keep = new URLSearchParams(
+    [...new URLSearchParams(search)].filter(([k, v]) => ['when', 'category', 'district', 'via'].includes(k) && v),
+  ).toString();
+  const { prefs } = await loadProfile(c.env.DB, user.id);
+  await c.env.DB.prepare(
+    `UPDATE user_profiles SET prefs = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE user_id = ?`,
+  )
+    .bind(JSON.stringify({ ...prefs, browseDefault: keep }), user.id)
+    .run();
+  return c.json({ search: keep });
+});
+
 /* ---------- profile ---------- */
 
 meApi.get('/profile', async (c) => {
@@ -143,8 +160,10 @@ meApi.get('/profile', async (c) => {
 meApi.put('/profile', async (c) => {
   const user = requireUser(c);
   const p = await body(c, ProfileUpdate);
-  // Source switches have their own endpoint; a taste form opened earlier must not undo them.
-  p.prefs.sourcesOff = (await loadProfile(c.env.DB, user.id)).prefs.sourcesOff;
+  // Source switches and the Browse default have their own endpoints; a taste form opened earlier must not undo them.
+  const stored = (await loadProfile(c.env.DB, user.id)).prefs;
+  p.prefs.sourcesOff = stored.sourcesOff;
+  p.prefs.browseDefault = stored.browseDefault;
   const version = await saveProfile(c.env, user.id, p.tasteText, p.prefs);
   c.executionCtx.waitUntil(dispatchScoring(c.env, user.id));
   return c.json({ tasteText: p.tasteText.trim(), prefs: p.prefs, version } satisfies Profile);

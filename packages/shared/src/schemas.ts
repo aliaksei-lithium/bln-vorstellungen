@@ -194,6 +194,8 @@ export const SourceSummary = z.object({
 export type SourceSummary = z.infer<typeof SourceSummary>;
 export const SourcesOverview = z.object({ sources: z.array(SourceSummary) });
 export const SourceSwitch = z.object({ on: z.boolean() });
+/** The Browse address query to start from, or '' to clear it. */
+export const BrowseDefault = z.object({ search: z.string().max(600) });
 export type SourcesOverview = z.infer<typeof SourcesOverview>;
 
 export const SourceVisibility = z.enum(['public', 'private']);
@@ -397,6 +399,11 @@ export const Prefs = z.object({
    * agenda keeps it. Set through PUT /api/me/sources/:id, never by saving the taste.
    */
   sourcesOff: z.array(z.string()).default([]),
+  /**
+   * Browse filters applied whenever Browse opens without any ("category=concert,club&district=Wedding"). Set through
+   * PUT /api/me/browse-default, never by saving the taste.
+   */
+  browseDefault: z.string().max(600).default(''),
 });
 export type Prefs = z.infer<typeof Prefs>;
 

@@ -510,3 +510,16 @@ describe('switching sources off', () => {
     expect(await slugs()).toEqual(['sw_a']);
   });
 });
+
+describe('browse default', () => {
+  it('keeps only filter keys, shows up in the profile, and clears', async () => {
+    const u = await createUser('Dex', 'dex@example.org');
+    const call = as(await login(u.loginLink.url));
+    const put = (search: string) => call('/api/me/browse-default', { method: 'PUT', body: JSON.stringify({ search }) });
+    const saved = await put('category=concert,club&district=Wedding&q=jazz&evil=1');
+    expect(await saved.json()).toEqual({ search: 'category=concert%2Cclub&district=Wedding' });
+    const profile = (await (await call('/api/me/profile')).json()) as { prefs: { browseDefault: string } };
+    expect(new URLSearchParams(profile.prefs.browseDefault).get('category')).toBe('concert,club');
+    expect(await (await put('')).json()).toEqual({ search: '' });
+  });
+});

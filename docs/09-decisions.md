@@ -220,6 +220,10 @@ Format: date · decision · why · alternatives rejected. Newer entries supersed
   when every source that lists it is off; events added by people from photos and text are never hidden this way, and
   the agenda and event pages keep everything. List rows carry their source ids (public, cacheable), the inbox filters
   at read time; no re-scoring.
+- **2026-11-01 · Saved default Browse filters.** `prefs.browseDefault` holds an address query (filter keys only,
+  via `PUT /api/me/browse-default`). Browse applies it when it opens with no filters in the address, once per visit,
+  so "Clear all" still shows everything until the next visit. Separate from the category levels on Me: a user can
+  keep theatre out of Browse while strong theatre picks still reach the inbox.
 - **2026-10-02 · React + Vite + TanStack + Tailwind + shadcn/ui.** Best coverage by design tools and implementing
   models. Rejected: SvelteKit (good, but weaker design-tool output), Next.js on Workers via OpenNext (heavier than
   needed; no SSR requirement since public pages can be cached JSON + client render; revisit if SEO matters).
