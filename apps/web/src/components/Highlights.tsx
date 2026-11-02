@@ -110,6 +110,15 @@ function Pick({ p, personal }: { p: ReviewPick; personal: boolean }) {
           </div>
           <p className="mt-1 mb-0 text-[14px] leading-[19px]">{p.why}</p>
         </div>
+        {p.event.image && (
+          <img
+            src={p.event.image}
+            alt=""
+            loading="lazy"
+            decoding="async"
+            className="mt-0.5 size-16 shrink-0 border border-line object-cover"
+          />
+        )}
         {p.score != null && <ScoreBox score={p.score} />}
       </Link>
       {p.sourceUrl && (

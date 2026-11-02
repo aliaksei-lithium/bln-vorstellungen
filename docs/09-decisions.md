@@ -270,6 +270,41 @@ Format: date · decision · why · alternatives rejected. Newer entries supersed
   Sending needs a domain onboarded to the account, and the site lives on workers.dev; with a domain, a `send_email`
   binding can notify the owner. Deutsches Theater joins the venues visitors start without. Visitors can switch on the
   opt-in "Sex-positive & kink" category in their browser (off by default), which adds its Browse filter.
+- **2026-11-02 · Event images, kept only while the event is on.** Resolve keeps the source's image URL
+  (`events.image_src`: JSON-LD `image`, iCal `ATTACH`, a Telegram flyer when the post has one event). Events from HTML
+  pages get their official page's `og:image`, else the first photo in the page (largest srcset entry up to 1600 px;
+  logos, icons and blur placeholders skipped). The cron takes 10 a run, soonest first: fetch, shrink once with the
+  Images binding to one WebP of at most 800 px (q72), store in R2 under `events/<id>/<hash of URL>.webp`, served at
+  `/api/img/…` as immutable. A failed image is tried again a day later; past events (2 days after their last date),
+  merged and cancelled ones lose theirs. Shown on the event page (whole, on the hatch) and in highlights.
+  Measured on the local copy of production (298 upcoming events): 240 got an image (80%; the misses are DT pages
+  without a photo and events from photos or text), 37 KB on average, 147 KB at most, 8.7 MB in all. Cost: R2 holds
+  only the live programme, ~10–100 MB of the 10 GB free; one transformation per new event, ~1–3k a month of the 5,000
+  free (over the limit, Images returns 9422 on the free plan and charges nothing; the event waits a day); R2 writes
+  and deletes ~2 per event of 1M free; reads one per image view of 10M free, fewer with Workers Caching. $0 a month.
+  Keeping past images would grow R2 by ~50 MB a month for pages nobody opens, so they are dropped. Rows in lists keep
+  no thumbnail for now (text-first design, and 30 more requests per list view).
+- **2026-11-02 · Discover: a daily editorial page.** A new tab `/discover` (between Browse and For you) reads like a
+  magazine page instead of a list: a headline and lede, the lead story beside a short "Focus on" list (two or three
+  concrete things to do, each linking to its story), then stories laid out by what they are: rails for dates (this
+  weekend, just added, free), a programme strip for a place (a venue, a district), and framed cards in two columns
+  for ideas (a scene, a theme, book ahead, art, beyond your usual). On wide screens the page widens to 1080 px; other
+  tabs keep 600 px. The stories are computed, not chosen by a model: from the user's scored events for the next 120
+  days (public: the members' average score plus demand, events only default-off sources list left out), claimed in
+  order so each event appears once: book ahead (6+ weeks, strong or sold out), up to two scenes (genres, minus words
+  like "Premiere" that name a format), a venue (not one that already carries a scene), the weekend, art, beyond the
+  usual (outside the reader's two most common strong categories), just added (7 days), free (14 days), a district
+  (this week). Each pick carries one fact (sold-out dates, dates left, free, new). Then one structured Claude Haiku
+  call (`discover@1`, ~4k tokens in, ~1k out, about $0.001 an edition, metered as `ai_discover_calls`) writes the
+  titles, blurbs, headline, lede and focus, and may group 3 to 5 loose events into a theme; on any failure the
+  template copy stands, so a page always exists. It runs as the first step of `DailyReviewWorkflow` (its own step,
+  so it never holds up the highlights); a user's first edition is built on the spot from the template. Stored in
+  `discover_editions` (audience = user id or `public`, one per Berlin day, 14 days kept); read back like the
+  highlights (passed, hidden, skipped and switched-off-source events drop out; visitors' own switches apply in the
+  browser). `GET /api/discover` (public, cached 5 min), `GET /api/me/discover`, `POST /api/admin/discover/run`.
+  The copy uses the review's model (`SCORE_MODEL`, Haiku): at a tenth of a cent an edition, editorial copy is where
+  quality shows; Workers AI stays the automatic fallback inside `callJson`. Rejected: clustering live per request
+  (the copy would no longer match the stories).
 - **2026-10-02 · React + Vite + TanStack + Tailwind + shadcn/ui.** Best coverage by design tools and implementing
   models. Rejected: SvelteKit (good, but weaker design-tool output), Next.js on Workers via OpenNext (heavier than
   needed; no SSR requirement since public pages can be cached JSON + client render; revisit if SEO matters).

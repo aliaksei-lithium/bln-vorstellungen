@@ -7,7 +7,7 @@ import { loadUser, sameOrigin, type AppEnv } from './auth';
 import { eventsApi } from './api/events';
 import { scansApi } from './api/scans';
 import { sourcesApi } from './api/sources';
-import { highlightsApi, inviteRequestsApi } from './api/public';
+import { discoverApi, highlightsApi, inviteRequestsApi } from './api/public';
 import { spotifyApi, spotifyPages } from './api/spotify';
 import { authorize, oauth } from './mcp/oauth';
 import { embedMissing } from './ai/embed';
@@ -15,6 +15,7 @@ import { dispatchScoring, rescoreAfterPromptChange } from './ai/score';
 import { markIndexStale, rebuildIndex } from './ai/vector-index';
 import { sweepPassedDates } from './pipeline/next-dates';
 import { dispatchDueSources } from './pipeline/scheduler';
+import { dropPastImages, fetchImages } from './services/images';
 import { dispatchDailyReviews } from './services/review';
 
 export { ScoreEventsWorkflow } from './pipeline/score-run';
@@ -28,6 +29,18 @@ const app = new Hono<AppEnv>();
 app.use('/api/*', async (c, next) => {
   await next();
   if (!c.res.headers.has('Cache-Control')) c.res.headers.set('Cache-Control', 'no-store');
+});
+
+// Event images from R2 (services/images.ts). Keys change with the image, so they are immutable; registered before
+// the session middleware, since an image needs no user.
+app.get('/api/img/events/*', async (c) => {
+  const obj = await c.env.MEDIA.get(c.req.path.slice('/api/img/'.length));
+  if (!obj) throw new HTTPException(404, { message: 'Not found' });
+  return c.body(obj.body, 200, {
+    'Content-Type': obj.httpMetadata?.contentType ?? 'image/webp',
+    'Cache-Control': 'public, max-age=31536000, immutable',
+    ETag: obj.httpEtag,
+  });
 });
 
 app.use('/api/*', sameOrigin);
@@ -49,6 +62,7 @@ app.get('/api/health', async (c) => {
 app.route('/api/events', eventsApi);
 app.route('/api/sources', sourcesApi);
 app.route('/api/highlights', highlightsApi);
+app.route('/api/discover', discoverApi);
 app.route('/api/invite-requests', inviteRequestsApi);
 app.route('/api/admin', adminApi);
 app.route('/api/auth', authApi);
@@ -131,6 +145,24 @@ export default {
     } catch (err) {
       console.error('reviews', String(err));
     }
-    console.log('cron', { cron: controller.cron, swept, started: started.length, embedded, indexed, reviews });
+    // Images last: they only make the pages nicer.
+    let images = 0;
+    let dropped = 0;
+    try {
+      dropped = await dropPastImages(env, now);
+      images = await fetchImages(env, now);
+    } catch (err) {
+      console.error('images', String(err));
+    }
+    console.log('cron', {
+      cron: controller.cron,
+      swept,
+      started: started.length,
+      embedded,
+      indexed,
+      reviews,
+      images,
+      dropped,
+    });
   },
 } satisfies ExportedHandler<Env>;

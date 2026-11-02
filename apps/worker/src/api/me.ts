@@ -10,6 +10,7 @@ import {
   type PasswordStatus,
   type SourcesOverview,
   type Profile,
+  type DiscoverEdition,
   type InboxReview,
   berlinToday,
 } from '@bln/shared';
@@ -29,6 +30,7 @@ import {
 } from '../auth';
 import { agendaItems, eventIdBySlug, inbox, inboxUntil, myEvent, setEventState, statesBySlug } from '../services/me';
 import { hasPassword, setPassword, signInWithPassword } from '../passwords';
+import { getDiscover } from '../services/discover';
 import { getReview, startReview } from '../services/review';
 import { sourcesOverview } from '../services/sources';
 import { agendaIcs } from './ics';
@@ -166,6 +168,13 @@ meApi.post('/review', async (c) => {
   if (!current.canRefresh) return c.json(current);
   await startReview(c.env, user.id, `review-${user.id}-${berlinToday()}-now`);
   return c.json(await getReview(c.env, user.id), 202);
+});
+
+/** Discover (docs/09, 2026-11-02): the latest edition; the first one is built on the spot. */
+meApi.get('/discover', async (c) => {
+  const user = requireUser(c);
+  c.header('Cache-Control', 'private, no-store');
+  return c.json((await getDiscover(c.env, user.id)) satisfies DiscoverEdition);
 });
 
 meApi.get('/inbox', async (c) => {

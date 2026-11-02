@@ -249,9 +249,16 @@ export async function extractItem(env: Env, sourceId: string, rawItemId: string)
       // A single-venue source knows its venue better than the model does; the model's venue is then usually the
       // room ("Großes Haus"), which becomes the per-date note.
       const room = config.venue && ev.venue && ev.venue.name !== config.venue.name ? ev.venue.name : undefined;
+      // A flyer for one event is that event's image; a programme flyer (several events) is nobody's.
+      const flyer = photo && r.events.length === 1 && !ev.imageUrl ? { imageUrl: photo } : {};
       const candidate = config.venue
-        ? { ...ev, venue: config.venue, occurrences: ev.occurrences.map((o) => ({ ...o, note: o.note ?? room })) }
-        : ev;
+        ? {
+            ...ev,
+            ...flyer,
+            venue: config.venue,
+            occurrences: ev.occurrences.map((o) => ({ ...o, note: o.note ?? room })),
+          }
+        : { ...ev, ...flyer };
       const res = await resolveEvent(env.DB, venues, candidate, {
         rawItemId: row.id,
         model: r.model,

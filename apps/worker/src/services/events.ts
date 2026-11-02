@@ -9,6 +9,7 @@ import {
   type EventsResponse,
 } from '@bln/shared';
 import { HTTPException } from 'hono/http-exception';
+import { imageUrl } from './images';
 import { embedTexts } from '../ai/embed';
 import { neuronsLeft } from '../ai/models';
 import { loadIndex, nearest, vectorOf } from '../ai/vector-index';
@@ -42,6 +43,7 @@ const listItem = (r: Record<string, unknown>): EventListItem => ({
   next: { startLocal: String(r.next_local), startUtc: String(r.next_utc) },
   moreDates: Number(r.more_dates),
   ...(r.lang === 'de' || r.lang === 'en' ? { lang: r.lang } : {}),
+  ...(r.image_key ? { image: imageUrl(String(r.image_key)) } : {}),
   ...(r.source_ids ? { sources: String(r.source_ids).split(',') } : {}),
 });
 
@@ -127,7 +129,7 @@ export async function listEvents(
     filterArgs.push(ftsQuery(q.q));
   }
 
-  const select = `e.slug, e.title, e.lang, e.category, e.price_min, e.price_max, e.is_free, v.name AS venue_name,
+  const select = `e.slug, e.title, e.lang, e.category, e.price_min, e.price_max, e.is_free, e.image_key, v.name AS venue_name,
                   v.district, ${SOURCE_IDS}`;
   let stmt: D1PreparedStatement;
   if (!windowed) {
@@ -208,7 +210,7 @@ export async function listItemsByIds(
   if (!ids.length) return [];
   const { results } = await db
     .prepare(
-      `SELECT e.id, e.slug, e.title, e.lang, e.category, e.price_min, e.price_max, e.is_free,
+      `SELECT e.id, e.slug, e.title, e.lang, e.category, e.price_min, e.price_max, e.is_free, e.image_key,
               e.next_start_utc AS next_utc, e.next_start_local AS next_local,
               MAX(e.upcoming_count - 1, 0) AS more_dates, v.name AS venue_name, v.district, ${SOURCE_IDS}
          FROM events e LEFT JOIN venues v ON v.id = e.venue_id
@@ -301,6 +303,7 @@ export async function eventDetail(db: D1Database, slug: string): Promise<EventDe
     urlOfficial: ev.url_official,
     urlTickets: ev.url_tickets,
     imageKey: ev.image_key,
+    image: imageUrl(ev.image_key as string | null),
     status: ev.status,
     mergedInto: ev.merged_into,
     firstStartAt: ev.first_start_at,

@@ -13,6 +13,7 @@ import {
   type StateUpdate,
 } from '@bln/shared';
 import { HTTPException } from 'hono/http-exception';
+import { imageUrl } from './images';
 import { z } from 'zod';
 import { loadProfile } from '../ai/score';
 
@@ -32,6 +33,7 @@ const listItem = (r: Record<string, unknown>): EventListItem => ({
   next: { startLocal: String(r.next_start_local), startUtc: String(r.next_start_utc) },
   moreDates: Math.max(0, Number(r.upcoming_count) - 1),
   ...(r.lang === 'de' || r.lang === 'en' ? { lang: r.lang } : {}),
+  ...(r.image_key ? { image: imageUrl(String(r.image_key)) } : {}),
 });
 
 export const reasonsOf = (raw: unknown) =>
@@ -82,7 +84,7 @@ export async function inbox(
     db
       .prepare(
         `SELECT * FROM (
-           SELECT e.slug, e.title, e.lang, e.category, e.price_min, e.price_max, e.is_free, e.next_start_utc,
+           SELECT e.slug, e.title, e.lang, e.category, e.price_min, e.price_max, e.is_free, e.image_key, e.next_start_utc,
                   e.next_start_local, e.upcoming_count, v.name AS venue_name, v.district, s.score, s.reasons,
                   ${windowed ? inWindow : 'NULL'} AS window_start
              FROM user_event_scores s
@@ -208,7 +210,7 @@ export async function agendaItems(db: D1Database, userId: string, now = new Date
   // The picked date when it is still ahead, else the event's next date.
   const { results } = await db
     .prepare(
-      `SELECT e.slug, e.title, e.category, e.price_min, e.price_max, e.is_free, v.name AS venue_name, st.state,
+      `SELECT e.slug, e.title, e.category, e.price_min, e.price_max, e.is_free, e.image_key, v.name AS venue_name, st.state,
               COALESCE(o.id, (SELECT o2.id FROM occurrences o2 WHERE o2.event_id = e.id
                                AND o2.start_utc = e.next_start_utc LIMIT 1)) AS occ_id,
               COALESCE(o.start_local, e.next_start_local) AS start_local,
