@@ -107,13 +107,14 @@ export function MePage() {
         {user?.isOwner && <AiUsage />}
         <Appearance />
         <p className="m-0 text-center text-xs text-sub">
-          <Link to="/privacy" className="text-sub underline underline-offset-2">
+          {/* Static pages (public/*.html), readable without JavaScript for Google's consent-screen review. */}
+          <a href="/privacy" className="text-sub underline underline-offset-2">
             Privacy
-          </Link>{' '}
+          </a>{' '}
           ·{' '}
-          <Link to="/terms" className="text-sub underline underline-offset-2">
+          <a href="/terms" className="text-sub underline underline-offset-2">
             Terms
-          </Link>
+          </a>
         </p>
         <Status />
         {user && <SignOut />}
