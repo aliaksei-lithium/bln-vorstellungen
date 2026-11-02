@@ -4,6 +4,7 @@ import {
   Category,
   OPT_IN_CATEGORIES,
   TASTE_MAX,
+  berlinToday,
   type Prefs,
   type Profile,
   type SpotifyStatus,
@@ -13,8 +14,8 @@ import {
 } from '@bln/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
-import { ChevronRight, ExternalLink, LogOut, Smartphone } from 'lucide-react';
-import { useEffect, useState, type ReactNode } from 'react';
+import { ChevronRight, ExternalLink, Loader2, LogOut, RefreshCw, Smartphone } from 'lucide-react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { TopBar } from '@/components/AppShell';
 import { CategoryDot } from '@/components/CategoryChip';
 import { Button } from '@/components/ui/button';
@@ -93,6 +94,7 @@ export function MePage() {
             <SpotifyBox />
             <YoutubeBox />
             <BandcampBox />
+            <RebuildBox />
             <SourcesBox />
             <PasswordBox />
             <OtherDevice />
@@ -497,6 +499,8 @@ function BandcampBox() {
   const done = (s: BandcampStatus) => {
     qc.setQueryData(['bandcamp'], s);
     void qc.invalidateQueries({ queryKey: ['inbox'] });
+    // Connecting starts a rebuild of Discover and For you (RebuildBox shows it).
+    void qc.invalidateQueries({ queryKey: ['review'] });
   };
   const link = useMutation({
     mutationFn: () => api.bandcampConnect(name),
@@ -585,6 +589,82 @@ function BandcampBox() {
         {error && (
           <p role="alert" className="m-0 text-sm font-semibold text-danger">
             {error.message}
+          </p>
+        )}
+      </div>
+    </Box>
+  );
+}
+
+/**
+ * Rebuild Discover and For you now, with the latest taste and artists: the day's first one when there is none yet,
+ * then a few a day. Connecting a music service starts one by itself, once the new scores are in.
+ */
+function RebuildBox() {
+  const qc = useQueryClient();
+  const review = useQuery({
+    queryKey: ['review'],
+    queryFn: api.review,
+    refetchInterval: (q) => (q.state.data?.status === 'preparing' ? 4000 : false),
+  });
+  const rebuild = useMutation({
+    mutationFn: api.prepareReview,
+    onSuccess: (r) => {
+      qc.setQueryData(['review'], r);
+      if (r.status !== 'preparing') toast('Nothing to rebuild right now. Try again later.');
+    },
+  });
+  // When a rebuild finishes, Discover shows the new edition on its next visit.
+  const status = review.data?.status;
+  const was = useRef(status);
+  useEffect(() => {
+    if (was.current === 'preparing' && status === 'ready') {
+      void qc.invalidateQueries({ queryKey: ['discover'] });
+      toast('Discover and For you are rebuilt');
+    }
+    was.current = status;
+  }, [status, qc]);
+  const r = review.data;
+  const today = !!r?.day && r.day === berlinToday();
+  const preparing = r?.status === 'preparing';
+  const left = r?.rebuildsLeft ?? 0;
+  const can = !!r && !preparing && (!today || left > 0);
+  return (
+    <Box
+      title="Discover and For you"
+      collapsed
+      summary={r ? (preparing ? 'Rebuilding…' : today ? `${left} rebuilds left today` : 'Not built today') : undefined}
+    >
+      <div id="rebuild" className="grid gap-3 p-3">
+        <p className="m-0 text-sm text-sub">
+          Both pages are written each morning. Rebuild them now to use your latest taste and artists. Connecting
+          Spotify, YouTube Music or Bandcamp rebuilds them by itself once your events are re-ranked.
+        </p>
+        {!r ? (
+          <p className="m-0 text-sm text-sub">Loading…</p>
+        ) : preparing ? (
+          <p className="m-0 inline-flex items-center gap-2 text-sm font-semibold">
+            <Loader2 className="size-4 animate-spin" aria-hidden />
+            Rebuilding. This takes a minute or two.
+          </p>
+        ) : (
+          <div className="flex flex-wrap items-center gap-3">
+            <Button size="sm" disabled={!can || rebuild.isPending} onClick={() => rebuild.mutate()}>
+              {rebuild.isPending ? <Loader2 className="animate-spin" aria-hidden /> : <RefreshCw aria-hidden />}
+              Rebuild now
+            </Button>
+            <span className="text-sm text-sub">
+              {!today
+                ? 'Today’s edition is not built yet.'
+                : left > 0
+                  ? `${left} left today`
+                  : 'No rebuilds left today'}
+            </span>
+          </div>
+        )}
+        {rebuild.isError && (
+          <p role="alert" className="m-0 text-sm font-semibold text-danger">
+            {rebuild.error.message}
           </p>
         )}
       </div>

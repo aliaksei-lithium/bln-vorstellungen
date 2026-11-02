@@ -2,6 +2,7 @@ import { type YoutubeStatus } from '@bln/shared';
 import { Hono } from 'hono';
 import { dispatchScoring, refreshTaste } from '../ai/score';
 import { requireUser, type AppEnv } from '../auth';
+import { claimTasteRebuild } from '../services/review';
 import { connectUrl, disconnect, finishConnect, syncArtists, youtubeStatus } from '../youtube';
 
 /** Browser redirects (/youtube/connect, /youtube/callback) and the JSON API under /api/me/youtube. */
@@ -24,7 +25,9 @@ youtubePages.get('/callback', async (c) => {
   try {
     await finishConnect(c.env, user.id, code, state);
     await refreshTaste(c.env, user.id);
-    c.executionCtx.waitUntil(dispatchScoring(c.env, user.id));
+    // New artists: re-score, then rebuild Discover and For you with the new scores.
+    const rebuild = await claimTasteRebuild(c.env, user.id);
+    c.executionCtx.waitUntil(dispatchScoring(c.env, user.id, undefined, { rebuild }));
     return c.redirect(back('connected'));
   } catch (err) {
     console.warn('youtube callback', String(err));

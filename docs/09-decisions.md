@@ -364,6 +364,13 @@ Format: date · decision · why · alternatives rejected. Newer entries supersed
   search when Bandcamp is the only service connected. These endpoints are unofficial: each list is best effort, and a
   private collection simply gives no artists. Rejected: asking for the user's Bandcamp cookie (a full-account
   credential) and scraping the rendered collection page (heavy HTML, over the CPU budget).
+- **2026-11-04 · Rebuild Discover and For you after a music connect, and on demand.** Connecting Spotify, YouTube
+  Music or Bandcamp re-scores the user, and the score run then starts the daily-review workflow (Discover, then For
+  you), so both pages use the new artists the same day instead of the next morning. At most 3 such rebuilds per user
+  per Berlin day (KV counter); beyond that the scores still update and the pages wait for the morning. The Me page has
+  "Discover and For you" with "Rebuild now": the day's first edition when none exists yet (free, as before from For
+  you), then up to 3 rebuilds a day (a separate KV counter), since each run may spend up to 4 web searches. Updating
+  or disconnecting a service re-scores only, as before.
 - **2026-11-03 · Ask moves into a chat button.** The box on For you and Discover took a screen of space. Ask is now a
   button at the bottom right (above the nav) on every page for signed-in users, except the scan review and sign-in;
   it opens as a sheet on phones and a 400 px panel in the corner on larger screens. Opening an event from an answer
