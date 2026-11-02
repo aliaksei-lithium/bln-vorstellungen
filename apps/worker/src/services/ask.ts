@@ -91,13 +91,22 @@ const day = (v: unknown) => (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test
 const plusDays = (d: string, n: number) =>
   new Date(Date.parse(`${d}T12:00:00Z`) + n * DAY_MS).toISOString().slice(0, 10);
 
-type Ctx = { env: Env; userId: string; hidden: Category[]; today: string; found: AskFound[] };
+type Ctx = {
+  env: Env;
+  userId: string;
+  hidden: Category[];
+  today: string;
+  found: AskFound[];
+  /** Every programme event the tools showed the model this question, by slug: its title, for linkTitles. */
+  seen: Map<string, string>;
+};
 
 /** Runs one of our tools; the result is text for the model. Errors become text too, so the model can recover. */
 export async function runTool(ctx: Ctx, name: string, input: Record<string, unknown>): Promise<string> {
   const { env, userId, hidden, today } = ctx;
   const lines = async (items: EventListItem[]) => {
     if (!items.length) return 'Nothing found.';
+    for (const i of items) ctx.seen.set(i.slug, i.title);
     const scores = await scoresFor(
       env.DB,
       userId,
@@ -189,6 +198,27 @@ export async function runTool(ctx: Ctx, name: string, input: Record<string, unkn
   return `Unknown tool ${name}.`;
 }
 
+/**
+ * The model sometimes names a programme event by its title instead of its reference ("SPORTS at SO36 is another
+ * option"). Titles of events the tools showed it this question become references: exact, case-sensitive matches of
+ * at least four characters, the first mention only, never inside an existing reference.
+ */
+export function linkTitles(answer: string, seen: Map<string, string>): string {
+  const cited = new Set([...answer.matchAll(/\[\[([a-z0-9-]+)\]\]/g)].map((m) => m[1]!));
+  let out = answer;
+  // Longest titles first, so "Die Letzten werden die Ersten sein" wins over "Die Letzten".
+  for (const [slug, title] of [...seen].sort((a, b) => b[1].length - a[1].length)) {
+    if (cited.has(slug) || title.trim().length < 4) continue;
+    const parts = out.split(/(\[\[[a-z0-9-]+\]\])/);
+    const i = parts.findIndex((p, n) => n % 2 === 0 && p.includes(title));
+    if (i < 0) continue;
+    parts[i] = parts[i]!.replace(title, `[[${slug}]]`);
+    out = parts.join('');
+    cited.add(slug);
+  }
+  return out;
+}
+
 /** `[[slug]]` references that exist (in first-mention order); unknown ones lose their brackets. */
 export async function resolveRefs(
   db: D1Database,
@@ -244,7 +274,7 @@ export async function ask(env: Env, userId: string, turns: AskTurn[], now = new 
     .filter(Boolean)
     .join('; ');
   const system = prompt.system(tasteText, settings, today, agenda);
-  const ctx: Ctx = { env, userId, hidden, today, found: [] };
+  const ctx: Ctx = { env, userId, hidden, today, found: [], seen: new Map() };
   const messages: Turn[] = turns.map((t) => ({ role: t.role, content: t.text }));
 
   let usd = 0;
@@ -312,7 +342,11 @@ export async function ask(env: Env, userId: string, turns: AskTurn[], now = new 
     bumpUsage(env.DB, 'ai_ask_calls', 1).run(),
   ]);
   console.log('ask', { userId, rounds: messages.length, searches, usd: Math.round(usd * 1e4) / 1e4 });
-  const { answer, events } = await resolveRefs(env.DB, text.trim() || 'I could not find an answer this time.', hidden);
+  const { answer, events } = await resolveRefs(
+    env.DB,
+    linkTitles(text.trim() || 'I could not find an answer this time.', ctx.seen),
+    hidden,
+  );
   return {
     answer,
     events,
