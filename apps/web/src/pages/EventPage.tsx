@@ -38,7 +38,13 @@ import { useListFilter } from '@/lib/marks';
 import { relativeDay } from '@/lib/dates';
 import { cn } from '@/lib/utils';
 
-/** Categories where "Listen" on Spotify makes sense. */
+/** "Listen" goes to the act on Spotify (its page, or a search) or on YouTube Music (a search). */
+const listenHref = (on: 'spotify' | 'youtube', name: string) =>
+  on === 'youtube'
+    ? `https://music.youtube.com/search?q=${encodeURIComponent(name)}`
+    : `/spotify/listen?artist=${encodeURIComponent(name)}`;
+
+/** Categories where "Listen" makes sense. */
 const MUSIC = new Set(['concert', 'club', 'festival']);
 
 function Box({ title, right, children }: { title: string; right?: ReactNode; children: ReactNode }) {
@@ -74,6 +80,10 @@ export function EventPage({ slug }: { slug: string }) {
     },
   });
   const my = mine.data;
+  // Listen where they listen: YouTube Music when that is connected and Spotify is not.
+  const spotify = useQuery({ queryKey: ['spotify'], queryFn: api.spotify, enabled: !!user, staleTime: 300_000 });
+  const youtube = useQuery({ queryKey: ['youtube'], queryFn: api.youtube, enabled: !!user, staleTime: 300_000 });
+  const listenOn: 'spotify' | 'youtube' = youtube.data?.connected && !spotify.data?.connected ? 'youtube' : 'spotify';
 
   const head = (
     <div className="sticky top-[env(safe-area-inset-top,0px)] z-10 -mx-2 grid h-14 grid-cols-[44px_1fr_44px] items-center bg-background">
@@ -385,7 +395,7 @@ export function EventPage({ slug }: { slug: string }) {
                     .map((name) => (
                       <a
                         key={name}
-                        href={`/spotify/listen?artist=${encodeURIComponent(name)}`}
+                        href={listenHref(listenOn, name)}
                         target="_blank"
                         rel="noreferrer"
                         className="inline-flex items-center gap-1 font-bold text-moss"
@@ -394,6 +404,14 @@ export function EventPage({ slug }: { slug: string }) {
                         {name}
                       </a>
                     ))}
+                  <a
+                    href={listenHref(listenOn === 'youtube' ? 'spotify' : 'youtube', actsOf(e)[0]!)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[13px] text-sub underline underline-offset-2"
+                  >
+                    {listenOn === 'youtube' ? 'on Spotify' : 'on YouTube Music'}
+                  </a>
                 </dd>
               </>
             )}

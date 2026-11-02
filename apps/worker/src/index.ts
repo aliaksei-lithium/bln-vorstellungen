@@ -10,6 +10,7 @@ import { sourcesApi } from './api/sources';
 import { venuesApi } from './api/venues';
 import { discoverApi, highlightsApi, inviteRequestsApi } from './api/public';
 import { spotifyApi, spotifyPages } from './api/spotify';
+import { youtubeApi, youtubePages } from './api/youtube';
 import { authorize, oauth } from './mcp/oauth';
 import { embedMissing } from './ai/embed';
 import { dispatchScoring, rescoreAfterPromptChange } from './ai/score';
@@ -70,6 +71,7 @@ app.route('/api/admin', adminApi);
 app.route('/api/auth', authApi);
 app.route('/api/me/scans', scansApi);
 app.route('/api/me/spotify', spotifyApi);
+app.route('/api/me/youtube', youtubeApi);
 app.route('/api/me', meApi);
 app.route('/api/cal', calendarApi);
 
@@ -79,6 +81,9 @@ app.on(['GET', 'POST'], '/authorize', loadUser, authorize);
 // Spotify's consent screen comes back here with the signed-in user's session.
 app.use('/spotify/*', loadUser);
 app.route('/spotify', spotifyPages);
+// Google's consent screen for YouTube Music comes back here, the same way.
+app.use('/youtube/*', loadUser);
+app.route('/youtube', youtubePages);
 // Hono types the runtime's ExecutionContext without its `props`; the object is the same.
 const to = (pick: (o: ReturnType<typeof oauth>) => typeof o.as | typeof o.rs) => (c: Context<AppEnv>) =>
   pick(oauth(c.env)).fetch(c.req.raw, c.env, c.executionCtx as ExecutionContext<unknown>);

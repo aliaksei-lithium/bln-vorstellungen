@@ -3,10 +3,13 @@ import {
   MyStates,
   PasswordStatus,
   SpotifyStatus,
+  YoutubeStatus,
   SourcesOverview,
   UsageOverview,
   Scan,
   ScanCreated,
+  AskResponse,
+  type AskRequest,
   InboxReview,
   DiscoverEdition,
   InviteAccepted,
@@ -61,6 +64,7 @@ async function request<T>(path: string, schema: ZodType<T>, init?: { method: str
 
 const getJson = <T>(path: string, schema: ZodType<T>) => request(path, schema);
 const enc = encodeURIComponent;
+const AskLeft = AskResponse.shape.left;
 
 export const api = {
   health: () => getJson('/api/health', HealthResponse),
@@ -96,6 +100,9 @@ export const api = {
     }),
   spotifySync: () => request('/api/me/spotify/sync', SpotifyStatus, { method: 'POST', body: {} }),
   spotifyDisconnect: () => request('/api/me/spotify', SpotifyStatus, { method: 'DELETE' }),
+  youtube: () => getJson('/api/me/youtube', YoutubeStatus),
+  youtubeSync: () => request('/api/me/youtube/sync', YoutubeStatus, { method: 'POST', body: {} }),
+  youtubeDisconnect: () => request('/api/me/youtube', YoutubeStatus, { method: 'DELETE' }),
   setPassword: (body: { password: string; current?: string }) =>
     request('/api/me/password', PasswordStatus, { method: 'PUT', body }),
   loginLink: () => request('/api/me/login-link', LoginLink, { method: 'POST', body: {} }),
@@ -110,6 +117,8 @@ export const api = {
   usage: (days = 30) => getJson(`/api/admin/usage/days?days=${days}`, UsageOverview),
   scan: (id: string) => getJson(`/api/me/scans/${enc(id)}`, Scan),
   scanText: (text: string) => request('/api/me/scans', ScanCreated, { method: 'POST', body: { text } }),
+  ask: (body: AskRequest) => request('/api/me/ask', AskResponse, { method: 'POST', body }),
+  askLeft: () => getJson('/api/me/ask', AskLeft),
   scanPhoto: async (photo: Blob, takenAt?: string) => {
     const form = new FormData();
     form.append('image', photo, 'photo.jpg');

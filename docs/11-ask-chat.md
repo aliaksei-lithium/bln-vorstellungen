@@ -1,6 +1,6 @@
-# 11 Ask: a chat in For you and Discover (plan, not built)
+# 11 Ask: a chat in For you and Discover
 
-Status: researched 2026-11-02, waiting for a go-ahead. Nothing here is in the code yet.
+Status: researched 2026-11-02, built 2026-11-03 with the planned choices below (docs/09).
 
 ## What it is
 

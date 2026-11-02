@@ -156,18 +156,28 @@ export async function fillGenres(env: Env, artists: Artist[]): Promise<Artist[]>
   }
 }
 
-/** Replaces the user's Spotify artists and makes their scores stale, so the next run ranks with them. */
-async function saveArtists(db: D1Database, userId: string, artists: Artist[]): Promise<void> {
+/** Replaces the user's artists from one service and makes their scores stale, so the next run ranks with them. */
+export async function saveArtistsFrom(
+  db: D1Database,
+  userId: string,
+  source: 'spotify' | 'youtube',
+  artists: Artist[],
+): Promise<void> {
   await db.batch([
-    db.prepare(`DELETE FROM user_artists WHERE user_id = ? AND source = 'spotify'`).bind(userId),
+    db.prepare(`DELETE FROM user_artists WHERE user_id = ? AND source = ?`).bind(userId, source),
     ...artists.map((a, rank) =>
       db
-        .prepare(`INSERT OR IGNORE INTO user_artists (user_id, name_lc, name, genres, rank) VALUES (?, ?, ?, ?, ?)`)
-        .bind(userId, a.name.toLowerCase(), a.name, JSON.stringify(a.genres), rank),
+        .prepare(
+          `INSERT OR IGNORE INTO user_artists (user_id, name_lc, name, genres, rank, source) VALUES (?, ?, ?, ?, ?, ?)`,
+        )
+        .bind(userId, a.name.toLowerCase(), a.name, JSON.stringify(a.genres), rank, source),
     ),
     db.prepare(`UPDATE user_profiles SET profile_version = profile_version + 1 WHERE user_id = ?`).bind(userId),
   ]);
 }
+
+const saveArtists = (db: D1Database, userId: string, artists: Artist[]) =>
+  saveArtistsFrom(db, userId, 'spotify', artists);
 
 /** Callback: checks the state, trades the code for tokens, keeps the refresh token and stores the artists. */
 export async function finishConnect(env: Env, userId: string, code: string, state: string, f: Fetch = fetch) {
@@ -263,12 +273,12 @@ export function artistMatch(
 }
 
 /**
- * The user's music taste as read from Spotify: genres weighted by artist rank (top artists count most), and the
+ * The user's music taste as read from Spotify and YouTube Music: genres weighted by artist rank (top artists count most), and the
  * leading artists. Added to the taste behind the scenes (embedding and scoring), never into the user's own text.
  */
 export async function musicTaste(db: D1Database, userId: string): Promise<{ genres: string[]; artists: string[] }> {
   const { results } = await db
-    .prepare(`SELECT name, genres FROM user_artists WHERE user_id = ? AND source = 'spotify' ORDER BY rank LIMIT 120`)
+    .prepare(`SELECT name, genres FROM user_artists WHERE user_id = ? ORDER BY rank, source LIMIT 120`)
     .bind(userId)
     .all<{ name: string; genres: string }>();
   const weight = new Map<string, number>();
@@ -288,7 +298,7 @@ export async function musicTaste(db: D1Database, userId: string): Promise<{ genr
 export async function musicTasteLine(db: D1Database, userId: string): Promise<string> {
   const m = await musicTaste(db, userId);
   if (!m.artists.length) return '';
-  return `Music they listen to (Spotify): ${m.genres.length ? `${m.genres.join(', ')}; ` : ''}artists such as ${m.artists.join(', ')}.`;
+  return `Music they listen to: ${m.genres.length ? `${m.genres.join(', ')}; ` : ''}artists such as ${m.artists.join(', ')}.`;
 }
 
 /** Only strong meaning matches count: below this, any concert looks a little like any music taste. */

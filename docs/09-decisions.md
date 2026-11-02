@@ -335,6 +335,24 @@ Format: date · decision · why · alternatives rejected. Newer entries supersed
   source was first read. A page image that another event's different page also gives is the site's own (Index
   Berlin's featured picture, Lab.oratory's default): dropped for all of them. RAZAM's calendar is read through the
   owner's Google Calendar subscription (Google's public iCal export), since razam.de refuses Cloudflare's network.
+- **2026-11-03 · Ask: a chat on For you and Discover.** Built as planned in docs/11: signed-in users ask in their own
+  words; Claude Haiku 5.5 answers in a short tool loop (search_events, list_events, get_event, suggest_event, plus the
+  `web_search` server tool), at most 4 rounds, the last without tools. Event lines carry `[[slug]]` references and
+  the user's score; unknown references lose their brackets. Web finds come back as "Found online" with Add, which
+  goes through Scan. Limits: 20 questions and 4 web searches per user per day (KV counter), no question with less
+  than $0.05 of the day's Claude budget left. The conversation stays in the browser tab. Measured locally: ~5 s and
+  ~$0.0005 from the programme alone, ~$0.012 with one search.
+- **2026-11-03 · YouTube Music, like Spotify.** YouTube Music has no API of its own; the YouTube Data API
+  (`youtube.readonly`, Google OAuth with offline access) gives liked videos (YouTube Music likes land there,
+  category Music) and subscriptions (music channels by their topic categories). Artists: liked songs by how often,
+  then subscribed music channels; channel names cleaned ("- Topic", "VEVO"); genres from the same model call as
+  Spotify. Stored in `user_artists` with source `youtube`, so the ranking boost, "My artists" in Browse and the music
+  taste line use both services. "Listen" links go to YouTube Music search when that is the service connected. No
+  playlists: YouTube search costs 100 quota units a call (10,000 a day), so a scan playlist of 40 acts would use
+  most of a day. Setup: a Google Cloud project with the YouTube Data API v3 enabled, an OAuth consent screen
+  (External, published "In production": in "Testing" Google drops refresh tokens after 7 days; unverified is fine
+  for up to 100 users, who see a warning), a Web OAuth client with the redirect `<origin>/youtube/callback`, then
+  `wrangler secret put GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`. Without them the Me box says it is not set up.
 - **2026-10-02 · React + Vite + TanStack + Tailwind + shadcn/ui.** Best coverage by design tools and implementing
   models. Rejected: SvelteKit (good, but weaker design-tool output), Next.js on Workers via OpenNext (heavier than
   needed; no SSR requirement since public pages can be cached JSON + client render; revisit if SEO matters).

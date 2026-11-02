@@ -51,8 +51,8 @@ const VIEW_KEY = 'bln.browseView';
 
 /** Source kinds, not single venues (docs/09): where an event came from. Spotify joins when it is connected. */
 const VIA_LABELS: Record<Exclude<Via, Community>, string> = {
-  spotify: 'My Spotify artists',
-  spotifylike: 'Close to my Spotify taste',
+  spotify: 'My artists',
+  spotifylike: 'Close to my music taste',
   telegram: 'Telegram channels',
   scans: 'Added from photos & text',
 };
@@ -347,6 +347,8 @@ function FilterSheet({
   const optIn = useVisitorOptIn();
   const categories = listCategories(user ? profile.data?.prefs : { categoriesOn: optIn.on });
   const spotify = useQuery({ queryKey: ['spotify'], queryFn: api.spotify, enabled: !!user && open });
+  const youtube = useQuery({ queryKey: ['youtube'], queryFn: api.youtube, enabled: !!user && open });
+  const music = !!spotify.data?.connected || !!youtube.data?.connected;
   const qc = useQueryClient();
   const saved = profile.data?.prefs.browseDefault ?? '';
   const current = filterQuery(filters);
@@ -388,7 +390,7 @@ function FilterSheet({
           <div className={label}>Source</div>
           <div className="flex flex-wrap gap-2">
             {(Object.keys(VIA_LABELS) as (keyof typeof VIA_LABELS)[])
-              .filter((v) => !v.startsWith('spotify') || spotify.data?.connected)
+              .filter((v) => !v.startsWith('spotify') || music)
               .map((v) => (
                 <Chip
                   key={v}
