@@ -402,5 +402,8 @@ adminApi.post('/images/run', async (c) => {
 /** Rebuilds today's Discover now (one model call, no web searches): public, or one user's with `?user=<id>`. */
 adminApi.post('/discover/run', async (c) => {
   const who = c.req.query('user') ?? null;
+  if (who && !(await c.env.DB.prepare('SELECT 1 FROM users WHERE id = ?').bind(who).first())) {
+    throw new HTTPException(404, { message: 'No such user' });
+  }
   return c.json({ stories: await buildDiscover(c.env, who) });
 });

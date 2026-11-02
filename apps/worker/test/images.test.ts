@@ -1,7 +1,7 @@
 import { env, exports } from 'cloudflare:workers';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { VenueIndex, resolveEvent } from '../src/pipeline/resolve';
-import { dropPastImages, fetchImages, findPageImage } from '../src/services/images';
+import { dropPastImages, fetchImages, findPageImage, isEventPage } from '../src/services/images';
 
 /** Event images (docs/09, 2026-11-02): found, shrunk once into R2, served immutable, dropped when the event is over. */
 
@@ -71,6 +71,17 @@ describe('findPageImage', () => {
       ),
     ).toBe(thumb(1600, 80));
     expect(findPageImage(page('<meta name="description" content="x">'), 'https://v.de/')).toBeNull();
+  });
+});
+
+describe('isEventPage', () => {
+  it('tells an event page from a venue home or programme page', () => {
+    expect(isEventPage('https://www.deutschestheater.de/programm/produktionen/polaris')).toBe(true);
+    expect(isEventPage('https://a-trane.de/Events-Directory/a-trane-praesentiert-x/')).toBe(true);
+    expect(isEventPage('https://www.schokoladen-mitte.de/')).toBe(false);
+    expect(isEventPage('https://www.pankeculture.com/programme/')).toBe(false);
+    expect(isEventPage('https://www.berliner-ensemble.de/spielplan')).toBe(false);
+    expect(isEventPage('https://venue.test/de/')).toBe(false);
   });
 });
 

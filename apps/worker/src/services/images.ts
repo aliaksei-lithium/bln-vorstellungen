@@ -41,7 +41,7 @@ export async function fetchImages(env: Env, now = new Date(), limit = IMAGES_PER
     let src = ev.image_src;
     let key: string | null = null;
     try {
-      src ??= await pageImage(ev.url_official!);
+      if (!src && isEventPage(ev.url_official!)) src = await pageImage(ev.url_official!);
       if (src) key = await storeImage(env, ev.id, src);
       if (key) stored++;
     } catch (err) {
@@ -79,6 +79,22 @@ export async function storeImage(env: Env, eventId: string, src: string): Promis
   const bytes = await new Response(out.image()).arrayBuffer();
   await env.MEDIA.put(key, bytes, { httpMetadata: { contentType: 'image/webp' } });
   return key;
+}
+
+/**
+ * Whether a link is an event's own page rather than the venue's home or programme page, which some sources give
+ * as every event's link: their image is the venue's (or one event's flyer), not this event's.
+ */
+export function isEventPage(url: string): boolean {
+  try {
+    const path = new URL(url).pathname.replace(/\/+$/, '');
+    return (
+      !!path &&
+      !/(^|\/)(de|en|programm?e?|spielplan|events?|veranstaltungen|kalender|calendar|termine|tickets)$/i.test(path)
+    );
+  } catch {
+    return false;
+  }
 }
 
 /** The image of an event's own page: its `og:image`, else the first content image (see findPageImage). */
