@@ -101,6 +101,19 @@ describe('ical city filter (RAZAM)', () => {
   });
 });
 
+describe('ical skip (Soulcat)', () => {
+  it('leaves out events whose title matches', async () => {
+    const d = plus(5).replace(/-/g, '');
+    const vevent = (summary: string) =>
+      `BEGIN:VEVENT\nUID:${summary}\nDTSTART;TZID=Europe/Berlin:${d}T210000\nSUMMARY:${summary}\nEND:VEVENT`;
+    const ics = `BEGIN:VCALENDAR\n${vevent('DJ Lobotomy - Vinyl Session')}\n${vevent('CL: BVB - Betis Sevilla (Backroom)')}\nEND:VCALENDAR`;
+    const config = IcalConfig.parse({ url: 'https://soulcat-berlin.com/events/?ical=1', skip: '^CL:|bundesliga' });
+    const r = await icalAdapter.fetch(ctx(ics), config, null);
+    expect(r.items.map((i) => i.externalId)).toEqual(['DJ Lobotomy - Vinyl Session']);
+    expect(IcalConfig.safeParse({ url: 'https://x.test/a.ics', skip: '(' }).success).toBe(false);
+  });
+});
+
 describe('parseFeed', () => {
   it('reads only the newest entries when asked', () => {
     const item = (n: number) => `<item><title>Post ${n}</title><guid>${n}</guid><description>x</description></item>`;

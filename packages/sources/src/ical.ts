@@ -27,6 +27,20 @@ export const IcalConfig = z.object({
   maxItems: z.number().int().min(1).max(500).default(200),
   /** Only events whose LOCATION names this city (a community calendar that also lists other cities: RAZAM). */
   city: z.string().trim().min(2).optional(),
+  /** Leaves out events whose title matches (case-insensitive), e.g. a bar's football screenings: "^CL:|Bundesliga". */
+  skip: z
+    .string()
+    .min(1)
+    .max(200)
+    .refine((p) => {
+      try {
+        new RegExp(p, 'i');
+        return true;
+      } catch {
+        return false;
+      }
+    }, 'Not a valid pattern')
+    .optional(),
 });
 export type IcalConfig = z.infer<typeof IcalConfig>;
 
@@ -172,9 +186,11 @@ export const icalAdapter: SourceAdapter<IcalConfig> = {
       const end = icalDate(first(props, 'DTEND'));
       const recurring = props.has('RRULE');
       const elsewhere = config.city && !text(props, 'LOCATION').toLowerCase().includes(config.city.toLowerCase());
+      const unwanted = config.skip && new RegExp(config.skip, 'i').test(text(props, 'SUMMARY'));
       if (
         !start ||
         elsewhere ||
+        unwanted ||
         (!recurring && !isUpcoming((end ?? start).local, ctx.today)) ||
         items.length >= config.maxItems
       ) {
