@@ -40,6 +40,7 @@
     { "name": "enrich-event", "binding": "ENRICH_EVENT", "class_name": "EnrichEventWorkflow" },
     { "name": "score-events", "binding": "SCORE_EVENTS", "class_name": "ScoreEventsWorkflow" },
     { "name": "photo-ingest", "binding": "PHOTO_INGEST", "class_name": "PhotoIngestWorkflow" },
+    { "name": "daily-review", "binding": "DAILY_REVIEW", "class_name": "DailyReviewWorkflow" },
   ],
 
   // The MCP server is stateless (docs/09, 2026-11-01); its Durable Object is gone.

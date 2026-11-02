@@ -24,7 +24,7 @@ export function LoginPage({ token }: { token: string }) {
       .then((r) => {
         qc.setQueryData(['me'], r);
         void qc.invalidateQueries();
-        void navigate({ to: '/inbox', replace: true });
+        void navigate({ to: '/for-you', replace: true });
       })
       .catch((e: unknown) => setError(e instanceof ApiError ? e.message : 'Could not sign in. Try again.'));
   }, [token, qc, navigate]);

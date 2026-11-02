@@ -10,6 +10,8 @@ import {
   type PasswordStatus,
   type SourcesOverview,
   type Profile,
+  type InboxReview,
+  berlinToday,
 } from '@bln/shared';
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
@@ -27,6 +29,7 @@ import {
 } from '../auth';
 import { agendaItems, eventIdBySlug, inbox, inboxUntil, myEvent, setEventState, statesBySlug } from '../services/me';
 import { hasPassword, setPassword, signInWithPassword } from '../passwords';
+import { getReview, startReview } from '../services/review';
 import { sourcesOverview } from '../services/sources';
 import { agendaIcs } from './ics';
 
@@ -148,6 +151,22 @@ meApi.put('/profile', async (c) => {
 });
 
 /* ---------- inbox, one event, triage, agenda (services/me) ---------- */
+
+/** The daily review (docs/09, 2026-11-02): the latest one, and whether one is being prepared. */
+meApi.get('/review', async (c) => {
+  const user = requireUser(c);
+  c.header('Cache-Control', 'private, no-store');
+  return c.json((await getReview(c.env, user.id)) satisfies InboxReview);
+});
+
+/** Prepares today's review now, when there is none yet; at most one a day per user. */
+meApi.post('/review', async (c) => {
+  const user = requireUser(c);
+  const current = await getReview(c.env, user.id);
+  if (!current.canRefresh) return c.json(current);
+  await startReview(c.env, user.id, `review-${user.id}-${berlinToday()}-now`);
+  return c.json(await getReview(c.env, user.id), 202);
+});
 
 meApi.get('/inbox', async (c) => {
   const user = requireUser(c);

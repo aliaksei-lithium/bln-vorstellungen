@@ -76,7 +76,7 @@ function Agenda() {
           title="Nothing planned yet"
           action={
             <Button asChild variant="default">
-              <Link to="/inbox">Open Inbox</Link>
+              <Link to="/for-you">Open For you</Link>
             </Button>
           }
         >

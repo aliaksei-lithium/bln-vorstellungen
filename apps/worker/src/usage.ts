@@ -13,7 +13,9 @@ export type Metric =
   | 'claude_microusd'
   | 'claude_calls'
   | 'claude_tokens_in'
-  | 'claude_tokens_out';
+  | 'claude_tokens_out'
+  | 'claude_web_searches'
+  | 'ai_review_calls';
 
 export const bumpUsage = (db: D1Database, metric: Metric, by: number, now = new Date()): D1PreparedStatement =>
   db

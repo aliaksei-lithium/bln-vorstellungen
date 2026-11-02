@@ -26,12 +26,14 @@ import { useMe } from '@/lib/auth';
 import { useListFilter } from '@/lib/marks';
 import { toast } from '@/lib/toast';
 import { WHEN_LABELS, relativeDay, whenRange, type When } from '@/lib/dates';
+import { useVisitorOptIn } from '@/lib/visitorSources';
 
 /**
- * Filter chips: every category but `other`; opt-in ones only for users who turned them on. Switched-off categories
+ * Filter chips: every category but `other`; opt-in ones only for users (or visitors, in their browser) who turned
+ * them on. Switched-off categories
  * keep their chip: picking one is how to look at them on purpose.
  */
-const listCategories = (prefs?: Prefs) => {
+const listCategories = (prefs?: Pick<Prefs, 'categoriesOn'>) => {
   const hidden = hiddenCategories(prefs);
   return Category.options.filter((c) => c !== 'other' && !hidden.includes(c));
 };
@@ -300,7 +302,8 @@ function FilterSheet({
   // Opt-in categories appear as a filter only for signed-in users who switched them on.
   const { user } = useMe();
   const profile = useQuery({ queryKey: ['profile'], queryFn: api.profile, enabled: !!user && open });
-  const categories = listCategories(profile.data?.prefs);
+  const optIn = useVisitorOptIn();
+  const categories = listCategories(user ? profile.data?.prefs : { categoriesOn: optIn.on });
   const spotify = useQuery({ queryKey: ['spotify'], queryFn: api.spotify, enabled: !!user && open });
   const qc = useQueryClient();
   const saved = profile.data?.prefs.browseDefault ?? '';

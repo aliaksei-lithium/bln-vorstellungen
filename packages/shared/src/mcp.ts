@@ -97,3 +97,18 @@ export const McpConfirmEvents = z.object({
     .describe('Numbers of the events to add, as listed. Default: all of them.'),
 });
 export type McpConfirmEvents = z.infer<typeof McpConfirmEvents>;
+
+export const McpListInvites = z.object({
+  status: z
+    .enum(['pending', 'all'])
+    .default('pending')
+    .describe('pending: waiting for a decision (default); all: also those invited or declined.'),
+});
+export type McpListInvites = z.infer<typeof McpListInvites>;
+
+export const McpInviteId = z.object({
+  id: z.string().min(1).describe('The request id from list_invite_requests.'),
+});
+export type McpInviteId = z.infer<typeof McpInviteId>;
+
+export const McpHighlights = z.object({});

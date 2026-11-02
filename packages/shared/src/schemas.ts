@@ -429,6 +429,31 @@ export const UserCreate = z.object({
 });
 export type UserCreate = z.infer<typeof UserCreate>;
 
+/** "Ask for an invite" (docs/09, 2026-11-02). `website` is a honeypot: people leave it empty. */
+export const InviteRequestCreate = z.object({
+  name: z.string().trim().min(1, 'Tell us your name.').max(80),
+  email: z.email('That email does not look right.').max(200),
+  note: z.string().trim().max(500).optional(),
+  website: z.string().max(200).optional(),
+});
+export type InviteRequestCreate = z.infer<typeof InviteRequestCreate>;
+export const InviteRequest = z.object({
+  id: z.string(),
+  name: z.string(),
+  email: z.string(),
+  note: z.string().nullable(),
+  status: z.enum(['pending', 'invited', 'declined']),
+  createdAt: z.string(),
+});
+export type InviteRequest = z.infer<typeof InviteRequest>;
+export const InviteRequests = z.object({ requests: z.array(InviteRequest) });
+export type InviteRequests = z.infer<typeof InviteRequests>;
+export const InviteAccepted = z.object({
+  request: InviteRequest,
+  loginLink: z.object({ url: z.string(), expiresAt: z.string() }),
+});
+export type InviteAccepted = z.infer<typeof InviteAccepted>;
+
 export const TASTE_MAX = 600;
 
 export const Prefs = z.object({
@@ -490,6 +515,39 @@ export const InboxResponse = z.object({
   hasTaste: z.boolean(),
 });
 export type InboxResponse = z.infer<typeof InboxResponse>;
+
+/** Why a review pick stands out (docs/09, 2026-11-02 "Daily review"). */
+export const ReviewKind = z.enum([
+  'book_early',
+  'perfect_match',
+  'last_chance',
+  'critics',
+  'plan_check',
+  'something_new',
+]);
+export type ReviewKind = z.infer<typeof ReviewKind>;
+export const ReviewPick = z.object({
+  kind: ReviewKind,
+  why: z.string(),
+  /** The web page behind a critics note, when research found one. */
+  sourceUrl: z.string().nullable(),
+  score: z.number().int().nullable(),
+  event: EventListItem,
+});
+export type ReviewPick = z.infer<typeof ReviewPick>;
+/** The daily review on the Inbox: picks that stand out, grouped by category. */
+export const InboxReview = z.object({
+  status: z.enum(['none', 'preparing', 'ready']),
+  day: z.string().nullable(),
+  createdAt: z.string().nullable(),
+  summary: z.string().nullable(),
+  sections: z.array(z.object({ category: Category, picks: z.array(ReviewPick) })),
+  /** Web searches behind this review. */
+  searches: z.number().int(),
+  /** False once today's review exists or one is being prepared. */
+  canRefresh: z.boolean(),
+});
+export type InboxReview = z.infer<typeof InboxReview>;
 
 /** The signed-in user's marks by event slug, for showing them on list rows. */
 export const MyStates = z.object({ states: z.record(z.string(), UserState) });

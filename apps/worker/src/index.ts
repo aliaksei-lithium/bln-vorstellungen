@@ -7,6 +7,7 @@ import { loadUser, sameOrigin, type AppEnv } from './auth';
 import { eventsApi } from './api/events';
 import { scansApi } from './api/scans';
 import { sourcesApi } from './api/sources';
+import { highlightsApi, inviteRequestsApi } from './api/public';
 import { spotifyApi, spotifyPages } from './api/spotify';
 import { authorize, oauth } from './mcp/oauth';
 import { embedMissing } from './ai/embed';
@@ -14,10 +15,11 @@ import { dispatchScoring, rescoreAfterPromptChange } from './ai/score';
 import { markIndexStale, rebuildIndex } from './ai/vector-index';
 import { sweepPassedDates } from './pipeline/next-dates';
 import { dispatchDueSources } from './pipeline/scheduler';
+import { dispatchDailyReviews } from './services/review';
 
 export { ScoreEventsWorkflow } from './pipeline/score-run';
 export { SourceRunWorkflow } from './pipeline/source-run';
-export { EnrichEventWorkflow, ExtractItemWorkflow, PhotoIngestWorkflow } from './workflows';
+export { DailyReviewWorkflow, EnrichEventWorkflow, ExtractItemWorkflow, PhotoIngestWorkflow } from './workflows';
 
 const app = new Hono<AppEnv>();
 
@@ -46,6 +48,8 @@ app.get('/api/health', async (c) => {
 
 app.route('/api/events', eventsApi);
 app.route('/api/sources', sourcesApi);
+app.route('/api/highlights', highlightsApi);
+app.route('/api/invite-requests', inviteRequestsApi);
 app.route('/api/admin', adminApi);
 app.route('/api/auth', authApi);
 app.route('/api/me/scans', scansApi);
@@ -120,6 +124,13 @@ export default {
     } catch (err) {
       console.error('embeddings', String(err));
     }
-    console.log('cron', { cron: controller.cron, swept, started: started.length, embedded, indexed });
+    // Once a day after 05:00 Berlin: the Inbox review for everyone with a taste.
+    let reviews = 0;
+    try {
+      reviews = await dispatchDailyReviews(env, now);
+    } catch (err) {
+      console.error('reviews', String(err));
+    }
+    console.log('cron', { cron: controller.cron, swept, started: started.length, embedded, indexed, reviews });
   },
 } satisfies ExportedHandler<Env>;

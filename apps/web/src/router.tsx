@@ -1,10 +1,10 @@
-import { createRootRoute, createRoute, createRouter } from '@tanstack/react-router';
+import { createRootRoute, createRoute, createRouter, redirect } from '@tanstack/react-router';
 import { AppShell } from '@/components/AppShell';
 import { EmptyState } from '@/components/States';
 import { BrowsePage, BrowseSearch } from '@/pages/Browse';
 import { EventPage } from '@/pages/EventPage';
 import { AgendaPage } from '@/pages/Agenda';
-import { InboxPage } from '@/pages/Inbox';
+import { ForYouPage } from '@/pages/Inbox';
 import { LoginPage } from '@/pages/Login';
 import { MePage } from '@/pages/Me';
 import { ScanPage } from '@/pages/ScanPage';
@@ -29,7 +29,7 @@ const routes = [
       return <EventPage slug={slug} />;
     },
   }),
-  createRoute({ getParentRoute: () => rootRoute, path: '/inbox', component: InboxPage }),
+  createRoute({ getParentRoute: () => rootRoute, path: '/for-you', component: ForYouPage }),
   createRoute({ getParentRoute: () => rootRoute, path: '/agenda', component: AgendaPage }),
   createRoute({ getParentRoute: () => rootRoute, path: '/me', component: MePage }),
   createRoute({
@@ -46,6 +46,14 @@ const routes = [
     component: function ScanRoute() {
       const { id } = scanRoute.useParams();
       return <ScanPage id={id} />;
+    },
+  }),
+  // The old name, for bookmarks and installed shortcuts.
+  createRoute({
+    getParentRoute: () => rootRoute,
+    path: '/inbox',
+    beforeLoad: () => {
+      throw redirect({ to: '/for-you', replace: true });
     },
   }),
 ] as const;

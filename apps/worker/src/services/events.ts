@@ -46,7 +46,7 @@ const listItem = (r: Record<string, unknown>): EventListItem => ({
 });
 
 /** The sources an event came from, for per-user source switches (one small indexed lookup per row). */
-const SOURCE_IDS = `(SELECT group_concat(DISTINCT r.source_id) FROM event_sources es JOIN raw_items r ON r.id = es.raw_item_id
+export const SOURCE_IDS = `(SELECT group_concat(DISTINCT r.source_id) FROM event_sources es JOIN raw_items r ON r.id = es.raw_item_id
                      WHERE es.event_id = e.id AND r.source_id IS NOT NULL) AS source_ids`;
 
 /**

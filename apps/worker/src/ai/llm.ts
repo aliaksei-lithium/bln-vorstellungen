@@ -88,7 +88,7 @@ async function workersAi(env: Env, system: string, user: string, maxTokens: numb
 type ClaudeMessage = {
   content?: { type: string; text?: string }[];
   stop_reason?: string;
-  usage?: { input_tokens?: number; output_tokens?: number };
+  usage?: { input_tokens?: number; output_tokens?: number; server_tool_use?: { web_search_requests?: number } };
 };
 
 async function claude(env: Env, model: ClaudeModel, req: JsonCall<unknown>, maxTokens: number): Promise<Attempt> {
@@ -159,4 +159,43 @@ export async function callJson<T>(env: Env, req: JsonCall<T>): Promise<JsonResul
     if (value === null) throw new Error('Model output was not usable twice');
   }
   return { value, model: attempt.model, neurons, usd };
+}
+
+/** Dollars per web search: Anthropic's list price, $10 per 1,000. */
+export const WEB_SEARCH_USD = 0.01;
+
+/**
+ * One Claude call with the web search server tool, for research notes. Free text, not JSON: search results come back
+ * as cited text blocks. Claude only, with no free fallback; checked against the daily budget for the worst case (every
+ * search used) and metered with the searches.
+ */
+export async function claudeSearch(
+  env: Env,
+  req: { model: ClaudeModel; system: string; user: string; maxUses: number; maxTokens: number; metric: Metric },
+): Promise<{ text: string; model: string; usd: number; searches: number }> {
+  if ((await claudeUsdLeft(env)) < req.maxUses * WEB_SEARCH_USD + 0.01) throw new ClaudeBudgetExhausted();
+  const res = await runModel<ClaudeMessage>(env, req.model, {
+    max_tokens: req.maxTokens,
+    system: [{ type: 'text', text: req.system, cache_control: { type: 'ephemeral' } }],
+    messages: [{ role: 'user', content: req.user }],
+    thinking: { type: 'disabled' },
+    output_config: { effort: 'low' },
+    tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: req.maxUses }],
+  });
+  if (res.stop_reason === 'refusal') throw new Error('Claude declined this request');
+  const searches = res.usage?.server_tool_use?.web_search_requests ?? 0;
+  const usd = claudeUsd(req.model, res.usage) + searches * WEB_SEARCH_USD;
+  await env.DB.batch([
+    bumpUsage(env.DB, 'claude_microusd', usd * 1e6),
+    bumpUsage(env.DB, 'claude_calls', 1),
+    bumpUsage(env.DB, 'claude_tokens_in', res.usage?.input_tokens ?? 0),
+    bumpUsage(env.DB, 'claude_tokens_out', res.usage?.output_tokens ?? 0),
+    bumpUsage(env.DB, 'claude_web_searches', searches),
+    bumpUsage(env.DB, req.metric, 1),
+  ]);
+  const text = (res.content ?? [])
+    .filter((b) => b.type === 'text')
+    .map((b) => b.text ?? '')
+    .join('');
+  return { text, model: req.model, usd, searches };
 }
