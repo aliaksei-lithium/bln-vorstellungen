@@ -282,8 +282,8 @@ Format: date · decision · why · alternatives rejected. Newer entries supersed
   only the live programme, ~10–100 MB of the 10 GB free; one transformation per new event, ~1–3k a month of the 5,000
   free (over the limit, Images returns 9422 on the free plan and charges nothing; the event waits a day); R2 writes
   and deletes ~2 per event of 1M free; reads one per image view of 10M free, fewer with Workers Caching. $0 a month.
-  Keeping past images would grow R2 by ~50 MB a month for pages nobody opens, so they are dropped. Rows in lists keep
-  no thumbnail for now (text-first design, and 30 more requests per list view).
+  Keeping past images would grow R2 by ~50 MB a month for pages nobody opens, so they are dropped. Rows in lists show it
+  as their 48 px thumbnail (lazy; the hatch stays behind it and without one).
 - **2026-11-02 · Discover: a daily editorial page.** A new tab `/discover` (between Browse and For you) reads like a
   magazine page instead of a list: a headline and lede, the lead story beside a short "Focus on" list (two or three
   concrete things to do, each linking to its story), then stories laid out by what they are: rails for dates (this
@@ -305,6 +305,17 @@ Format: date · decision · why · alternatives rejected. Newer entries supersed
   The copy uses the review's model (`SCORE_MODEL`, Haiku): at a tenth of a cent an edition, editorial copy is where
   quality shows; Workers AI stays the automatic fallback inside `callJson`. Rejected: clustering live per request
   (the copy would no longer match the stories).
+- **2026-11-02 · Fifteen more sources; each source says where its images are.** Found by a research pass that
+  fetched every candidate (Berlin Gig Guide and The Next Day on Substack, field notes, Madame Claude, Badehaus,
+  SO36, Index Berlin, Cassiopeia, KM28, HAU, Radialsystem, Siegessäule's sex calendar, Lab.oratory, RAZAM,
+  @standupberlin). Bot walls ruled out berlin-buehnen.de, Rausgegangen, Resident Advisor, Stressfaktor and Radar;
+  JavaScript-only pages ruled out the Philharmonie and tip. Each candidate page was dry-run through
+  `/api/admin/extract` from production before it was added. SO36's shop publishes `tickets.json`, read by a new
+  `ticketshop` adapter without an LLM; RAZAM's iCal also lists Munich and online events, so iCal sources take a
+  `city`; RSS cleans only the entries it keeps (`maxItems`), since a Substack feed carries every post in full (1 MB).
+  Images: a source's `image_mode` (`auto`: its own image, else the event's page; `feed`: its own only; `none`) is set
+  once per source, so pages that never have an image are not fetched for each new event. Luma and Berliner Ensemble
+  start on `feed` (their pages gave nothing for 47 and 19 events).
 - **2026-10-02 · React + Vite + TanStack + Tailwind + shadcn/ui.** Best coverage by design tools and implementing
   models. Rejected: SvelteKit (good, but weaker design-tool output), Next.js on Workers via OpenNext (heavier than
   needed; no SSR requirement since public pages can be cached JSON + client render; revisit if SEO matters).
