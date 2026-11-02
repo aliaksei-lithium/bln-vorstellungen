@@ -17,7 +17,8 @@ export type Metric =
   | 'claude_web_searches'
   | 'ai_review_calls'
   | 'ai_discover_calls'
-  | 'ai_ask_calls';
+  | 'ai_ask_calls'
+  | 'ai_tagline_calls';
 
 export const bumpUsage = (db: D1Database, metric: Metric, by: number, now = new Date()): D1PreparedStatement =>
   db

@@ -379,6 +379,8 @@ export const EventListItem = z.object({
   image: z.string().nullable().optional(),
   /** Members' average score, 0-100 (null before anyone's taste has scored it): Browse's compact view ranks by it. */
   interest: z.number().int().nullable().optional(),
+  /** One line on what the event is, from its description; absent when there was nothing to say. */
+  tagline: z.string().nullable().optional(),
 });
 export type EventListItem = z.infer<typeof EventListItem>;
 

@@ -19,6 +19,7 @@ import { sweepPassedDates } from './pipeline/next-dates';
 import { dispatchDueSources } from './pipeline/scheduler';
 import { dropPastImages, fetchImages } from './services/images';
 import { dispatchDailyReviews } from './services/review';
+import { writeTaglines } from './services/taglines';
 
 export { ScoreEventsWorkflow } from './pipeline/score-run';
 export { SourceRunWorkflow } from './pipeline/source-run';
@@ -152,6 +153,13 @@ export default {
     } catch (err) {
       console.error('reviews', String(err));
     }
+    // A line per new event, for the lists; best effort like the rest of the AI housekeeping.
+    let taglines = 0;
+    try {
+      taglines = await writeTaglines(env, now);
+    } catch (err) {
+      console.error('taglines', String(err));
+    }
     // Images last: they only make the pages nicer.
     let images = 0;
     let dropped = 0;
@@ -170,6 +178,7 @@ export default {
       reviews,
       images,
       dropped,
+      taglines,
     });
   },
 } satisfies ExportedHandler<Env>;

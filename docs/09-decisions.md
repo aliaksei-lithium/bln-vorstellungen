@@ -365,6 +365,13 @@ Format: date · decision · why · alternatives rejected. Newer entries supersed
   with 8MM, Soulcat, OGH and Loge. Discover picks get one line on what the event is and why go (`about`), written in
   the same daily call from the start of each description (`discover@2`): ~1.4k more tokens in, ~750 out, about
   $0.0005 an edition. Picks the model has nothing to say about keep only their fact line.
+- **2026-11-03 · A line per event in the lists.** Titles alone ("Zoh Amba", "Black Communion I") say little. Each
+  upcoming event with a real description (40+ characters; about half of them) gets one line on what it is, written
+  once by `services/taglines.ts` in the cron (40 a run, 20 per Claude Haiku call, `tagline@1`), stored on the event
+  with `tagline_model` and `tagline_prompt`. Only from the event's own text: no knowledge of artists added, and no
+  line when it would only restate the title, category and venue. An event that later gets a description from another
+  source is written again. Shown under the title in every event row (two lines at most) and as Discover's fallback
+  when its own call skipped a pick. About $0.02 per 1,000 events.
 - **2026-10-02 · React + Vite + TanStack + Tailwind + shadcn/ui.** Best coverage by design tools and implementing
   models. Rejected: SvelteKit (good, but weaker design-tool output), Next.js on Workers via OpenNext (heavier than
   needed; no SSR requirement since public pages can be cached JSON + client render; revisit if SEO matters).

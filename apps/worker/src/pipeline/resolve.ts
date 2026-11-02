@@ -155,7 +155,8 @@ export async function resolveEvent(
       db
         .prepare(
           `UPDATE events SET
-             description = COALESCE(description, ?), price_min = COALESCE(price_min, ?),
+             tagline_checked_at = CASE WHEN description IS NULL AND ?1 IS NOT NULL THEN NULL ELSE tagline_checked_at END,
+             description = COALESCE(description, ?1), price_min = COALESCE(price_min, ?),
              price_max = COALESCE(price_max, ?), is_free = MAX(is_free, ?),
              url_official = COALESCE(url_official, ?), url_tickets = COALESCE(url_tickets, ?),
              image_checked_at = CASE WHEN image_src IS NULL AND ?7 IS NOT NULL THEN NULL ELSE image_checked_at END,
