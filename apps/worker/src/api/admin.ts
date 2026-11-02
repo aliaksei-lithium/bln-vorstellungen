@@ -21,6 +21,7 @@ import { createLoginLink, isAdmin, type AppEnv } from '../auth';
 import { HTTPException } from 'hono/http-exception';
 import { startSourceRun } from '../pipeline/scheduler';
 import { acceptInvite, declineInvite, listInviteRequests } from '../services/invites';
+import { buildDiscover } from '../services/discover';
 import { startReview } from '../services/review';
 
 registerBuiltinAdapters();
@@ -386,4 +387,10 @@ adminApi.post('/reviews/run', async (c) => {
   const who = c.req.query('user') ?? null;
   const ok = await startReview(c.env, who, `review-${who ?? 'public'}-manual-${Date.now()}`);
   return c.json({ started: ok }, ok ? 202 : 409);
+});
+
+/** Rebuilds today's Discover now (one model call, no web searches): public, or one user's with `?user=<id>`. */
+adminApi.post('/discover/run', async (c) => {
+  const who = c.req.query('user') ?? null;
+  return c.json({ stories: await buildDiscover(c.env, who) });
 });

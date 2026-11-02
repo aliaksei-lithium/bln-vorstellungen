@@ -7,7 +7,7 @@ import { loadUser, sameOrigin, type AppEnv } from './auth';
 import { eventsApi } from './api/events';
 import { scansApi } from './api/scans';
 import { sourcesApi } from './api/sources';
-import { highlightsApi, inviteRequestsApi } from './api/public';
+import { discoverApi, highlightsApi, inviteRequestsApi } from './api/public';
 import { spotifyApi, spotifyPages } from './api/spotify';
 import { authorize, oauth } from './mcp/oauth';
 import { embedMissing } from './ai/embed';
@@ -49,6 +49,7 @@ app.get('/api/health', async (c) => {
 app.route('/api/events', eventsApi);
 app.route('/api/sources', sourcesApi);
 app.route('/api/highlights', highlightsApi);
+app.route('/api/discover', discoverApi);
 app.route('/api/invite-requests', inviteRequestsApi);
 app.route('/api/admin', adminApi);
 app.route('/api/auth', authApi);
