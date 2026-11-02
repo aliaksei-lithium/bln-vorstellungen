@@ -7,6 +7,10 @@ import {
   UsageOverview,
   Scan,
   ScanCreated,
+  InboxReview,
+  InviteAccepted,
+  InviteRequests,
+  type InviteRequestCreate,
   ScanInsight,
   ScanPlaylistResult,
   type ScanConfirm,
@@ -118,5 +122,15 @@ export const api = {
     request(`/api/me/scans/${enc(id)}/more/${index}`, ScanInsight, { method: 'POST', body: {} }),
   scanPlaylist: (id: string, indexes: number[]) =>
     request(`/api/me/scans/${enc(id)}/playlist`, ScanPlaylistResult, { method: 'POST', body: { indexes } }),
+  review: () => getJson('/api/me/review', InboxReview),
+  prepareReview: () => request('/api/me/review', InboxReview, { method: 'POST', body: {} }),
+  highlights: () => getJson('/api/highlights', InboxReview),
+  requestInvite: (body: InviteRequestCreate) =>
+    request('/api/invite-requests', z.object({ ok: z.boolean() }), { method: 'POST', body }),
+  inviteRequests: () => getJson('/api/admin/invites', InviteRequests),
+  acceptInvite: (id: string) =>
+    request(`/api/admin/invites/${enc(id)}/accept`, InviteAccepted, { method: 'POST', body: {} }),
+  declineInvite: (id: string) =>
+    request(`/api/admin/invites/${enc(id)}/decline`, InviteAccepted.shape.request, { method: 'POST', body: {} }),
   calendarLink: () => request('/api/me/calendar-link', CalendarLink, { method: 'POST', body: {} }),
 };

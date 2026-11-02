@@ -21,7 +21,8 @@ import { toast } from '@/lib/toast';
 import { useTheme, type Theme } from '@/lib/theme';
 import { cn } from '@/lib/utils';
 import { CopyField } from './Agenda';
-import { useVisitorSources } from '@/lib/visitorSources';
+import { InviteRequest } from '@/components/InviteRequest';
+import { useVisitorOptIn, useVisitorSources } from '@/lib/visitorSources';
 
 const head = 'flex h-9 items-center bg-ink px-3 text-xs font-extrabold tracking-[.1em] text-on-ink uppercase';
 
@@ -94,9 +95,12 @@ export function MePage() {
         ) : (
           <>
             <SignIn />
+            <InviteRequest />
+            <VisitorCategories />
             <SourcesBox visitor />
           </>
         )}
+        {user?.isOwner && <InvitesBox />}
         {user?.isOwner && <AiUsage />}
         <Appearance />
         <Status />
@@ -650,6 +654,111 @@ function SourcesBox({ visitor = false }: { visitor?: boolean }) {
             })}
           </ul>
         </>
+      )}
+    </Box>
+  );
+}
+
+/** Opt-in categories for visitors, kept in this browser; off until switched on (docs/09, 2026-11-02). */
+function VisitorCategories() {
+  const optIn = useVisitorOptIn();
+  return (
+    <Box title="Categories" collapsed summary={optIn.on.length ? `${optIn.on.length} opt-in on` : undefined}>
+      <ul className="m-0 list-none p-0">
+        {OPT_IN_CATEGORIES.map((c) => {
+          const on = optIn.on.includes(c);
+          return (
+            <li key={c} className="flex items-center gap-3 border-b border-line px-3 py-2.5 last:border-b-0">
+              <div className="grid min-w-0 flex-1 gap-0.5">
+                <span className="flex items-center gap-2 font-bold">
+                  <CategoryDot category={c} />
+                  {CATEGORY_LABELS[c]}
+                </span>
+                <span className="text-xs text-sub">
+                  Off by default. Switched on, it shows up as a filter in Browse.
+                </span>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={on}
+                aria-label={CATEGORY_LABELS[c]}
+                onClick={() => optIn.set(c, !on)}
+                className={cn(
+                  'h-8 w-14 shrink-0 border border-ink text-xs font-extrabold tracking-[.08em] uppercase',
+                  on ? 'bg-moss text-on-moss' : 'bg-surface text-sub',
+                )}
+              >
+                {on ? 'On' : 'Off'}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </Box>
+  );
+}
+
+/**
+ * Owner only: who asked for an invite. Inviting creates the account (their note becomes a first taste) and a
+ * one-time login link to send them; nothing is emailed from the site.
+ */
+function InvitesBox() {
+  const qc = useQueryClient();
+  const q = useQuery({ queryKey: ['invite-requests'], queryFn: api.inviteRequests });
+  const [links, setLinks] = useState<Record<string, string>>({});
+  const accept = useMutation({
+    mutationFn: api.acceptInvite,
+    onSuccess: (r) => setLinks((l) => ({ ...l, [r.request.id]: r.loginLink.url })),
+  });
+  const decline = useMutation({
+    mutationFn: api.declineInvite,
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['invite-requests'] }),
+  });
+  const pending = q.data?.requests ?? [];
+  return (
+    <Box
+      title="Invite requests"
+      collapsed={pending.length === 0}
+      summary={`${pending.filter((r) => !links[r.id]).length} waiting`}
+    >
+      {pending.length === 0 ? (
+        <p className="m-0 p-3 text-sm text-sub">{q.isPending ? 'Loading…' : 'No requests waiting.'}</p>
+      ) : (
+        <ul className="m-0 list-none p-0">
+          {pending.map((r) => (
+            <li key={r.id} className="grid gap-2 border-b border-line px-3 py-3 last:border-b-0">
+              <div>
+                <div className="font-bold [overflow-wrap:anywhere]">{r.name}</div>
+                <div className="text-sm text-sub [overflow-wrap:anywhere]">
+                  {r.email} · {new Date(r.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                </div>
+                {r.note && <p className="mt-1 mb-0 text-sm [overflow-wrap:anywhere]">“{r.note}”</p>}
+              </div>
+              {links[r.id] ? (
+                <div className="grid gap-1.5">
+                  <span className="text-xs text-sub">Invited. Send them this one-time login link:</span>
+                  <CopyField value={links[r.id]!} />
+                  <a
+                    className="text-sm font-extrabold text-moss"
+                    href={`mailto:${r.email}?subject=${encodeURIComponent('Your invite to BLN Vorstellungen')}&body=${encodeURIComponent(`Hi ${r.name.split(' ')[0]},\n\nhere is your personal login link (one-time, valid for a week):\n${links[r.id]}\n`)}`}
+                  >
+                    Write the email
+                  </a>
+                </div>
+              ) : (
+                <div className="flex gap-2">
+                  <Button size="sm" variant="default" disabled={accept.isPending} onClick={() => accept.mutate(r.id)}>
+                    Invite
+                  </Button>
+                  <Button size="sm" disabled={decline.isPending} onClick={() => decline.mutate(r.id)}>
+                    Decline
+                  </Button>
+                </div>
+              )}
+            </li>
+          ))}
+        </ul>
       )}
     </Box>
   );

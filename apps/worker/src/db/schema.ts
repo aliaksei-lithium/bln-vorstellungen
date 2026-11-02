@@ -482,6 +482,55 @@ export const userEventScores = sqliteTable(
   (t) => [primaryKey({ columns: [t.userId, t.eventId] }), index('user_event_scores_rank_idx').on(t.userId, t.score)],
 );
 
+/**
+ * The daily AI review on the Inbox (docs/09, 2026-11-02): one per user and Berlin day. `content` holds the summary
+ * and the picks by category, each pick with the event id, its kind, why, and a source URL from web research.
+ */
+export const userReviews = sqliteTable(
+  'user_reviews',
+  {
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    day: text('day').notNull(),
+    content: json<Record<string, unknown>>('content').notNull(),
+    model: text('model').notNull(),
+    promptVersion: text('prompt_version').notNull(),
+    /** Web searches made for this review (each costs about a cent). */
+    searches: integer('searches').notNull().default(0),
+    createdAt: createdAt(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.day] })],
+);
+
+/** The public edition of the daily highlights, one per Berlin day (docs/09, 2026-11-02). */
+export const publicReviews = sqliteTable('public_reviews', {
+  day: text('day').primaryKey(),
+  content: json<Record<string, unknown>>('content').notNull(),
+  model: text('model').notNull(),
+  promptVersion: text('prompt_version').notNull(),
+  searches: integer('searches').notNull().default(0),
+  createdAt: createdAt(),
+});
+
+/** "Ask for an invite" from visitors; the owner invites (creates the user and a login link) or declines. */
+export const inviteRequests = sqliteTable(
+  'invite_requests',
+  {
+    id: id(),
+    name: text('name').notNull(),
+    email: text('email').notNull(),
+    note: text('note'),
+    status: text('status', { enum: ['pending', 'invited', 'declined'] })
+      .notNull()
+      .default('pending'),
+    userId: text('user_id').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [index('invite_requests_status_idx').on(t.status, t.createdAt)],
+);
+
 export const usageCounters = sqliteTable(
   'usage_counters',
   {

@@ -1,4 +1,13 @@
-import { SourceCreate, SourceRunView, SourceUpdate, SourceView, UserCreate, type UsageOverview } from '@bln/shared';
+import {
+  SourceCreate,
+  SourceRunView,
+  SourceUpdate,
+  SourceView,
+  UserCreate,
+  type InviteAccepted,
+  type InviteRequests,
+  type UsageOverview,
+} from '@bln/shared';
 import { adapterTypes, getAdapter, hasAdapter, HtmlConfig, htmlAdapter, registerBuiltinAdapters } from '@bln/sources';
 import { z } from 'zod';
 import { configuredProvider, extractEvents } from '../ai/extract';
@@ -11,6 +20,8 @@ import { Hono } from 'hono';
 import { createLoginLink, isAdmin, type AppEnv } from '../auth';
 import { HTTPException } from 'hono/http-exception';
 import { startSourceRun } from '../pipeline/scheduler';
+import { acceptInvite, declineInvite, listInviteRequests } from '../services/invites';
+import { startReview } from '../services/review';
 
 registerBuiltinAdapters();
 
@@ -350,4 +361,29 @@ adminApi.delete('/users/:id', async (c) => {
   const r = await c.env.DB.prepare('DELETE FROM users WHERE id = ?').bind(c.req.param('id')).run();
   if (!r.meta.changes) throw new HTTPException(404, { message: 'User not found' });
   return c.body(null, 204);
+});
+
+/* ---------- invite requests (docs/09, 2026-11-02) ---------- */
+
+adminApi.get('/invites', async (c) => {
+  const status = c.req.query('status');
+  return c.json({
+    requests: await listInviteRequests(
+      c.env.DB,
+      status === 'all' || status === 'invited' || status === 'declined' ? status : 'pending',
+    ),
+  } satisfies InviteRequests);
+});
+
+adminApi.post('/invites/:id/accept', async (c) =>
+  c.json((await acceptInvite(c.env.DB, c.req.param('id'), new URL(c.req.url).origin)) satisfies InviteAccepted, 201),
+);
+
+adminApi.post('/invites/:id/decline', async (c) => c.json(await declineInvite(c.env.DB, c.req.param('id'))));
+
+/** Starts the daily highlights now: the public edition, or one user's with `?user=<id>` (testing, a missed day). */
+adminApi.post('/reviews/run', async (c) => {
+  const who = c.req.query('user') ?? null;
+  const ok = await startReview(c.env, who, `review-${who ?? 'public'}-manual-${Date.now()}`);
+  return c.json({ started: ok }, ok ? 202 : 409);
 });

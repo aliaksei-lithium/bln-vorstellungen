@@ -18,9 +18,9 @@
   ],
   "shortcuts": [
     {
-      "name": "Inbox",
-      "short_name": "Inbox",
-      "url": "/inbox",
+      "name": "For you",
+      "short_name": "For you",
+      "url": "/for-you",
       "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
     },
     {

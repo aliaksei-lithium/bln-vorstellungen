@@ -57,6 +57,20 @@
       "when": 1793574625728,
       "tag": "0007_source_default_off",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1793575664622,
+      "tag": "0008_user_reviews",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1793589312107,
+      "tag": "0009_highlights_invites",
+      "breakpoints": true
     }
   ]
 }

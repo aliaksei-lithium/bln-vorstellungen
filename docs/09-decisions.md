@@ -250,6 +250,26 @@ Format: date · decision · why · alternatives rejected. Newer entries supersed
   affected by the defaults. Event pages list their public sources with links, or "Added from a photo or text". Each
   date offers "Add to calendar": a Google Calendar link built in the browser, or `GET /api/events/:slug/ics?date=`
   (one VEVENT, Berlin wall-clock with TZID, all-day when the source gave no time). Both work without signing in.
+- **2026-11-02 · Daily highlights; Inbox becomes "For you".** Each morning (cron, first tick after 05:00 Berlin) a
+  `DailyReviewWorkflow` per user with a taste, plus one public edition. Step 1, free: candidates from the user's
+  scores for the next 6 months (public: members' average score as a sign of interest, nudged by sold-out dates,
+  several sources, far ahead; events only listed by venues visitors start without stay out), each with facts the
+  score does not show: days ahead, dates left, sold-out dates, sources, a clash with the agenda. Step 2: Claude Haiku
+  with the web search tool (`web_search_20250305`, at most 4 searches, ~$0.04; skipped when the day's Claude budget
+  is short) looks up reviews and demand for the strongest few. Step 3: one structured call (`review@1`) picks at most
+  10 events in at most 4 category sections, each with a kind (book early, made for you, last chance, critics, check
+  your plan, something new) and a one-line why; "book early" closer than 3 weeks is relabelled in code. Stored in
+  `user_reviews` / `public_reviews` with model and prompt versions; read back without events that passed or were
+  hidden or skipped since. The Inbox tab is renamed "For you" (`/for-you`, `/inbox` redirects): Highlights and Quick
+  picks (the old deck). Visitors see the public edition. Users may ask for today's highlights once a day; the owner
+  can start runs at `POST /api/admin/reviews/run`. MCP gets `my_highlights`.
+- **2026-11-02 · Invite requests; visitor opt-ins.** Visitors can ask for an invite (name, email, what they like;
+  honeypot field, 30 requests a day site-wide, one pending per email). The owner answers on the Me page or through
+  MCP (`list_invite_requests`, `invite_requester`, `decline_invite_request`, owner only): inviting creates the account
+  with the note as a first taste and returns a one-time login link to send. Nothing is emailed: Cloudflare Email
+  Sending needs a domain onboarded to the account, and the site lives on workers.dev; with a domain, a `send_email`
+  binding can notify the owner. Deutsches Theater joins the venues visitors start without. Visitors can switch on the
+  opt-in "Sex-positive & kink" category in their browser (off by default), which adds its Browse filter.
 - **2026-10-02 · React + Vite + TanStack + Tailwind + shadcn/ui.** Best coverage by design tools and implementing
   models. Rejected: SvelteKit (good, but weaker design-tool output), Next.js on Workers via OpenNext (heavier than
   needed; no SSR requirement since public pages can be cached JSON + client render; revisit if SEO matters).

@@ -1,5 +1,5 @@
 import { Link, Outlet, useRouterState } from '@tanstack/react-router';
-import { CalendarDays, Camera, Inbox, List, User } from 'lucide-react';
+import { CalendarDays, Camera, Compass, List, User } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { ScanSheet } from './ScanSheet';
 import { Tower } from './Tower';
@@ -44,7 +44,7 @@ export function TopBar({ right, children }: { right?: ReactNode; children?: Reac
 
 const NAV = [
   { to: '/', label: 'Browse', Icon: List },
-  { to: '/inbox', label: 'Inbox', Icon: Inbox },
+  { to: '/for-you', label: 'For you', Icon: Compass },
   { to: '/agenda', label: 'Agenda', Icon: CalendarDays },
   { to: '/me', label: 'Me', Icon: User },
 ] as const;
@@ -101,7 +101,7 @@ export function AppShell() {
         >
           <div className="mx-auto flex h-16 max-w-[600px] px-[env(safe-area-inset-left,0px)]">
             <NavLink {...NAV[0]} active={isActive('/')} />
-            <NavLink {...NAV[1]} active={isActive('/inbox')} />
+            <NavLink {...NAV[1]} active={isActive('/for-you')} />
             <button
               type="button"
               onClick={() => setScanOpen(true)}

@@ -220,11 +220,15 @@ describe('MCP server', () => {
       [
         'add_events_from_text',
         'confirm_events',
+        'decline_invite_request',
         'get_event',
         'get_taste',
+        'invite_requester',
         'list_events',
+        'list_invite_requests',
         'mark_event',
         'my_agenda',
+        'my_highlights',
         'my_picks',
         'search_events',
         'set_taste',
@@ -269,5 +273,34 @@ describe('MCP server', () => {
     const add = await tool(token, 'add_events_from_text', { text: 'Konzert am Freitag 20 Uhr im Lido, 15 €.' });
     expect(add.isError).toBe(true);
     expect(add.text).toContain('read-only');
+  });
+
+  it('lets only the owner list and answer invite requests', async () => {
+    const asked = await call('/api/invite-requests', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'Lena Berg', email: 'Lena@Example.org', note: 'Opera and free jazz' }),
+    });
+    expect(asked.status).toBe(201);
+    const token = await connect(session, ['mcp:read', 'mcp:write']);
+    await initialize(token);
+    // Mia is no owner yet.
+    expect((await tool(token, 'list_invite_requests')).text).toContain('Only the site owner');
+    await env.DB.prepare(`UPDATE users SET is_owner = 1 WHERE email = 'mia@example.org'`).run();
+
+    const list = await tool(token, 'list_invite_requests');
+    expect(list.text).toContain('Lena Berg <lena@example.org>');
+    expect(list.text).toContain('Likes (their words): "Opera and free jazz"');
+    const id = /id `([^`]+)`/.exec(list.text)![1]!;
+    const invited = await tool(token, 'invite_requester', { id });
+    expect(invited.isError).toBe(false);
+    expect(invited.text).toMatch(/http:\/\/localhost\/login\/\S+/);
+    const taste = await env.DB.prepare(
+      `SELECT p.taste_text FROM users u JOIN user_profiles p ON p.user_id = u.id WHERE u.email = 'lena@example.org'`,
+    ).first<{ taste_text: string }>();
+    expect(taste?.taste_text).toBe('Opera and free jazz'); // their note is a first taste
+    expect((await tool(token, 'list_invite_requests')).text).toBe('No requests waiting.');
+    expect((await tool(token, 'decline_invite_request', { id })).text).toContain('already invited');
+    await env.DB.prepare(`UPDATE users SET is_owner = 0 WHERE email = 'mia@example.org'`).run();
   });
 });

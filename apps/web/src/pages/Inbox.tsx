@@ -9,7 +9,7 @@ import {
 } from '@bln/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from '@tanstack/react-router';
-import { ChevronRight, Clock, Heart, HelpCircle, MapPin, Ticket, Undo2, X } from 'lucide-react';
+import { ChevronRight, Clock, Heart, HelpCircle, Loader2, MapPin, Ticket, Undo2, X } from 'lucide-react';
 import {
   useCallback,
   useEffect,
@@ -21,6 +21,8 @@ import {
 } from 'react';
 import { TopBar } from '@/components/AppShell';
 import { CategoryChip } from '@/components/CategoryChip';
+import { HighlightsView } from '@/components/Highlights';
+import { InviteRequest } from '@/components/InviteRequest';
 import { hatchAngle } from '@/components/EventRow';
 import { ScoreBox, WhyThis } from '@/components/Score';
 import { EmptyState, ErrorState, ListSkeleton } from '@/components/States';
@@ -35,32 +37,164 @@ const SWIPE_PX = 90;
 /** Invite-only: what anonymous visitors see on personal tabs. */
 export function SignedOut({ title }: { title: string }) {
   return (
-    <EmptyState
-      title={title}
-      action={
-        <Button asChild>
-          <Link to="/">Browse all events</Link>
-        </Button>
-      }
-    >
-      Personal picks are for invited people. The site stays open to everyone; ask the owner for a login link to get your
-      own ranked inbox.
-    </EmptyState>
+    <div className="grid gap-3">
+      <EmptyState
+        title={title}
+        action={
+          <Button asChild>
+            <Link to="/">Browse all events</Link>
+          </Button>
+        }
+      >
+        Personal picks and an agenda are for invited people. The site stays open to everyone.
+      </EmptyState>
+      <InviteRequest />
+    </div>
   );
 }
 
-export function InboxPage() {
+type View = 'highlights' | 'picks';
+const VIEW_KEY = 'bln.forYouView';
+
+/**
+ * For you (docs/09, 2026-11-02; was "Inbox"): signed in, your highlights of the day and quick picks to sort; signed
+ * out, the public edition of the highlights and a way to ask for an invite.
+ */
+export function ForYouPage() {
   const { user, isPending } = useMe();
-  if (isPending) return <TopBar right="Inbox" />;
-  if (!user) {
+  const [view, setView] = useState<View>(() => {
+    try {
+      return localStorage.getItem(VIEW_KEY) === 'picks' ? 'picks' : 'highlights';
+    } catch {
+      return 'highlights';
+    }
+  });
+  if (isPending) return <TopBar right="For you" />;
+  if (!user) return <PublicForYou />;
+  const choose = (v: View) => {
+    setView(v);
+    try {
+      localStorage.setItem(VIEW_KEY, v);
+    } catch {
+      // Storage blocked: the choice holds for this visit.
+    }
+  };
+  const tabs = (
+    <div className="mb-3 flex" role="tablist" aria-label="For you">
+      {(
+        [
+          ['highlights', 'Highlights'],
+          ['picks', 'Quick picks'],
+        ] as const
+      ).map(([v, label]) => (
+        <Button
+          key={v}
+          role="tab"
+          aria-selected={view === v}
+          aria-pressed={view === v}
+          className="-ml-px flex-1 first:ml-0"
+          onClick={() => choose(v)}
+        >
+          {label}
+        </Button>
+      ))}
+    </div>
+  );
+  return view === 'picks' ? <Inbox tabs={tabs} /> : <MyHighlights tabs={tabs} />;
+}
+
+function MyHighlights({ tabs }: { tabs: ReactNode }) {
+  const qc = useQueryClient();
+  const review = useQuery({
+    queryKey: ['review'],
+    queryFn: api.review,
+    refetchInterval: (q) => (q.state.data?.status === 'preparing' ? 4000 : false),
+  });
+  const prepare = useMutation({
+    mutationFn: api.prepareReview,
+    onSuccess: (r) => qc.setQueryData(['review'], r),
+  });
+  const head = (
+    <TopBar right="For you">
+      {tabs}
+      <div className="pb-3">
+        <div className="eyebrow">Your highlights</div>
+        <div className="mt-1 text-sm text-sub">What deserves your attention in the coming months, and why</div>
+      </div>
+    </TopBar>
+  );
+  if (review.isPending)
     return (
       <>
-        <TopBar right="Inbox" />
-        <SignedOut title="Your picks land here" />
+        {head}
+        <ListSkeleton />
       </>
     );
-  }
-  return <Inbox />;
+  if (review.isError)
+    return (
+      <>
+        {head}
+        <ErrorState message={review.error.message} onRetry={() => review.refetch()} />
+      </>
+    );
+  const r = review.data;
+  const prepareButton = (label: string, variant: 'default' | 'outline') => (
+    <Button variant={variant} disabled={prepare.isPending} onClick={() => prepare.mutate()}>
+      {prepare.isPending && <Loader2 className="animate-spin" aria-hidden />}
+      {label}
+    </Button>
+  );
+  return (
+    <>
+      {head}
+      <HighlightsView
+        review={r}
+        personal
+        empty={
+          <EmptyState
+            title="Your highlights arrive every morning"
+            action={r.canRefresh && prepareButton('Prepare them now', 'default')}
+          >
+            Each morning the coming months are gone through for you: what to book early, what is made for you, what ends
+            soon, and what critics say.
+          </EmptyState>
+        }
+      />
+      {r.day && r.canRefresh && (
+        <div className="mt-3 flex justify-center">{prepareButton('Refresh for today', 'outline')}</div>
+      )}
+    </>
+  );
+}
+
+function PublicForYou() {
+  const review = useQuery({ queryKey: ['highlights'], queryFn: api.highlights, staleTime: 300_000 });
+  return (
+    <>
+      <TopBar right="For you">
+        <div className="pb-3">
+          <div className="eyebrow">Today’s highlights</div>
+          <div className="mt-1 text-sm text-sub">
+            The best of Berlin’s coming months: what to book now and what ends soon
+          </div>
+        </div>
+      </TopBar>
+      <div className="grid gap-3">
+        {review.isPending ? (
+          <ListSkeleton />
+        ) : review.isError ? (
+          <ErrorState message={review.error.message} onRetry={() => review.refetch()} />
+        ) : (
+          <HighlightsView
+            review={review.data}
+            personal={false}
+            empty={<EmptyState title="Highlights come every morning">The first edition is on its way.</EmptyState>}
+          />
+        )}
+        <InviteRequest />
+      </div>
+    </>
+  );
 }
 
 /** How many picks a round holds: the best matches, then a few from outside the usual (docs/09, 2026-11-01). */
@@ -82,7 +216,7 @@ function pickRound(items: ScoredItem[]): { slugs: string[]; different: Set<strin
   return { slugs: [...top, ...extra].map((i) => i.slug), different: new Set(extra.map((i) => i.slug)) };
 }
 
-function Inbox() {
+function Inbox({ tabs }: { tabs: ReactNode }) {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const [range, setRange] = useState<Range>('all');
@@ -157,7 +291,8 @@ function Inbox() {
   const left = inbox.data?.items.length ?? 0;
 
   const head = (
-    <TopBar right="Inbox">
+    <TopBar right="For you">
+      {tabs}
       <div className="flex items-end justify-between gap-3 pb-3">
         <div>
           <div className="eyebrow">Your picks</div>

@@ -1,3 +1,4 @@
+import type { Category } from '@bln/shared';
 import { useQuery } from '@tanstack/react-query';
 import { useCallback, useSyncExternalStore } from 'react';
 import { api } from './api';
@@ -55,4 +56,32 @@ export function useVisitorSources(enabled = true) {
     [off],
   );
   return { sources, off, set };
+}
+
+const OPT_IN_KEY = 'bln.categoriesOn';
+const readOptIn = () => {
+  try {
+    return localStorage.getItem(OPT_IN_KEY);
+  } catch {
+    return null;
+  }
+};
+
+/** Opt-in categories (sex-positive and kink) a visitor switched on in this browser; none by default. */
+export function useVisitorOptIn() {
+  const raw = useSyncExternalStore(subscribe, readOptIn, () => null);
+  const on = (parse(raw) ?? []) as Category[];
+  const set = useCallback(
+    (c: Category, value: boolean) => {
+      const next = value ? [...new Set([...on, c])] : on.filter((x) => x !== c);
+      try {
+        localStorage.setItem(OPT_IN_KEY, JSON.stringify(next));
+      } catch {
+        // Storage blocked: holds until the page reloads.
+      }
+      listeners.forEach((fn) => fn());
+    },
+    [on],
+  );
+  return { on, set };
 }
