@@ -14,7 +14,6 @@ import {
   type DiscoverEdition,
   type InboxReview,
   type AskResponse,
-  berlinToday,
 } from '@bln/shared';
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
@@ -34,7 +33,7 @@ import { agendaItems, eventIdBySlug, inbox, inboxUntil, myEvent, setEventState, 
 import { hasPassword, setPassword, signInWithPassword } from '../passwords';
 import { ask, askLeft } from '../services/ask';
 import { getDiscover } from '../services/discover';
-import { getReview, startReview } from '../services/review';
+import { getReview, rebuildNow } from '../services/review';
 import { sourcesOverview } from '../services/sources';
 import { agendaIcs } from './ics';
 
@@ -164,13 +163,11 @@ meApi.get('/review', async (c) => {
   return c.json((await getReview(c.env, user.id)) satisfies InboxReview);
 });
 
-/** Prepares today's review now, when there is none yet; at most one a day per user. */
+/** Prepares today's review and Discover now: the day's first, or a rebuild (a few a day, docs/09 2026-11-04). */
 meApi.post('/review', async (c) => {
   const user = requireUser(c);
-  const current = await getReview(c.env, user.id);
-  if (!current.canRefresh) return c.json(current);
-  await startReview(c.env, user.id, `review-${user.id}-${berlinToday()}-now`);
-  return c.json(await getReview(c.env, user.id), 202);
+  const started = await rebuildNow(c.env, user.id);
+  return c.json(await getReview(c.env, user.id), started ? 202 : 200);
 });
 
 /** Ask (docs/11): what is left of today's questions and searches, for the box before the first question. */

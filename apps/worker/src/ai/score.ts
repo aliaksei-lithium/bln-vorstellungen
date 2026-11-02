@@ -306,14 +306,24 @@ export async function rescoreAfterPromptChange(env: Env, now = new Date()): Prom
 }
 
 /** Starts a ScoreEvents run per user (all users, or one). Instance ids keep a re-dispatch within a minute idempotent. */
-export async function dispatchScoring(env: Env, userId?: string, now = new Date()): Promise<number> {
+export async function dispatchScoring(
+  env: Env,
+  userId?: string,
+  now = new Date(),
+  opts: { rebuild?: boolean } = {},
+): Promise<number> {
   const { results } = userId
     ? { results: [{ id: userId }] }
     : await env.DB.prepare('SELECT id FROM users').all<{ id: string }>();
   const minute = Math.floor(now.getTime() / 60_000);
   for (const u of results) {
     try {
-      await env.SCORE_EVENTS.create({ id: `score-${u.id}-${minute}`, params: { userId: u.id } });
+      // A rebuild run gets its own id, so a plain run started the same minute does not swallow it.
+      const rebuild = !!userId && !!opts.rebuild;
+      await env.SCORE_EVENTS.create({
+        id: `score-${u.id}-${minute}${rebuild ? '-rebuild' : ''}`,
+        params: { userId: u.id, ...(rebuild ? { rebuild } : {}) },
+      });
     } catch (err) {
       // An instance with this id already exists: a run for this user started this minute.
       console.warn('score dispatch', u.id, String(err));

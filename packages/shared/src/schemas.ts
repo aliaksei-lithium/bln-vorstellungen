@@ -597,6 +597,8 @@ export const InboxReview = z.object({
   searches: z.number().int(),
   /** False once today's review exists or one is being prepared. */
   canRefresh: z.boolean(),
+  /** Rebuilds of today's Discover and For you the user can still ask for on the Me page (a few a day); 0 for visitors. */
+  rebuildsLeft: z.number().int().nonnegative().default(0),
 });
 export type InboxReview = z.infer<typeof InboxReview>;
 

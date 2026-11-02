@@ -3,6 +3,7 @@ import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { dispatchScoring, refreshTaste } from '../ai/score';
 import { requireUser, type AppEnv } from '../auth';
+import { claimTasteRebuild } from '../services/review';
 import { bandcampStatus, connect, disconnect, syncArtists } from '../bandcamp';
 
 /** The JSON API under /api/me/bandcamp. No browser redirects: connecting is the fan name, not a sign-in. */
@@ -16,7 +17,9 @@ bandcampApi.put('/', async (c) => {
   if (!body.success) throw new HTTPException(400, { message: 'Give your Bandcamp fan name.' });
   await connect(c.env, user.id, body.data.username);
   await refreshTaste(c.env, user.id);
-  c.executionCtx.waitUntil(dispatchScoring(c.env, user.id));
+  // New artists: re-score, then rebuild Discover and For you with the new scores.
+  const rebuild = await claimTasteRebuild(c.env, user.id);
+  c.executionCtx.waitUntil(dispatchScoring(c.env, user.id, undefined, { rebuild }));
   return c.json(await bandcampStatus(c.env.DB, user.id));
 });
 

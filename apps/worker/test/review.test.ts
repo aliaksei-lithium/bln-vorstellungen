@@ -4,14 +4,18 @@ import { describe, expect, it } from 'vitest';
 import { refreshAllNextDates } from '../src/pipeline/next-dates';
 import { parseResearch } from '../src/ai/prompts/review';
 import {
+  REBUILDS_PER_DAY,
+  TASTE_REBUILDS_PER_DAY,
+  claimTasteRebuild,
   composeReview,
   dispatchDailyReviews,
   gatherCandidates,
   getReview,
+  rebuildNow,
   research,
   researchPicks,
 } from '../src/services/review';
-import { loadProfile } from '../src/ai/score';
+import { dispatchScoring, loadProfile } from '../src/ai/score';
 
 /** The daily Inbox review with a stubbed Claude: candidates and their facts, web notes, the review, reading it back. */
 
@@ -253,5 +257,59 @@ describe('daily review', () => {
     expect(n).toBeGreaterThan(0);
     expect(started.every((id) => id.endsWith('-2026-12-01'))).toBe(true);
     expect(await dispatchDailyReviews(e, new Date('2026-12-01T09:00:00Z'))).toBe(0); // already today
+  });
+
+  it("rebuilds on demand: the day's first, then a few a day, never while one is running", async () => {
+    const uid = await user('Rae');
+    const started: string[] = [];
+    const e = {
+      ...env,
+      DAILY_REVIEW: { create: async ({ id }: { id: string }) => void started.push(id) },
+    } as unknown as Env;
+    const now = new Date('2026-12-02T10:00:00Z');
+    const running = () => env.CACHE.delete(`review-running:${uid}`);
+    // No edition today: the day's own run, which costs no rebuild.
+    expect(await rebuildNow(e, uid, now)).toBe(true);
+    expect(await rebuildNow(e, uid, now)).toBe(false); // still preparing
+    await running();
+    await env.DB.prepare(
+      `INSERT INTO user_reviews (user_id, day, content, model, prompt_version) VALUES (?, '2026-12-02', ?, 'm', 'v')`,
+    )
+      .bind(uid, JSON.stringify({ summary: 's', sections: [] }))
+      .run();
+    expect(await getReview(e, uid, now)).toMatchObject({ rebuildsLeft: REBUILDS_PER_DAY, canRefresh: false });
+    for (let i = 0; i < REBUILDS_PER_DAY; i++) {
+      expect(await rebuildNow(e, uid, now)).toBe(true);
+      await running();
+    }
+    expect(await rebuildNow(e, uid, now)).toBe(false);
+    expect((await getReview(e, uid, now)).rebuildsLeft).toBe(0);
+    expect(started).toEqual([
+      `review-${uid}-2026-12-02-now`,
+      ...Array.from({ length: REBUILDS_PER_DAY }, (_, i) => `review-${uid}-2026-12-02-again-${i + 1}`),
+    ]);
+    // A new Berlin day brings them back.
+    expect((await getReview(e, uid, new Date('2026-12-03T10:00:00Z'))).rebuildsLeft).toBe(REBUILDS_PER_DAY);
+  });
+
+  it('rebuilds after a music service is connected, once scores are in, a few times a day', async () => {
+    const uid = await user('Sam');
+    const now = new Date('2026-12-04T10:00:00Z');
+    for (let i = 0; i < TASTE_REBUILDS_PER_DAY; i++) expect(await claimTasteRebuild(env, uid, now)).toBe(true);
+    expect(await claimTasteRebuild(env, uid, now)).toBe(false);
+    // For you shows it is on its way right away.
+    expect((await getReview(env, uid, now)).status).toBe('preparing');
+    const runs: { id: string; params: unknown }[] = [];
+    const e = {
+      ...env,
+      SCORE_EVENTS: { create: async (r: { id: string; params: unknown }) => void runs.push(r) },
+    } as unknown as Env;
+    await dispatchScoring(e, uid, now);
+    await dispatchScoring(e, uid, now, { rebuild: true });
+    const minute = Math.floor(now.getTime() / 60_000);
+    expect(runs).toEqual([
+      { id: `score-${uid}-${minute}`, params: { userId: uid } },
+      { id: `score-${uid}-${minute}-rebuild`, params: { userId: uid, rebuild: true } },
+    ]);
   });
 });

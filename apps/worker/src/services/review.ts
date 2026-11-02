@@ -35,6 +35,9 @@ export const MAX_SEARCHES = 4;
 const FAR_DAYS = 42;
 export const REVIEW_HOUR = 5;
 const RUNNING_TTL = 900;
+/** Manual rebuilds of today's edition, per user and Berlin day: each one can spend web searches. */
+export const REBUILDS_PER_DAY = 3;
+const rebuildKey = (userId: string, day: string) => `rebuilds:${userId}:${day}`;
 const DAY_MS = 86_400_000;
 
 export type Candidate = {
@@ -376,6 +379,7 @@ function shape(
   preparing: boolean,
   sections: InboxReview['sections'],
   today: string,
+  rebuildsLeft = 0,
 ): InboxReview {
   if (!row) {
     return {
@@ -386,6 +390,7 @@ function shape(
       sections: [],
       searches: 0,
       canRefresh: !preparing,
+      rebuildsLeft,
     };
   }
   return {
@@ -396,22 +401,40 @@ function shape(
     sections,
     searches: row.searches,
     canRefresh: row.day !== today && !preparing,
+    rebuildsLeft,
   };
 }
 
 /** A user's latest review. */
 export async function getReview(env: Env, userId: string, now = new Date()): Promise<InboxReview> {
-  const [row, running, profile] = await Promise.all([
+  const today = berlinToday(now);
+  const [row, running, used, profile] = await Promise.all([
     env.DB.prepare(
       `SELECT day, content, searches, created_at FROM user_reviews WHERE user_id = ? ORDER BY day DESC LIMIT 1`,
     )
       .bind(userId)
       .first<ReviewRow>(),
     env.CACHE.get(runningKey(userId)),
+    env.CACHE.get(rebuildKey(userId, today)),
     loadProfile(env.DB, userId),
   ]);
   const sections = row ? await readBack(env, row, { userId, hidden: hiddenCategories(profile.prefs) }, now) : [];
-  return shape(row, !!running, sections, berlinToday(now));
+  return shape(row, !!running, sections, today, Math.max(0, REBUILDS_PER_DAY - Number(used ?? 0)));
+}
+
+/**
+ * The user asks for a fresh Discover and For you now. Without today's edition yet it is the day's own run; once it
+ * exists, a rebuild, at most REBUILDS_PER_DAY a day. Nothing starts while one is being prepared.
+ */
+export async function rebuildNow(env: Env, userId: string, now = new Date()): Promise<boolean> {
+  const current = await getReview(env, userId, now);
+  if (current.status === 'preparing') return false;
+  const day = berlinToday(now);
+  if (current.day !== day) return startReview(env, userId, `review-${userId}-${day}-now`);
+  if (!current.rebuildsLeft) return false;
+  const n = REBUILDS_PER_DAY - current.rebuildsLeft + 1;
+  await env.CACHE.put(rebuildKey(userId, day), String(n), { expirationTtl: 2 * 86_400 });
+  return startReview(env, userId, `review-${userId}-${day}-again-${n}`);
 }
 
 /** The latest public edition. Visitors cannot ask for a fresh one. */
@@ -517,6 +540,25 @@ export async function startReview(env: Env, who: Audience, id: string): Promise<
     return false;
   }
   await env.CACHE.put(runningKey(who), '1', { expirationTtl: RUNNING_TTL });
+  return true;
+}
+
+/** Rebuilds after a music service is connected, per user and Berlin day: each one can spend web searches. */
+export const TASTE_REBUILDS_PER_DAY = 3;
+
+/**
+ * After a music service is connected: whether Discover and For you may be rebuilt for this user once the new scores
+ * are in (at most TASTE_REBUILDS_PER_DAY a day). When yes, For you shows "preparing" right away; the score run
+ * starts the rebuild when it is done (pipeline/score-run.ts).
+ */
+export async function claimTasteRebuild(env: Env, userId: string, now = new Date()): Promise<boolean> {
+  const key = `taste-rebuilds:${userId}:${berlinToday(now)}`;
+  const used = Number((await env.CACHE.get(key)) ?? 0);
+  if (used >= TASTE_REBUILDS_PER_DAY) return false;
+  await Promise.all([
+    env.CACHE.put(key, String(used + 1), { expirationTtl: 2 * 86_400 }),
+    env.CACHE.put(runningKey(userId), '1', { expirationTtl: RUNNING_TTL }),
+  ]);
   return true;
 }
 

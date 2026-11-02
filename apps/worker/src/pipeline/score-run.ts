@@ -1,7 +1,12 @@
 import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from 'cloudflare:workers';
 import { LLM_BATCH, scoreByRules, scoreWithLlm } from '../ai/score';
+import { startReview } from '../services/review';
 
-export type ScoreParams = { userId: string };
+export type ScoreParams = {
+  userId: string;
+  /** Then rebuild the user's Discover and For you with the new scores (a music service was just connected). */
+  rebuild?: boolean;
+};
 
 /**
  * ScoreEvents (docs/08 phase 2): rules + embeddings for every unscored upcoming event of one user, then the LLM
@@ -26,6 +31,10 @@ export class ScoreEventsWorkflow extends WorkflowEntrypoint<Env, ScoreParams> {
         console.error('score llm batch failed', { userId, err: String(err) });
       }
     }
-    return { scored: rules.scored, llm };
+    // A step, so a retry of the workflow does not start a second rebuild.
+    const rebuilt = event.payload.rebuild
+      ? await step.do('rebuild', () => startReview(this.env, userId, `review-${userId}-${event.instanceId}`))
+      : false;
+    return { scored: rules.scored, llm, rebuilt };
   }
 }
