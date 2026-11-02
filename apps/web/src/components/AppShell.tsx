@@ -91,7 +91,7 @@ export function AppShell() {
 
   return (
     <>
-      <Tower />
+      <Tower aboveNav={!pushed} />
       <div
         className={cn(
           'gutter relative z-[1] mx-auto max-w-[600px]',
