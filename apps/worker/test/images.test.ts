@@ -22,7 +22,9 @@ function fakeImages(calls: unknown[]) {
   return { input: () => t } as unknown as ImagesBinding;
 }
 
-const withImages = (images: ImagesBinding) => Object.assign(Object.create(env) as Env, { IMAGES: images });
+/** `env` with a fake Images binding, read-only: assigning onto an object made from `env` writes through to it. */
+const withImages = (images: ImagesBinding) =>
+  new Proxy(env, { get: (t, k) => (k === 'IMAGES' ? images : Reflect.get(t, k)) }) as Env;
 
 async function addEvent(id: string, cols: Record<string, string | null>) {
   const names = Object.keys(cols);

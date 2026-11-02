@@ -1,4 +1,5 @@
 import {
+  AskRequest,
   LoginRequest,
   PasswordLogin,
   PasswordSet,
@@ -12,6 +13,7 @@ import {
   type Profile,
   type DiscoverEdition,
   type InboxReview,
+  type AskResponse,
   berlinToday,
 } from '@bln/shared';
 import { Hono } from 'hono';
@@ -30,6 +32,7 @@ import {
 } from '../auth';
 import { agendaItems, eventIdBySlug, inbox, inboxUntil, myEvent, setEventState, statesBySlug } from '../services/me';
 import { hasPassword, setPassword, signInWithPassword } from '../passwords';
+import { ask, askLeft } from '../services/ask';
 import { getDiscover } from '../services/discover';
 import { getReview, startReview } from '../services/review';
 import { sourcesOverview } from '../services/sources';
@@ -168,6 +171,19 @@ meApi.post('/review', async (c) => {
   if (!current.canRefresh) return c.json(current);
   await startReview(c.env, user.id, `review-${user.id}-${berlinToday()}-now`);
   return c.json(await getReview(c.env, user.id), 202);
+});
+
+/** Ask (docs/11): what is left of today's questions and searches, for the box before the first question. */
+meApi.get('/ask', async (c) => c.json(await askLeft(c.env, requireUser(c).id)));
+
+/** Ask: one question with the conversation so far (kept in the browser), answered from the programme and the web. */
+meApi.post('/ask', async (c) => {
+  const user = requireUser(c);
+  const body = AskRequest.safeParse(await c.req.json().catch(() => null));
+  if (!body.success || body.data.turns.at(-1)?.role !== 'user') {
+    throw new HTTPException(400, { message: 'Send the conversation, ending with your question.' });
+  }
+  return c.json((await ask(c.env, user.id, body.data.turns)) satisfies AskResponse);
 });
 
 /** Discover (docs/09, 2026-11-02): the latest edition; the first one is built on the spot. */

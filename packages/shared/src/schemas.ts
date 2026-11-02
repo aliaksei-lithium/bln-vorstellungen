@@ -443,6 +443,13 @@ export const SpotifyStatus = z.object({
   canPlaylist: z.boolean().default(false),
 });
 export type SpotifyStatus = z.infer<typeof SpotifyStatus>;
+
+/** YouTube Music (docs/09, 2026-11-03): artists from liked songs and subscribed music channels. */
+export const YoutubeStatus = SpotifyStatus.omit({ canPlaylist: true }).extend({
+  /** Whether the site has Google credentials; without them the box explains instead of offering to connect. */
+  available: z.boolean(),
+});
+export type YoutubeStatus = z.infer<typeof YoutubeStatus>;
 export type PasswordStatus = z.infer<typeof PasswordStatus>;
 
 export const LoginLink = z.object({ url: z.url(), expiresAt: UtcInstant });
@@ -664,3 +671,38 @@ export const AgendaResponse = z.object({ items: z.array(AgendaItem) });
 export type AgendaResponse = z.infer<typeof AgendaResponse>;
 
 export const CalendarLink = z.object({ url: z.url() });
+
+/** Ask (docs/09, 2026-11-02): a signed-in user's question about what's on, answered from the programme and the web. */
+export const AskTurn = z.object({
+  role: z.enum(['user', 'assistant']),
+  text: z.string().min(1).max(4000),
+});
+export type AskTurn = z.infer<typeof AskTurn>;
+
+export const AskRequest = z.object({
+  /** The conversation so far, oldest first, ending with the user's new question. Kept in the browser only. */
+  turns: z.array(AskTurn).min(1).max(12),
+});
+export type AskRequest = z.infer<typeof AskRequest>;
+
+/** An event found on the web that is not in the programme yet: the user can add it (it goes through Scan). */
+export const AskFound = z.object({
+  title: z.string(),
+  when: z.string(),
+  venue: z.string().nullable(),
+  url: z.url().nullable(),
+  note: z.string().nullable(),
+});
+export type AskFound = z.infer<typeof AskFound>;
+
+export const AskResponse = z.object({
+  /** Plain text; `[[slug]]` marks an event from the programme, shown as a link. */
+  answer: z.string(),
+  /** The events the answer names, in order of first mention. */
+  events: z.array(EventListItem),
+  found: z.array(AskFound),
+  /** Web searches this answer used, and what is left of the day's allowance. */
+  searches: z.number().int().nonnegative(),
+  left: z.object({ questions: z.number().int().nonnegative(), searches: z.number().int().nonnegative() }),
+});
+export type AskResponse = z.infer<typeof AskResponse>;

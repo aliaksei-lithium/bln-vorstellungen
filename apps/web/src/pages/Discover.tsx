@@ -33,6 +33,7 @@ import { EmptyState, ErrorState } from '@/components/States';
 import { Button } from '@/components/ui/button';
 import { api } from '@/lib/api';
 import { useMe } from '@/lib/auth';
+import { AskBox } from '@/components/AskBox';
 import { useVisitorSources } from '@/lib/visitorSources';
 import { cn } from '@/lib/utils';
 
@@ -173,6 +174,7 @@ function Edition({
       ) : (
         <article className="grid gap-7 md:gap-10">
           <Masthead ed={ed} personal={personal} />
+          {personal && <AskBox />}
           {(lead || ed.focus.length > 0) && (
             <div className="grid gap-4 md:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)] md:gap-6">
               {lead ? <LeadStory story={lead} personal={personal} /> : <div />}

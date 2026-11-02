@@ -7,6 +7,7 @@ import {
   type Prefs,
   type Profile,
   type SpotifyStatus,
+  type YoutubeStatus,
   type UsageDay,
 } from '@bln/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -89,6 +90,7 @@ export function MePage() {
             </div>
             <TasteForm />
             <SpotifyBox />
+            <YoutubeBox />
             <SourcesBox />
             <PasswordBox />
             <OtherDevice />
@@ -365,6 +367,94 @@ function SpotifyBox() {
                 <span className="text-xs font-extrabold tracking-[.08em] text-sub uppercase">Added to your taste</span>
                 <br />
                 {s.genres.join(' · ')}
+              </p>
+            )}
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" disabled={sync.isPending} onClick={() => sync.mutate()}>
+                Update artists
+              </Button>
+              <Button size="sm" variant="ghost" disabled={drop.isPending} onClick={() => drop.mutate()}>
+                Disconnect
+              </Button>
+            </div>
+          </>
+        )}
+        {(sync.isError || drop.isError) && (
+          <p role="alert" className="m-0 text-sm font-semibold text-danger">
+            {(sync.error ?? drop.error)?.message}
+          </p>
+        )}
+      </div>
+    </Box>
+  );
+}
+
+const YOUTUBE_RESULT: Record<string, string> = {
+  connected: 'YouTube Music connected. Your picks are being re-ranked with your artists.',
+  denied: 'YouTube Music was not connected: the permission was declined.',
+  failed: 'YouTube Music could not be connected. Try again in a minute.',
+};
+
+/** Connect YouTube Music: artists from liked songs and subscribed music channels, used like Spotify's. */
+function YoutubeBox() {
+  const qc = useQueryClient();
+  const status = useQuery({ queryKey: ['youtube'], queryFn: api.youtube });
+  const done = (s: YoutubeStatus) => {
+    qc.setQueryData(['youtube'], s);
+    void qc.invalidateQueries({ queryKey: ['inbox'] });
+  };
+  const sync = useMutation({ mutationFn: api.youtubeSync, onSuccess: (s) => (done(s), toast('Artists updated')) });
+  const drop = useMutation({
+    mutationFn: api.youtubeDisconnect,
+    onSuccess: (s) => (done(s), toast('YouTube Music disconnected')),
+  });
+  // The callback lands here with ?youtube=connected|denied|failed.
+  useEffect(() => {
+    const result = new URLSearchParams(window.location.search).get('youtube');
+    if (!result) return;
+    toast(YOUTUBE_RESULT[result] ?? YOUTUBE_RESULT.failed!);
+    window.history.replaceState(null, '', window.location.pathname);
+    void qc.invalidateQueries({ queryKey: ['youtube'] });
+  }, [qc]);
+  const s = status.data;
+  return (
+    <Box
+      title="YouTube Music"
+      collapsed
+      summary={s ? (s.connected ? `Connected · ${s.artists.length} artists` : 'Not connected') : undefined}
+    >
+      <div id="youtube" className="grid gap-3 p-3">
+        {!s ? (
+          <p className="m-0 text-sm text-sub">Loading…</p>
+        ) : !s.connected ? (
+          <>
+            <p className="m-0 text-sm text-sub">
+              Connect your Google account: the artists of songs you liked on YouTube Music and the music channels you
+              subscribe to count like Spotify artists. Read-only; nothing is posted or changed.
+            </p>
+            {s.available ? (
+              <Button asChild variant="default" className="justify-self-start">
+                <a href="/youtube/connect">Connect YouTube Music</a>
+              </Button>
+            ) : (
+              <p className="m-0 text-sm font-semibold">Not set up on this site yet.</p>
+            )}
+          </>
+        ) : (
+          <>
+            <p className="m-0 text-sm">
+              <b>{s.artists.length}</b> artists from YouTube Music
+              {s.syncedAt && <span className="text-sub"> · updated {s.syncedAt.slice(0, 10)}</span>}
+            </p>
+            {s.artists.length > 0 && (
+              <p className="m-0 text-sm text-sub">
+                {s.artists.slice(0, 12).join(', ')}
+                {s.artists.length > 12 && ` and ${s.artists.length - 12} more`}
+              </p>
+            )}
+            {s.artists.length === 0 && (
+              <p className="m-0 text-sm text-sub">
+                No artists yet: like a few songs on YouTube Music (or subscribe to artists), then update.
               </p>
             )}
             <div className="flex flex-wrap gap-2">
