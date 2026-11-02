@@ -1,0 +1,1 @@
+CREATE INDEX `event_sources_raw_item_idx` ON `event_sources` (`raw_item_id`);

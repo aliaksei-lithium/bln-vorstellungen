@@ -429,7 +429,11 @@ export const eventSources = sqliteTable(
     promptVersion: text('prompt_version'),
     createdAt: createdAt(),
   },
-  (t) => [primaryKey({ columns: [t.eventId, t.rawItemId] })],
+  (t) => [
+    primaryKey({ columns: [t.eventId, t.rawItemId] }),
+    // From a source's raw items to their events (Browse's source and collection filters), without a table scan.
+    index('event_sources_raw_item_idx').on(t.rawItemId),
+  ],
 );
 
 export const reviewQueue = sqliteTable(
