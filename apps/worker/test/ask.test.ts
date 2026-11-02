@@ -2,7 +2,7 @@ import { env } from 'cloudflare:workers';
 import { berlinLocalToUtc } from '@bln/shared';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { refreshAllNextDates } from '../src/pipeline/next-dates';
-import { ask, QUESTIONS_PER_DAY } from '../src/services/ask';
+import { ask, linkTitles, QUESTIONS_PER_DAY } from '../src/services/ask';
 
 /** Ask (docs/11): the tool loop against a scripted model, references, web suggestions and the daily limits. */
 
@@ -79,6 +79,21 @@ describe('ask', () => {
     // Web search is offered within the day's allowance.
     expect(calls[0]!.tools.some((t) => t.type === 'web_search_20250305')).toBe(true);
     expect(r.left.questions).toBe(QUESTIONS_PER_DAY - 1);
+  });
+
+  it('links events the model named by title instead of by reference', () => {
+    const seen = new Map([
+      ['sports', 'SPORTS'],
+      ['swapmeet', 'SWAPMEET'],
+      ['die-letzten', 'Die Letzten werden die Ersten sein'],
+      ['die', 'Die'],
+      ['noise-night', 'Noise Night'],
+    ]);
+    const answer =
+      'Try [[noise-night]]. Louder: SWAPMEET at Badehaus, or SPORTS at SO36 (SPORTS again). Also Die Letzten werden die Ersten sein. Noise Night rules.';
+    expect(linkTitles(answer, seen)).toBe(
+      'Try [[noise-night]]. Louder: [[swapmeet]] at Badehaus, or [[sports]] at SO36 (SPORTS again). Also [[die-letzten]]. Noise Night rules.',
+    );
   });
 
   it('stops at the daily limit', async () => {
