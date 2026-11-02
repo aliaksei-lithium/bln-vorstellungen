@@ -156,9 +156,9 @@ function AskPanel({ onClose }: { onClose: () => void }) {
         </span>
       </div>
 
-      <div ref={scroller} className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+      <div ref={scroller} className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain">
         {log.length === 0 && !send.isPending && (
-          <div className="grid gap-2 p-3">
+          <div className="grid grid-cols-[minmax(0,1fr)] gap-2 p-3">
             <p className="m-0 text-sm text-sub">
               Ask about what’s on in your own words. Answers come from the programme, and from the web when it has
               nothing.
@@ -178,14 +178,18 @@ function AskPanel({ onClose }: { onClose: () => void }) {
           </div>
         )}
         {log.map((x, i) => (
-          <div key={i} className="grid gap-2.5 border-b border-line p-3">
-            <p className="m-0 justify-self-end bg-chip px-2.5 py-1.5 text-[14px] font-semibold">{x.q}</p>
+          <div key={i} className="grid grid-cols-[minmax(0,1fr)] gap-2.5 border-b border-line p-3">
+            <p className="m-0 max-w-[85%] justify-self-end bg-chip px-2.5 py-1.5 text-[14px] font-semibold [overflow-wrap:anywhere]">
+              {x.q}
+            </p>
             <Answer r={x.r} />
           </div>
         ))}
         {send.isPending && (
-          <div className="grid gap-2 p-3">
-            <p className="m-0 justify-self-end bg-chip px-2.5 py-1.5 text-[14px] font-semibold">{send.variables}</p>
+          <div className="grid grid-cols-[minmax(0,1fr)] gap-2 p-3">
+            <p className="m-0 max-w-[85%] justify-self-end bg-chip px-2.5 py-1.5 text-[14px] font-semibold [overflow-wrap:anywhere]">
+              {send.variables}
+            </p>
             <p className="m-0 flex items-center gap-2 text-sm text-sub" aria-live="polite">
               <Loader2 className="size-4 animate-spin" aria-hidden />
               Looking through the programme…
@@ -195,7 +199,7 @@ function AskPanel({ onClose }: { onClose: () => void }) {
       </div>
 
       <form
-        className="grid shrink-0 gap-1.5 border-t border-line p-3"
+        className="grid shrink-0 grid-cols-[minmax(0,1fr)] gap-1.5 border-t border-line p-3"
         onSubmit={(e) => {
           e.preventDefault();
           submit();
@@ -239,8 +243,8 @@ function AskPanel({ onClose }: { onClose: () => void }) {
 function Answer({ r }: { r: AskResponse }) {
   const bySlug = new Map(r.events.map((e) => [e.slug, e]));
   return (
-    <div className="grid gap-2.5">
-      <div className="grid gap-1.5 text-[14.5px] leading-[21px]">
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-2.5">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-1.5 text-[14.5px] leading-[21px] [overflow-wrap:anywhere]">
         {r.answer
           .split(/\n{2,}/)
           .filter((p) => p.trim())
@@ -251,7 +255,7 @@ function Answer({ r }: { r: AskResponse }) {
           ))}
       </div>
       {r.events.length > 0 && (
-        <div className="border border-line">
+        <div className="min-w-0 border border-line">
           {r.events.map((e) => (
             <EventRow key={e.slug} item={e} showDay />
           ))}
