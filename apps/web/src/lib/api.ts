@@ -8,6 +8,7 @@ import {
   Scan,
   ScanCreated,
   InboxReview,
+  DiscoverEdition,
   InviteAccepted,
   InviteRequests,
   type InviteRequestCreate,
@@ -125,6 +126,8 @@ export const api = {
   review: () => getJson('/api/me/review', InboxReview),
   prepareReview: () => request('/api/me/review', InboxReview, { method: 'POST', body: {} }),
   highlights: () => getJson('/api/highlights', InboxReview),
+  discover: () => getJson('/api/me/discover', DiscoverEdition),
+  publicDiscover: () => getJson('/api/discover', DiscoverEdition),
   requestInvite: (body: InviteRequestCreate) =>
     request('/api/invite-requests', z.object({ ok: z.boolean() }), { method: 'POST', body }),
   inviteRequests: () => getJson('/api/admin/invites', InviteRequests),

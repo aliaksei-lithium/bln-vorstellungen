@@ -4,6 +4,7 @@ import { EmptyState } from '@/components/States';
 import { BrowsePage, BrowseSearch } from '@/pages/Browse';
 import { EventPage } from '@/pages/EventPage';
 import { AgendaPage } from '@/pages/Agenda';
+import { DiscoverPage } from '@/pages/Discover';
 import { ForYouPage } from '@/pages/Inbox';
 import { LoginPage } from '@/pages/Login';
 import { MePage } from '@/pages/Me';
@@ -30,6 +31,7 @@ const routes = [
     },
   }),
   createRoute({ getParentRoute: () => rootRoute, path: '/for-you', component: ForYouPage }),
+  createRoute({ getParentRoute: () => rootRoute, path: '/discover', component: DiscoverPage }),
   createRoute({ getParentRoute: () => rootRoute, path: '/agenda', component: AgendaPage }),
   createRoute({ getParentRoute: () => rootRoute, path: '/me', component: MePage }),
   createRoute({
@@ -58,8 +60,8 @@ const routes = [
   }),
 ] as const;
 const eventRoute = routes[1];
-const loginRoute = routes[5];
-const scanRoute = routes[6];
+const loginRoute = routes[6];
+const scanRoute = routes[7];
 
 export const router = createRouter({
   routeTree: rootRoute.addChildren([...routes]),
