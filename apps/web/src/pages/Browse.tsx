@@ -24,7 +24,7 @@ import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetFooter, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { api } from '@/lib/api';
 import { useMe } from '@/lib/auth';
-import { useListFilter } from '@/lib/marks';
+import { useListFilter, useListFilterReady } from '@/lib/marks';
 import { toast } from '@/lib/toast';
 import { WHEN_LABELS, whenRange, type When } from '@/lib/dates';
 import { PER_DAY } from '@/lib/highlights';
@@ -48,6 +48,8 @@ const list = (s?: string) => (s ? s.split(',').filter(Boolean) : []);
 const joined = (a: string[]) => (a.length ? a.join(',') : undefined);
 
 const VIEW_KEY = 'bln.browseView';
+/** Events per page: about a week of whole days. */
+const PAGE = 100;
 
 /** Source kinds, not single venues (docs/09): where an event came from. Spotify joins when it is connected. */
 const VIA_LABELS: Record<Exclude<Via, Community>, string> = {
@@ -119,15 +121,23 @@ export function BrowsePage() {
   const { user } = useMe();
   const profile = useQuery({ queryKey: ['profile'], queryFn: api.profile, enabled: !!user });
   const applied = useRef(false);
+  const noFilters = !search.when && !search.category && !search.district && !search.via;
+  // Applying the default is a navigation, which lands a moment later: until it has, the list waits.
+  const [awaitingDefault, setAwaitingDefault] = useState(false);
   useEffect(() => {
     if (applied.current || !profile.data) return;
     applied.current = true;
     const saved = profile.data.prefs.browseDefault;
-    const empty = !search.when && !search.category && !search.district && !search.via;
-    if (saved && empty) {
-      setSearch({ ...(Object.fromEntries(new URLSearchParams(saved)) as BrowseSearch), q: search.q });
+    if (saved && noFilters) {
+      const next = Object.fromEntries(new URLSearchParams(saved)) as BrowseSearch;
+      // Only wait when the default sets a filter; otherwise nothing would ever land.
+      if (next.when || next.category || next.district || next.via) setAwaitingDefault(true);
+      setSearch({ ...next, q: search.q });
     }
-  }, [profile.data, search, setSearch]);
+  }, [profile.data, noFilters, search.q, setSearch]);
+  useEffect(() => {
+    if (awaitingDefault && !noFilters) setAwaitingDefault(false);
+  }, [awaitingDefault, noFilters]);
 
   const params = {
     ...whenRange(filters.when, today),
@@ -136,16 +146,31 @@ export function BrowsePage() {
     via: filters.via.length ? filters.via : undefined,
     q: query || undefined,
   };
+  // Wait for the switches (and a signed-in user's saved default filters) before asking for events: a list drawn
+  // earlier would show rows that vanish a moment later, or an unfiltered page while the saved filters land.
+  const savedDefault = new URLSearchParams(profile.data?.prefs.browseDefault ?? '');
+  const defaultFilters = ['when', 'category', 'district', 'via'].some((k) => savedDefault.get(k));
+  const defaultPending = noFilters && (awaitingDefault || (!applied.current && defaultFilters));
+  const ready = useListFilterReady() && !defaultPending;
   const events = useInfiniteQuery({
     queryKey: ['events', params],
-    queryFn: ({ pageParam }) => api.events({ ...params, cursor: pageParam }),
+    // A big page covers several whole days, which matters when each day shows only its highlights.
+    queryFn: ({ pageParam }) => api.events({ ...params, cursor: pageParam, limit: PAGE }),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (last) => last.nextCursor ?? undefined,
     placeholderData: keepPreviousData,
+    enabled: ready,
   });
   // Hidden events and switched-off categories stay out here, so no day is left empty.
   const shows = useListFilter(filters.category);
-  const items = useMemo(() => (events.data?.pages.flatMap((p) => p.items) ?? []).filter(shows), [events.data, shows]);
+  const items = useMemo(() => {
+    const all = (events.data?.pages.flatMap((p) => p.items) ?? []).filter(shows);
+    // The last day of a page may go on in the next one: it waits for that page, so its count and "Show all" are true.
+    if (!events.hasNextPage || !all.length) return all;
+    const lastDay = all.at(-1)!.next.startLocal.slice(0, 10);
+    const complete = all.filter((i) => i.next.startLocal.slice(0, 10) !== lastDay);
+    return complete.length ? complete : all;
+  }, [events.data, events.hasNextPage, shows]);
   // Search by meaning complements keyword search: "jazz tonight" also finds a quartet that never says "jazz".
   const meaning = useQuery({
     queryKey: ['meaning', query],
@@ -215,7 +240,7 @@ export function BrowsePage() {
       </TopBar>
 
       <div className="grid grid-cols-[minmax(0,1fr)] gap-3">
-        {events.isPending ? (
+        {events.isPending || !ready ? (
           <ListSkeleton />
         ) : events.isError ? (
           <ErrorState message={events.error.message} onRetry={() => events.refetch()} />

@@ -27,7 +27,7 @@ eventsApi.get('/', async (c) => {
   const user = c.get('user');
   const mine = !!q.data.via?.some((v) => v === 'spotify' || v === 'spotifylike');
   const like = user && q.data.via?.includes('spotifylike') ? await musicLike(c.env, user.id) : undefined;
-  const { rowsRead, ...body } = await listEvents(c.env.DB, q.data, undefined, undefined, user?.id, like);
+  const { rowsRead, ...body } = await listEvents(c.env.DB, q.data, q.data.limit, undefined, user?.id, like);
   c.header('Cache-Control', mine ? 'private, no-store' : CACHE_CONTROL);
   if (!mine) c.header('Cache-Tag', CACHE_TAG);
   c.header('X-D1-Rows-Read', String(rowsRead));

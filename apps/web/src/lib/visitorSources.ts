@@ -55,7 +55,9 @@ export function useVisitorSources(enabled = true) {
     },
     [off],
   );
-  return { sources, off, set };
+  // Ready once the visitor's own switches or the site's defaults are known (an error falls back to none off).
+  const ready = raw != null || !sources.isPending || !enabled;
+  return { sources, off, set, ready };
 }
 
 const OPT_IN_KEY = 'bln.categoriesOn';
