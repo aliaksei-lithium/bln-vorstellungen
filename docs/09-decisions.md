@@ -321,6 +321,8 @@ Format: date · decision · why · alternatives rejected. Newer entries supersed
   official flag). `via=belarusian` lists events from sources marked `community = 'belarusian'` (RAZAM) and any event
   whose text mentions Belarus in English, German, Belarusian or Russian, or Minsk (FTS prefix match). A community is
   a column on the source, not a hardcoded id, so another community is one value and one chip.
+- **2026-11-02 · The kink category is labelled "XXX".** "Sex-positive & kink" overflowed the category chip in event
+  rows. The id stays `kink`; where someone switches it on (Me), a hint says what it covers.
 - **2026-10-02 · React + Vite + TanStack + Tailwind + shadcn/ui.** Best coverage by design tools and implementing
   models. Rejected: SvelteKit (good, but weaker design-tool output), Next.js on Workers via OpenNext (heavier than
   needed; no SSR requirement since public pages can be cached JSON + client render; revisit if SEO matters).
