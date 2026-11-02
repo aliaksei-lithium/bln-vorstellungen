@@ -48,8 +48,11 @@ const list = (s?: string) => (s ? s.split(',').filter(Boolean) : []);
 const joined = (a: string[]) => (a.length ? a.join(',') : undefined);
 
 const VIEW_KEY = 'bln.browseView';
-/** Events per page: about a week of whole days. */
+/** Events per page. */
 const PAGE = 100;
+/** Pages load by themselves until this many whole days show (busy days fill a page fast), at most MAX_AUTO_PAGES. */
+const MIN_DAYS = 5;
+const MAX_AUTO_PAGES = 8;
 
 /** Source kinds, not single venues (docs/09): where an event came from. Spotify joins when it is connected. */
 const VIA_LABELS: Record<Exclude<Via, Community>, string> = {
@@ -171,6 +174,28 @@ export function BrowsePage() {
     const complete = all.filter((i) => i.next.startLocal.slice(0, 10) !== lastDay);
     return complete.length ? complete : all;
   }, [events.data, events.hasNextPage, shows]);
+  // A busy stretch fills a page with a day or two: keep loading until a few whole days show, then on scroll.
+  const days = useMemo(() => new Set(items.map((i) => i.next.startLocal.slice(0, 10))).size, [items]);
+  const { hasNextPage, isFetchingNextPage, fetchNextPage } = events;
+  const pages = events.data?.pages.length ?? 0;
+  useEffect(() => {
+    if (ready && hasNextPage && !isFetchingNextPage && days < MIN_DAYS && pages < MAX_AUTO_PAGES) {
+      void fetchNextPage();
+    }
+  }, [ready, hasNextPage, isFetchingNextPage, days, pages, fetchNextPage]);
+  const moreRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    const el = moreRef.current;
+    if (!el || !hasNextPage) return;
+    const io = new IntersectionObserver(
+      ([e]) => {
+        if (e?.isIntersecting && !isFetchingNextPage) void fetchNextPage();
+      },
+      { rootMargin: '600px 0px' },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
   // Search by meaning complements keyword search: "jazz tonight" also finds a quartet that never says "jazz".
   const meaning = useQuery({
     queryKey: ['meaning', query],
@@ -311,6 +336,7 @@ export function BrowsePage() {
         )}
         {events.hasNextPage && (
           <Button
+            ref={moreRef}
             size="lg"
             className="w-full bg-surface"
             disabled={events.isFetchingNextPage}
