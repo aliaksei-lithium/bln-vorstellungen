@@ -131,6 +131,38 @@ describe('event images', () => {
     expect(detail.image).toBe(`/api/img/${by['img-src']!.image_key}`);
   });
 
+  it('follows each source: no page lookups for `feed`, nothing for `none`', async () => {
+    const soon = new Date(Date.now() + 2 * DAY_MS).toISOString();
+    await env.DB.batch(
+      (['feed', 'none'] as const).flatMap((mode) => [
+        env.DB.prepare(
+          `INSERT INTO sources (id, name, type, config, schedule_minutes, image_mode) VALUES (?, ?, 'html', '{}', 60, ?)`,
+        ).bind(`s_mode_${mode}`, mode, mode),
+        env.DB.prepare(
+          `INSERT INTO raw_items (id, source_id, external_id, content_hash, kind, content, fetched_at)
+           VALUES (?, ?, 'x', ?, 'markdown', 'x', '2026-01-01T00:00:00Z')`,
+        ).bind(`raw_mode_${mode}`, `s_mode_${mode}`, `h_${mode}`),
+      ]),
+    );
+    await addEvent('img-mode-feed', { next_start_utc: soon, url_official: 'https://mode.test/feed-event' });
+    await addEvent('img-mode-none', { next_start_utc: soon, image_src: 'https://mode.test/none.jpg' });
+    await env.DB.batch(
+      (['feed', 'none'] as const).map((mode) =>
+        env.DB.prepare(
+          `INSERT INTO event_sources (event_id, raw_item_id, extracted, confidence, model) VALUES (?, ?, '{}', 1, 'm')`,
+        ).bind(`img-mode-${mode}`, `raw_mode_${mode}`),
+      ),
+    );
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('x', { status: 404 }));
+    while ((await fetchImages(withImages(fakeImages([])), new Date(), 50)) > 0);
+    expect(fetchSpy.mock.calls.map(([u]) => String(u)).filter((u) => u.includes('mode.test'))).toEqual([]);
+    const rows = await env.DB.prepare(`SELECT image_key, image_checked_at FROM events WHERE id LIKE 'img-mode-%'`).all<{
+      image_key: string | null;
+      image_checked_at: string | null;
+    }>();
+    expect(rows.results.every((r) => r.image_key === null && r.image_checked_at !== null)).toBe(true);
+  });
+
   it('tries a failed image again a day later', async () => {
     await addEvent('img-retry', {
       next_start_utc: new Date(Date.now() + 9 * DAY_MS).toISOString(),

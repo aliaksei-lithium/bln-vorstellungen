@@ -22,13 +22,23 @@ const DAY_MS = 86_400_000;
 
 export const imageUrl = (key: string | null | undefined): string | null => (key ? `/api/img/${key}` : null);
 
-type Pending = { id: string; image_src: string | null; image_key: string | null; url_official: string | null };
+type Pending = {
+  id: string;
+  image_src: string | null;
+  image_key: string | null;
+  url_official: string | null;
+  /** The most generous image setting among the event's sources (auto < feed < none); null without a source. */
+  mode: 'auto' | 'feed' | 'none' | null;
+};
 
 /** Stores images for upcoming events that have none yet, soonest first. Returns how many were stored. */
 export async function fetchImages(env: Env, now = new Date(), limit = IMAGES_PER_RUN): Promise<number> {
   // New events first; an image that failed (host down, monthly quota) gets another try a day later.
   const { results } = await env.DB.prepare(
-    `SELECT id, image_src, image_key, url_official FROM events
+    `SELECT e.id, e.image_src, e.image_key, e.url_official,
+            (SELECT MIN(s.image_mode) FROM event_sources es JOIN raw_items r ON r.id = es.raw_item_id
+               JOIN sources s ON s.id = r.source_id WHERE es.event_id = e.id) AS mode
+       FROM events e
       WHERE status = 'published' AND next_start_utc IS NOT NULL
         AND (image_checked_at IS NULL OR (image_key IS NULL AND image_src IS NOT NULL AND image_checked_at < ?))
         AND (image_src IS NOT NULL OR url_official IS NOT NULL)
@@ -38,10 +48,13 @@ export async function fetchImages(env: Env, now = new Date(), limit = IMAGES_PER
     .all<Pending>();
   let stored = 0;
   for (const ev of results) {
-    let src = ev.image_src;
+    // Each source says once where its images are, so pages known to have none are never fetched again.
+    let src = ev.mode === 'none' ? null : ev.image_src;
     let key: string | null = null;
     try {
-      if (!src && isEventPage(ev.url_official!)) src = await pageImage(ev.url_official!);
+      if (!src && (ev.mode ?? 'auto') === 'auto' && isEventPage(ev.url_official!)) {
+        src = await pageImage(ev.url_official!);
+      }
       if (src) key = await storeImage(env, ev.id, src);
       if (key) stored++;
     } catch (err) {

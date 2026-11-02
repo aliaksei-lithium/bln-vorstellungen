@@ -272,6 +272,13 @@ export const sources = sqliteTable(
     enabled: integer('enabled', { mode: 'boolean' }).notNull().default(true),
     /** Off for visitors until they switch it on (signed-in users choose with prefs.sourcesOff). */
     defaultOff: integer('default_off', { mode: 'boolean' }).notNull().default(false),
+    /**
+     * Where its events' images come from (services/images.ts): `auto` = the source's own image, else the event's
+     * page; `feed` = only the source's own (its pages have none worth fetching); `none` = no images.
+     */
+    imageMode: text('image_mode', { enum: ['auto', 'feed', 'none'] })
+      .notNull()
+      .default('auto'),
     cursor: text('cursor'),
     nextRunAt: text('next_run_at'),
     lastRunAt: text('last_run_at'),

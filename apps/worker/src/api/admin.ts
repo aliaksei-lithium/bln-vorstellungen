@@ -48,6 +48,7 @@ type SourceRow = {
   schedule_minutes: number;
   enabled: number;
   visibility: 'public' | 'private';
+  image_mode: 'auto' | 'feed' | 'none';
   cursor: string | null;
   next_run_at: string | null;
   last_run_at: string | null;
@@ -64,6 +65,7 @@ const toView = (r: SourceRow): SourceView => ({
   scheduleMinutes: r.schedule_minutes,
   enabled: Boolean(r.enabled),
   visibility: r.visibility,
+  images: r.image_mode,
   cursor: r.cursor,
   nextRunAt: r.next_run_at,
   lastRunAt: r.last_run_at,
@@ -116,7 +118,8 @@ adminApi.post('/sources', async (c) => {
   const id = crypto.randomUUID();
   // next_run_at stays NULL: the next cron tick (≤ 15 min) runs it.
   await c.env.DB.prepare(
-    `INSERT INTO sources (id, name, type, config, schedule_minutes, enabled, visibility) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO sources (id, name, type, config, schedule_minutes, enabled, visibility, image_mode)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
   )
     .bind(
       id,
@@ -126,6 +129,7 @@ adminApi.post('/sources', async (c) => {
       s.scheduleMinutes ?? getAdapter(s.type).defaultScheduleMinutes,
       s.enabled ? 1 : 0,
       s.visibility,
+      s.images,
     )
     .run();
   return c.json(toView(await getSource(c.env.DB, id)), 201);
@@ -140,7 +144,7 @@ adminApi.patch('/sources/:id', async (c) => {
   await c.env.DB.prepare(
     `UPDATE sources SET name = COALESCE(?, name), config = COALESCE(?, config),
        schedule_minutes = COALESCE(?, schedule_minutes), enabled = COALESCE(?, enabled),
-       visibility = COALESCE(?, visibility), updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+       visibility = COALESCE(?, visibility), image_mode = COALESCE(?, image_mode), updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
      WHERE id = ?`,
   )
     .bind(
@@ -149,6 +153,7 @@ adminApi.patch('/sources/:id', async (c) => {
       u.scheduleMinutes ?? null,
       u.enabled === undefined ? null : u.enabled ? 1 : 0,
       u.visibility ?? null,
+      u.images ?? null,
       row.id,
     )
     .run();

@@ -34,8 +34,12 @@ const atomLink = (block: string) =>
 
 export type FeedEntry = { id: string; title: string; link?: string; published?: string; body: string };
 
-export function parseFeed(xml: string): FeedEntry[] {
-  const blocks = xml.match(/<(item|entry)\b[\s\S]*?<\/\1>/gi) ?? [];
+/** The newest `max` entries (feeds list newest first). Substack feeds carry every post in full, up to 1 MB: only
+ * the entries kept are cleaned, to stay inside the CPU budget. */
+export function parseFeed(xml: string, max = Infinity): FeedEntry[] {
+  const blocks: string[] = [];
+  const re = /<(item|entry)\b[\s\S]*?<\/\1>/gi;
+  for (let m = re.exec(xml); m && blocks.length < max; m = re.exec(xml)) blocks.push(m[0]);
   return blocks.map((b) => {
     const link = safeUrl(tag(b, 'link')) ?? safeUrl(atomLink(b));
     const title = cleanTitle(tag(b, 'title'));
@@ -53,7 +57,7 @@ export const rssAdapter: SourceAdapter<RssConfig> = {
   async fetch(ctx, config, cursor) {
     const res = await fetchText(ctx, config.url, cursor);
     if (!res) return { items: [], cursor, stats: { fetched: 0, skipped: 0 } };
-    const entries = parseFeed(res.text);
+    const entries = parseFeed(res.text, config.maxItems);
     const items: RawItem[] = [];
     for (const e of entries.slice(0, config.maxItems)) {
       const content = truncate([`# ${e.title}`, e.link, e.body].filter(Boolean).join('\n\n'), 20_000);
