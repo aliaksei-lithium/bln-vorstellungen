@@ -44,6 +44,7 @@ const listItem = (r: Record<string, unknown>): EventListItem => ({
   next: { startLocal: String(r.next_local), startUtc: String(r.next_utc) },
   moreDates: Number(r.more_dates),
   ...(r.lang === 'de' || r.lang === 'en' ? { lang: r.lang } : {}),
+  ...(r.tagline ? { tagline: String(r.tagline) } : {}),
   ...(r.image_key ? { image: imageUrl(String(r.image_key)) } : {}),
   ...(r.source_ids ? { sources: String(r.source_ids).split(',') } : {}),
   ...(r.interest != null ? { interest: Number(r.interest) } : {}),
@@ -152,7 +153,7 @@ export async function listEvents(
   }
 
   // Members' interest is the same for everyone, so public responses stay cacheable.
-  const select = `e.slug, e.title, e.lang, e.category, e.price_min, e.price_max, e.is_free, e.image_key, v.name AS venue_name,
+  const select = `e.slug, e.title, e.lang, e.category, e.price_min, e.price_max, e.is_free, e.image_key, e.tagline, v.name AS venue_name,
                   v.district, ${SOURCE_IDS},
                   (SELECT ROUND(AVG(s.score)) FROM user_event_scores s WHERE s.event_id = e.id) AS interest`;
   let stmt: D1PreparedStatement;
@@ -234,7 +235,7 @@ export async function listItemsByIds(
   if (!ids.length) return [];
   const { results } = await db
     .prepare(
-      `SELECT e.id, e.slug, e.title, e.lang, e.category, e.price_min, e.price_max, e.is_free, e.image_key,
+      `SELECT e.id, e.slug, e.title, e.lang, e.category, e.price_min, e.price_max, e.is_free, e.image_key, e.tagline,
               e.next_start_utc AS next_utc, e.next_start_local AS next_local,
               MAX(e.upcoming_count - 1, 0) AS more_dates, v.name AS venue_name, v.district, ${SOURCE_IDS}
          FROM events e LEFT JOIN venues v ON v.id = e.venue_id

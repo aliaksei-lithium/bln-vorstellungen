@@ -666,7 +666,15 @@ async function readBack(
       if (m?.state === 'hidden' || m?.state === 'skipped') return [];
       if (opts.sourcesOff.size && event.sources?.length && event.sources.every((id) => opts.sourcesOff.has(id)))
         return [];
-      return [{ event, score: opts.userId ? (m?.score ?? null) : null, note: p.note, about: p.about ?? null }];
+      // The edition's own line, else the event's tagline (picks the copy call skipped).
+      return [
+        {
+          event,
+          score: opts.userId ? (m?.score ?? null) : null,
+          note: p.note,
+          about: p.about ?? event.tagline ?? null,
+        },
+      ];
     });
     return picks.length
       ? [{ key: s.key, kind: s.kind, title: s.title, blurb: s.blurb, subject: s.subject, picks }]

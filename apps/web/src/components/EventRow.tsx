@@ -15,7 +15,7 @@ export function hatchAngle(slug: string): string {
 }
 
 /**
- * time · title · venue · price · category. The event appears once; "+N" counts its further dates. `showDay` adds
+ * time · title · tagline (what it is, when known) · venue · price · category. The event appears once; "+N" counts its further dates. `showDay` adds
  * the weekday and date for lists that are not grouped by day (similar events, search by meaning). Signed in, the row
  * shows the user's mark and swipes: right for interested (again to undo), left for Calendar and Hide. Hidden events
  * are not shown.
@@ -93,6 +93,11 @@ function RowLink({
             <HelpCircle className="size-[15px] shrink-0 text-moss" strokeWidth={2.2} aria-label="Maybe" />
           )}
         </div>
+        {item.tagline && (
+          <div className="mt-px line-clamp-2 text-[13px] leading-[17px] text-ink/75" lang="en">
+            {item.tagline}
+          </div>
+        )}
         <div className="mt-[3px] flex h-5 items-center text-[12.5px] text-sub">
           <span
             className={`flex shrink-0 items-baseline gap-1 font-bold text-ink tabular-nums ${showDay ? 'w-[124px]' : 'w-16'}`}

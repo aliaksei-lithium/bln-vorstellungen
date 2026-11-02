@@ -24,6 +24,7 @@ import { acceptInvite, declineInvite, listInviteRequests } from '../services/inv
 import { buildDiscover } from '../services/discover';
 import { dropPastImages, fetchImages } from '../services/images';
 import { startReview } from '../services/review';
+import { writeTaglines } from '../services/taglines';
 
 registerBuiltinAdapters();
 
@@ -417,4 +418,12 @@ adminApi.post('/discover/run', async (c) => {
     throw new HTTPException(404, { message: 'No such user' });
   }
   return c.json({ stories: await buildDiscover(c.env, who) });
+});
+
+/** Writes taglines now (backfill after a new source): `?limit=` events, at most 100. */
+adminApi.post('/taglines/run', async (c) => {
+  const limit = Math.min(100, Math.max(1, Number(c.req.query('limit') ?? 40) || 40));
+  const t0 = Date.now();
+  const written = await writeTaglines(c.env, new Date(), limit);
+  return c.json({ written, ms: Date.now() - t0 });
 });

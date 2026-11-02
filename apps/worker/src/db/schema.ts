@@ -150,6 +150,14 @@ export const events = sqliteTable(
     imageSrc: text('image_src'),
     /** When the cron last tried this event's image; null = still to do. */
     imageCheckedAt: text('image_checked_at'),
+    /**
+     * One line on what the event is, from its description (services/taglines.ts), with the model and prompt that
+     * wrote it. Null with `tagline_checked_at` set: nothing to say beyond the title.
+     */
+    tagline: text('tagline'),
+    taglineModel: text('tagline_model'),
+    taglinePrompt: text('tagline_prompt'),
+    taglineCheckedAt: text('tagline_checked_at'),
     status: text('status', { enum: ['draft', 'published', 'cancelled', 'merged'] })
       .notNull()
       .default('published'),
