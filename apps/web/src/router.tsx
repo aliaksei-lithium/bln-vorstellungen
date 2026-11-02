@@ -6,7 +6,6 @@ import { EventPage } from '@/pages/EventPage';
 import { AgendaPage } from '@/pages/Agenda';
 import { DiscoverPage } from '@/pages/Discover';
 import { ForYouPage } from '@/pages/Inbox';
-import { PrivacyPage, TermsPage } from '@/pages/Legal';
 import { LoginPage } from '@/pages/Login';
 import { MePage } from '@/pages/Me';
 import { ScanPage } from '@/pages/ScanPage';
@@ -36,8 +35,6 @@ const routes = [
   createRoute({ getParentRoute: () => rootRoute, path: '/discover', component: DiscoverPage }),
   createRoute({ getParentRoute: () => rootRoute, path: '/agenda', component: AgendaPage }),
   createRoute({ getParentRoute: () => rootRoute, path: '/me', component: MePage }),
-  createRoute({ getParentRoute: () => rootRoute, path: '/privacy', component: PrivacyPage }),
-  createRoute({ getParentRoute: () => rootRoute, path: '/terms', component: TermsPage }),
   createRoute({
     getParentRoute: () => rootRoute,
     path: '/login/$token',
@@ -72,9 +69,9 @@ const routes = [
   }),
 ] as const;
 const eventRoute = routes[1];
-const loginRoute = routes[8];
-const scanRoute = routes[9];
-const venueRoute = routes[10];
+const loginRoute = routes[6];
+const scanRoute = routes[7];
+const venueRoute = routes[8];
 
 export const router = createRouter({
   routeTree: rootRoute.addChildren([...routes]),
