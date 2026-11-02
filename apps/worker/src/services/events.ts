@@ -127,6 +127,10 @@ export async function listEvents(
                              JOIN sources so ON so.id = r.source_id WHERE so.community = 'belarusian')
                    OR e.id IN (SELECT event_id FROM events_fts WHERE events_fts MATCH ?)`);
         filterArgs.push(BELARUS_FTS);
+      } else if (via === 'specials') {
+        // Hand-picked small venues: everything their sources list.
+        ways.push(`e.id IN (SELECT es.event_id FROM event_sources es JOIN raw_items r ON r.id = es.raw_item_id
+                             JOIN sources so ON so.id = r.source_id WHERE so.community = 'specials')`);
       } else if (via === 'scans') {
         ways.push(`e.id IN (SELECT es.event_id FROM event_sources es JOIN raw_items r ON r.id = es.raw_item_id
                              WHERE r.source_id IS NULL)`);

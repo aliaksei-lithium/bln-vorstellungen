@@ -49,7 +49,7 @@ type SourceRow = {
   enabled: number;
   visibility: 'public' | 'private';
   image_mode: 'auto' | 'feed' | 'none';
-  community: 'belarusian' | null;
+  community: 'belarusian' | 'specials' | null;
   cursor: string | null;
   next_run_at: string | null;
   last_run_at: string | null;

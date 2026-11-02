@@ -244,8 +244,11 @@ export const SourceVisibility = z.enum(['public', 'private']);
 
 /** A `sources` row as created or edited by the owner. `config` is validated by the adapter's own schema. */
 export const SourceImages = z.enum(['auto', 'feed', 'none']);
-/** A source run by or for a community; Browse's community filters (Via) include all its events. */
-export const SourceCommunity = z.enum(['belarusian']);
+/**
+ * A community or a hand-picked collection a source belongs to: Browse's filters of the same name (Via) include all
+ * its events. "specials": small Berlin venues worth following (8MM, Soulcat, OGH, Loge…).
+ */
+export const SourceCommunity = z.enum(['belarusian', 'specials']);
 export type SourceCommunity = z.infer<typeof SourceCommunity>;
 export type SourceImages = z.infer<typeof SourceImages>;
 
@@ -333,7 +336,7 @@ const anyOf = <T extends z.ZodType>(item: T) =>
     .optional();
 
 /** Ways in: source kinds, the user's Spotify, and communities (events from a community's sources or about it). */
-export const Via = z.enum(['telegram', 'scans', 'spotify', 'spotifylike', 'belarusian']);
+export const Via = z.enum(['telegram', 'scans', 'spotify', 'spotifylike', 'belarusian', 'specials']);
 export type Via = z.infer<typeof Via>;
 
 export const EventsQuery = z.object({
@@ -606,6 +609,8 @@ export const DiscoverPick = z.object({
   score: z.number().int().nullable(),
   /** A fact worth knowing at a glance: "2 dates sold out", "last date Sa 12.12.", "new this week". */
   note: z.string().nullable(),
+  /** One line on what it is and why it is worth going, from its description; null when there was nothing to say. */
+  about: z.string().nullable().default(null),
 });
 export type DiscoverPick = z.infer<typeof DiscoverPick>;
 export const DiscoverStory = z.object({

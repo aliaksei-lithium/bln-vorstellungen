@@ -48,6 +48,8 @@ export type PoolItem = {
   nextLocal: string;
   /** Days from today (Berlin) to the next date. */
   days: number;
+  /** The start of its description, for the copy model to say what it is. */
+  about: string | null;
   /** Days since the event entered the programme. */
   age: number;
   /**
@@ -93,6 +95,7 @@ function toItem(r: Row, today: string, weight: number, score: number | null): Po
     district: (r.district as string | null) ?? null,
     nextLocal,
     days: dayDiff(nextLocal, today),
+    about: typeof r.about === 'string' && r.about.trim() ? r.about.replace(/\s+/g, ' ').trim() : null,
     age,
     fresh:
       age <= FRESH_DAYS &&
@@ -109,6 +112,7 @@ function toItem(r: Row, today: string, weight: number, score: number | null): Po
 }
 
 const FACTS = `e.id, e.title, e.category, e.genres, e.is_free, e.created_at, e.next_start_local AS next_local,
+       substr(COALESCE(e.description_en, e.description), 1, 240) AS about,
        v.id AS venue_id, v.name AS venue, v.district,
        (SELECT COUNT(*) FROM occurrences o WHERE o.event_id = e.id AND o.start_utc >= ?1 AND o.status = 'scheduled') AS dates_left,
        (SELECT COUNT(*) FROM occurrences o WHERE o.event_id = e.id AND o.start_utc >= ?1 AND o.status = 'sold_out') AS sold_out,
@@ -470,6 +474,7 @@ function pickLine(p: PoolItem, n: string, kind: DiscoverKind, personal: boolean)
     noteFor(p, kind),
     p.genres.length ? p.genres.slice(0, 3).join(', ') : null,
     personal && p.score != null ? `fit ${p.score}/100` : null,
+    p.about ? `about: ${p.about.slice(0, 160)}` : null,
   ]
     .filter(Boolean)
     .join(' | ');
@@ -485,7 +490,7 @@ type Stored = {
     title: string;
     blurb: string;
     subject: string | null;
-    picks: { eventId: string; note: string | null }[];
+    picks: { eventId: string; note: string | null; about?: string | null }[];
   }[];
   focus: Focus[];
 };
@@ -554,13 +559,20 @@ export async function buildDiscover(
             drafts.map((d) => d.key),
             loose.length,
           ),
-        maxTokens: 2000,
+        maxTokens: 3500,
         metric: 'ai_discover_calls',
       });
       const copy = new Map(r.value.stories.map((s) => [s.key, s]));
       const stories = content.stories.map((s) => {
         const c = copy.get(s.key);
-        return c ? { ...s, title: c.title || s.title, blurb: c.blurb || s.blurb } : s;
+        if (!c) return s;
+        const lines = new Map(c.lines.map((l) => [l.n, l.text]));
+        return {
+          ...s,
+          title: c.title || s.title,
+          blurb: c.blurb || s.blurb,
+          picks: s.picks.map((p, i) => ({ ...p, about: lines.get(i + 1) ?? null })),
+        };
       });
       const themed = r.value.theme.events.map((n) => loose[n - 1]!);
       if (themed.length >= 3 && r.value.theme.title) {
@@ -570,7 +582,11 @@ export async function buildDiscover(
           title: r.value.theme.title,
           blurb: r.value.theme.blurb,
           subject: null,
-          picks: themed.map((p) => ({ eventId: p.id, note: noteFor(p, 'theme') })),
+          picks: r.value.theme.events.map((n, i) => ({
+            eventId: themed[i]!.id,
+            note: noteFor(themed[i]!, 'theme'),
+            about: r.value.theme.lines.find((l) => l.n === n)?.text ?? null,
+          })),
         });
       }
       const keys = new Set(stories.map((s) => s.key));
@@ -650,7 +666,7 @@ async function readBack(
       if (m?.state === 'hidden' || m?.state === 'skipped') return [];
       if (opts.sourcesOff.size && event.sources?.length && event.sources.every((id) => opts.sourcesOff.has(id)))
         return [];
-      return [{ event, score: opts.userId ? (m?.score ?? null) : null, note: p.note }];
+      return [{ event, score: opts.userId ? (m?.score ?? null) : null, note: p.note, about: p.about ?? null }];
     });
     return picks.length
       ? [{ key: s.key, kind: s.kind, title: s.title, blurb: s.blurb, subject: s.subject, picks }]
