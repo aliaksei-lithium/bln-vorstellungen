@@ -4,7 +4,7 @@ import type { Category, Prefs } from './schemas';
 export const CATEGORY_LABELS: Record<Category, string> = {
   concert: 'Concert',
   club: 'Club',
-  kink: 'Sex-positive & kink',
+  kink: 'XXX',
   theatre: 'Theatre',
   opera: 'Opera',
   dance: 'Dance',
@@ -14,6 +14,11 @@ export const CATEGORY_LABELS: Record<Category, string> = {
   festival: 'Festival',
   market: 'Market',
   other: 'Other',
+};
+
+/** What a terse label stands for, where someone decides to switch it on. */
+export const CATEGORY_HINTS: Partial<Record<Category, string>> = {
+  kink: 'Sex-positive, fetish and kink parties.',
 };
 
 /**

@@ -296,7 +296,7 @@ describe('scoring', () => {
       ['sc_pricey', 0],
     ]);
     expect(JSON.parse(rows.results[0]!.reasons)[0].text).toBe('You turned off Club');
-    expect(JSON.parse(rows.results[3]!.reasons)[0].text).toBe('Sex-positive & kink is off until you turn it on');
+    expect(JSON.parse(rows.results[3]!.reasons)[0].text).toBe('XXX is off until you turn it on');
     expect(rows.results.every((x) => x.profile_version === 3)).toBe(true);
     expect((await scoreByRules(env, u.user.id)).scored).toBe(0);
 

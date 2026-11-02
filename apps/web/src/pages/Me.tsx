@@ -1,4 +1,5 @@
 import {
+  CATEGORY_HINTS,
   CATEGORY_LABELS,
   Category,
   OPT_IN_CATEGORIES,
@@ -211,6 +212,7 @@ function TasteForm() {
               <span className="flex items-center gap-2.5">
                 <CategoryDot category={c} className="size-2.5" />
                 <span>{CATEGORY_LABELS[c]}</span>
+                {CATEGORY_HINTS[c] && <span className="text-xs text-sub">{CATEGORY_HINTS[c]}</span>}
               </span>
               <div className="grid grid-cols-4" role="radiogroup" aria-label={`${CATEGORY_LABELS[c]}: how often`}>
                 {LEVELS.map((l) => (
@@ -675,7 +677,7 @@ function VisitorCategories() {
                   {CATEGORY_LABELS[c]}
                 </span>
                 <span className="text-xs text-sub">
-                  Off by default. Switched on, it shows up as a filter in Browse.
+                  {CATEGORY_HINTS[c]} Off by default. Switched on, it shows up as a filter in Browse.
                 </span>
               </div>
               <button
