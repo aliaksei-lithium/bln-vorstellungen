@@ -553,6 +553,56 @@ export const InboxReview = z.object({
 });
 export type InboxReview = z.infer<typeof InboxReview>;
 
+/**
+ * Discover (docs/09, 2026-11-02 "Discover"): a daily editorial page of themed stories (a scene, a venue, the weekend,
+ * what to book ahead, what is new, something outside the usual) with a lead and a few things to focus on.
+ */
+export const DiscoverKind = z.enum([
+  'theme',
+  'scene',
+  'venue',
+  'district',
+  'weekend',
+  'free',
+  'art',
+  'ahead',
+  'fresh',
+  'stretch',
+]);
+export type DiscoverKind = z.infer<typeof DiscoverKind>;
+export const DiscoverPick = z.object({
+  event: EventListItem,
+  score: z.number().int().nullable(),
+  /** A fact worth knowing at a glance: "2 dates sold out", "last date Sa 12.12.", "new this week". */
+  note: z.string().nullable(),
+});
+export type DiscoverPick = z.infer<typeof DiscoverPick>;
+export const DiscoverStory = z.object({
+  key: z.string(),
+  kind: DiscoverKind,
+  title: z.string(),
+  blurb: z.string(),
+  /** What the story is about, for a link to Browse: a venue, a district, a genre. */
+  subject: z.string().nullable(),
+  picks: z.array(DiscoverPick),
+});
+export type DiscoverStory = z.infer<typeof DiscoverStory>;
+export const DiscoverEdition = z.object({
+  status: z.enum(['none', 'ready']),
+  day: z.string().nullable(),
+  createdAt: z.string().nullable(),
+  headline: z.string().nullable(),
+  lede: z.string().nullable(),
+  /** Key of the story the lead is about; the page opens with it. */
+  lead: z.string().nullable(),
+  stories: z.array(DiscoverStory),
+  /** Short suggestions, each pointing at a story (its key) when there is one. */
+  focus: z.array(z.object({ text: z.string(), story: z.string().nullable() })),
+  /** False for the plain computed edition (no model wrote the copy). */
+  written: z.boolean(),
+});
+export type DiscoverEdition = z.infer<typeof DiscoverEdition>;
+
 /** The signed-in user's marks by event slug, for showing them on list rows. */
 export const MyStates = z.object({ states: z.record(z.string(), UserState) });
 export type MyStates = z.infer<typeof MyStates>;

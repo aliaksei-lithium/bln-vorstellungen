@@ -517,6 +517,24 @@ export const publicReviews = sqliteTable('public_reviews', {
   createdAt: createdAt(),
 });
 
+/**
+ * Discover editions (docs/09, 2026-11-02 "Discover"), one per audience and Berlin day: `audience` is a user id or
+ * 'public'. `content` holds the headline, lede, lead story key, the stories (kind, title, blurb, event ids with a
+ * note each) and the focus suggestions. model 'template' marks an edition whose copy no model wrote.
+ */
+export const discoverEditions = sqliteTable(
+  'discover_editions',
+  {
+    audience: text('audience').notNull(),
+    day: text('day').notNull(),
+    content: json<Record<string, unknown>>('content').notNull(),
+    model: text('model').notNull(),
+    promptVersion: text('prompt_version').notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [primaryKey({ columns: [t.audience, t.day] })],
+);
+
 /** "Ask for an invite" from visitors; the owner invites (creates the user and a login link) or declines. */
 export const inviteRequests = sqliteTable(
   'invite_requests',

@@ -71,6 +71,20 @@
       "when": 1793589312107,
       "tag": "0009_highlights_invites",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1793612504750,
+      "tag": "0010_discover",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1793613354870,
+      "tag": "0011_event_images",
+      "breakpoints": true
     }
   ]
 }

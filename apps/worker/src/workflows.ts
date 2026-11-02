@@ -1,5 +1,6 @@
 import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from 'cloudflare:workers';
 import { loadProfile } from './ai/score';
+import { buildDiscover } from './services/discover';
 import { composeReview, gatherCandidates, gatherPublicCandidates, research } from './services/review';
 import { runScan } from './services/scans';
 
@@ -36,13 +37,17 @@ export class PhotoIngestWorkflow extends WorkflowEntrypoint<Env, { scanId: strin
 }
 
 /**
- * The daily review for one user (docs/09, 2026-11-02). Research and compose are separate steps, so a failed compose
- * retries without paying for the web searches again.
+ * The daily review for one user (docs/09, 2026-11-02), and their Discover edition. Research and compose are separate
+ * steps, so a failed compose retries without paying for the web searches again.
  */
 export class DailyReviewWorkflow extends WorkflowEntrypoint<Env, { userId?: string }> {
   override async run(event: WorkflowEvent<{ userId?: string }>, step: WorkflowStep) {
     // No user: the public edition.
     const userId = event.payload.userId ?? null;
+    // Discover first and on its own: it falls back to template copy, so it never holds up the review.
+    await step.do('discover', { retries: { limit: 1, delay: '30 seconds' }, timeout: '3 minutes' }, async () => ({
+      stories: await buildDiscover(this.env, userId),
+    }));
     const found = await step.do(
       'research',
       { retries: { limit: 1, delay: '30 seconds' }, timeout: '5 minutes' },

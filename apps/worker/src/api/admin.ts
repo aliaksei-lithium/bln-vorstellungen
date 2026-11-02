@@ -21,6 +21,7 @@ import { createLoginLink, isAdmin, type AppEnv } from '../auth';
 import { HTTPException } from 'hono/http-exception';
 import { startSourceRun } from '../pipeline/scheduler';
 import { acceptInvite, declineInvite, listInviteRequests } from '../services/invites';
+import { buildDiscover } from '../services/discover';
 import { dropPastImages, fetchImages } from '../services/images';
 import { startReview } from '../services/review';
 
@@ -396,4 +397,10 @@ adminApi.post('/images/run', async (c) => {
   const t0 = Date.now();
   const stored = await fetchImages(c.env, new Date(), limit);
   return c.json({ stored, dropped, ms: Date.now() - t0 });
+});
+
+/** Rebuilds today's Discover now (one model call, no web searches): public, or one user's with `?user=<id>`. */
+adminApi.post('/discover/run', async (c) => {
+  const who = c.req.query('user') ?? null;
+  return c.json({ stories: await buildDiscover(c.env, who) });
 });

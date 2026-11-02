@@ -284,6 +284,27 @@ Format: date · decision · why · alternatives rejected. Newer entries supersed
   and deletes ~2 per event of 1M free; reads one per image view of 10M free, fewer with Workers Caching. $0 a month.
   Keeping past images would grow R2 by ~50 MB a month for pages nobody opens, so they are dropped. Rows in lists keep
   no thumbnail for now (text-first design, and 30 more requests per list view).
+- **2026-11-02 · Discover: a daily editorial page.** A new tab `/discover` (between Browse and For you) reads like a
+  magazine page instead of a list: a headline and lede, the lead story beside a short "Focus on" list (two or three
+  concrete things to do, each linking to its story), then stories laid out by what they are: rails for dates (this
+  weekend, just added, free), a programme strip for a place (a venue, a district), and framed cards in two columns
+  for ideas (a scene, a theme, book ahead, art, beyond your usual). On wide screens the page widens to 1080 px; other
+  tabs keep 600 px. The stories are computed, not chosen by a model: from the user's scored events for the next 120
+  days (public: the members' average score plus demand, events only default-off sources list left out), claimed in
+  order so each event appears once: book ahead (6+ weeks, strong or sold out), up to two scenes (genres, minus words
+  like "Premiere" that name a format), a venue (not one that already carries a scene), the weekend, art, beyond the
+  usual (outside the reader's two most common strong categories), just added (7 days), free (14 days), a district
+  (this week). Each pick carries one fact (sold-out dates, dates left, free, new). Then one structured Claude Haiku
+  call (`discover@1`, ~4k tokens in, ~1k out, about $0.001 an edition, metered as `ai_discover_calls`) writes the
+  titles, blurbs, headline, lede and focus, and may group 3 to 5 loose events into a theme; on any failure the
+  template copy stands, so a page always exists. It runs as the first step of `DailyReviewWorkflow` (its own step,
+  so it never holds up the highlights); a user's first edition is built on the spot from the template. Stored in
+  `discover_editions` (audience = user id or `public`, one per Berlin day, 14 days kept); read back like the
+  highlights (passed, hidden, skipped and switched-off-source events drop out; visitors' own switches apply in the
+  browser). `GET /api/discover` (public, cached 5 min), `GET /api/me/discover`, `POST /api/admin/discover/run`.
+  The copy uses the review's model (`SCORE_MODEL`, Haiku): at a tenth of a cent an edition, editorial copy is where
+  quality shows; Workers AI stays the automatic fallback inside `callJson`. Rejected: clustering live per request
+  (the copy would no longer match the stories).
 - **2026-10-02 · React + Vite + TanStack + Tailwind + shadcn/ui.** Best coverage by design tools and implementing
   models. Rejected: SvelteKit (good, but weaker design-tool output), Next.js on Workers via OpenNext (heavier than
   needed; no SSR requirement since public pages can be cached JSON + client render; revisit if SEO matters).
