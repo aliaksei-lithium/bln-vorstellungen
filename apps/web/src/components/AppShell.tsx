@@ -1,8 +1,10 @@
 import { Link, Outlet, useRouterState } from '@tanstack/react-router';
 import { CalendarDays, Camera, Compass, List, Telescope, User } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
+import { AskChat } from './AskBox';
 import { ScanSheet } from './ScanSheet';
 import { Tower } from './Tower';
+import { useMe } from '@/lib/auth';
 import { Toaster } from '@/lib/toast';
 import { cn } from '@/lib/utils';
 
@@ -83,6 +85,9 @@ export function AppShell() {
   // Discover reads like a magazine page: wider on large screens, for its two columns.
   const wide = path.startsWith('/discover');
   const isActive = (to: string) => (to === '/' ? path === '/' : path.startsWith(to));
+  // Ask is for signed-in users, everywhere but the scan review and sign-in pages.
+  const { user } = useMe();
+  const ask = !!user && !path.startsWith('/scan/') && !path.startsWith('/login/');
 
   return (
     <>
@@ -123,6 +128,7 @@ export function AppShell() {
       )}
       <Toaster aboveNav={!pushed} />
       <ScanSheet open={scanOpen} onOpenChange={setScanOpen} />
+      {ask && <AskChat aboveNav={!pushed} />}
     </>
   );
 }

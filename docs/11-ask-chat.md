@@ -1,6 +1,7 @@
 # 11 Ask: a chat in For you and Discover
 
-Status: researched 2026-11-02, built 2026-11-03 with the planned choices below (docs/09).
+Status: researched 2026-11-02, built 2026-11-03 with the planned choices below (docs/09); moved from a box on For you
+and Discover into a chat button on every page the same day.
 
 ## What it is
 
