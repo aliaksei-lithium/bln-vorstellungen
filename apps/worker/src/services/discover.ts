@@ -582,7 +582,11 @@ export async function buildDiscover(
           title: r.value.theme.title,
           blurb: r.value.theme.blurb,
           subject: null,
-          picks: themed.map((p) => ({ eventId: p.id, note: noteFor(p, 'theme') })),
+          picks: r.value.theme.events.map((n, i) => ({
+            eventId: themed[i]!.id,
+            note: noteFor(themed[i]!, 'theme'),
+            about: r.value.theme.lines.find((l) => l.n === n)?.text ?? null,
+          })),
         });
       }
       const keys = new Set(stories.map((s) => s.key));
