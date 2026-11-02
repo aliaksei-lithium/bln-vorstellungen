@@ -47,6 +47,12 @@ const listItem = (r: Record<string, unknown>): EventListItem => ({
   ...(r.source_ids ? { sources: String(r.source_ids).split(',') } : {}),
 });
 
+/** Belarus in English, German, Belarusian and Russian, and its capital: "Belarus", "Weißrussland", "Беларусь",
+ * "белорусский", "Minsk", "Мінск". */
+const BELARUS_FTS = ['belarus', 'weißruss', 'weissruss', 'беларус', 'белорус', 'minsk', 'мінск', 'минск']
+  .map((w) => `"${w}"*`)
+  .join(' OR ');
+
 /** The sources an event came from, for per-user source switches (one small indexed lookup per row). */
 export const SOURCE_IDS = `(SELECT group_concat(DISTINCT r.source_id) FROM event_sources es JOIN raw_items r ON r.id = es.raw_item_id
                      WHERE es.event_id = e.id AND r.source_id IS NOT NULL) AS source_ids`;
@@ -113,6 +119,12 @@ export async function listEvents(
                                     LIKE '%' || t.value || '%')
                      OR e.id IN (SELECT value FROM json_each(?)))`);
         filterArgs.push(JSON.stringify(like.terms), JSON.stringify(like.ids));
+      } else if (via === 'belarusian') {
+        // From a Belarusian community's sources (RAZAM), or about Belarus in any of the four languages.
+        ways.push(`e.id IN (SELECT es.event_id FROM event_sources es JOIN raw_items r ON r.id = es.raw_item_id
+                             JOIN sources so ON so.id = r.source_id WHERE so.community = 'belarusian')
+                   OR e.id IN (SELECT event_id FROM events_fts WHERE events_fts MATCH ?)`);
+        filterArgs.push(BELARUS_FTS);
       } else if (via === 'scans') {
         ways.push(`e.id IN (SELECT es.event_id FROM event_sources es JOIN raw_items r ON r.id = es.raw_item_id
                              WHERE r.source_id IS NULL)`);

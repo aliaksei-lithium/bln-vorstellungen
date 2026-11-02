@@ -16,6 +16,7 @@ import { Check, Search, SlidersHorizontal } from 'lucide-react';
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { z } from 'zod';
 import { TopBar } from '@/components/AppShell';
+import { BelarusFlag } from '@/components/BelarusFlag';
 import { CategoryDot } from '@/components/CategoryChip';
 import { EventRow } from '@/components/EventRow';
 import { EmptyState, ErrorState, ListSkeleton } from '@/components/States';
@@ -46,12 +47,18 @@ const list = (s?: string) => (s ? s.split(',').filter(Boolean) : []);
 const joined = (a: string[]) => (a.length ? a.join(',') : undefined);
 
 /** Source kinds, not single venues (docs/09): where an event came from. Spotify joins when it is connected. */
-const VIA_LABELS: Record<Via, string> = {
+const VIA_LABELS: Record<Exclude<Via, Community>, string> = {
   spotify: 'My Spotify artists',
   spotifylike: 'Close to my Spotify taste',
   telegram: 'Telegram channels',
   scans: 'Added from photos & text',
 };
+
+/** Communities: events from their own sources or about them (services/events.ts). */
+type Community = 'belarusian';
+const COMMUNITIES: { via: Community; label: string; Mark: () => React.ReactNode }[] = [
+  { via: 'belarusian', label: 'Belarusian', Mark: () => <BelarusFlag /> },
+];
 
 function groupByDay(items: EventListItem[]) {
   const groups = new Map<string, EventListItem[]>();
@@ -345,7 +352,7 @@ function FilterSheet({
           </div>
           <div className={label}>Source</div>
           <div className="flex flex-wrap gap-2">
-            {(Object.keys(VIA_LABELS) as Via[])
+            {(Object.keys(VIA_LABELS) as (keyof typeof VIA_LABELS)[])
               .filter((v) => !v.startsWith('spotify') || spotify.data?.connected)
               .map((v) => (
                 <Chip
@@ -356,6 +363,19 @@ function FilterSheet({
                   {VIA_LABELS[v]}
                 </Chip>
               ))}
+          </div>
+          <div className={label}>Community</div>
+          <div className="flex flex-wrap gap-2">
+            {COMMUNITIES.map(({ via, label: name, Mark }) => (
+              <Chip
+                key={via}
+                pressed={filters.via.includes(via)}
+                onClick={() => onChange({ ...filters, via: toggle(filters.via, via) })}
+              >
+                <Mark />
+                {name}
+              </Chip>
+            ))}
           </div>
           <div className={label}>District</div>
           <div className="flex flex-wrap gap-2">

@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "c2d30ff4-1847-457b-9668-a3df79ce8234",
+  "id": "5a4ff3b7-c21e-44ad-b622-6a9c322bc47a",
   "prevId": "32997f69-0789-4fe8-8be2-c121047a66de",
   "tables": {
     "accounts": {
@@ -1950,6 +1950,13 @@
           "notNull": true,
           "autoincrement": false,
           "default": "'auto'"
+        },
+        "community": {
+          "name": "community",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         },
         "cursor": {
           "name": "cursor",

@@ -316,6 +316,11 @@ Format: date · decision · why · alternatives rejected. Newer entries supersed
   Images: a source's `image_mode` (`auto`: its own image, else the event's page; `feed`: its own only; `none`) is set
   once per source, so pages that never have an image are not fetched for each new event. Luma and Berliner Ensemble
   start on `feed` (their pages gave nothing for 47 and 19 events).
+- **2026-11-02 · Community filters, starting with Belarusian.** Browse's filter sheet gets a Community group; the first
+  chip is "Belarusian", marked with the white-red-white flag (drawn: there is no emoji for it, and 🇧🇾 is the
+  official flag). `via=belarusian` lists events from sources marked `community = 'belarusian'` (RAZAM) and any event
+  whose text mentions Belarus in English, German, Belarusian or Russian, or Minsk (FTS prefix match). A community is
+  a column on the source, not a hardcoded id, so another community is one value and one chip.
 - **2026-10-02 · React + Vite + TanStack + Tailwind + shadcn/ui.** Best coverage by design tools and implementing
   models. Rejected: SvelteKit (good, but weaker design-tool output), Next.js on Workers via OpenNext (heavier than
   needed; no SSR requirement since public pages can be cached JSON + client render; revisit if SEO matters).
