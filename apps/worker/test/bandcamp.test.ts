@@ -29,6 +29,11 @@ function fake(seen: { url: string; body?: Record<string, unknown> }[] = []): typ
     const body = init?.body ? (JSON.parse(String(init.body)) as Record<string, unknown>) : undefined;
     seen.push({ url, body });
     if (url === 'https://bandcamp.com/goodfan') return new Response(FAN_PAGE);
+    if (url === 'https://bandcamp.com/blocked') {
+      return new Response(
+        '<html><head><title>Client Challenge</title><link href="/_fs-ch-1T1/assets/x.css"></head></html>',
+      );
+    }
     if (url === 'https://bandcamp.com/nofan') return new Response('<html>a label page</html>');
     if (url.endsWith('/collection_items')) {
       if (body?.older_than_token === 'next') {
@@ -69,6 +74,8 @@ describe('bandcamp', () => {
     expect(await fanId('goodfan', fake())).toBe(4242);
     await expect(fanId('nofan', fake())).rejects.toMatchObject({ status: 404 });
     await expect(fanId('missing', fake())).rejects.toMatchObject({ status: 404 });
+    // A bot check is not a wrong name.
+    await expect(fanId('blocked', fake())).rejects.toMatchObject({ status: 503 });
   });
 
   it('ranks bought artists by purchases, then wishlist, skipping compilations and a failing list', async () => {

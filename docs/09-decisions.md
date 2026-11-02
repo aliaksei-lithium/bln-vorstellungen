@@ -364,6 +364,11 @@ Format: date · decision · why · alternatives rejected. Newer entries supersed
   search when Bandcamp is the only service connected. These endpoints are unofficial: each list is best effort, and a
   private collection simply gives no artists. Rejected: asking for the user's Bandcamp cookie (a full-account
   credential) and scraping the rendered collection page (heavy HTML, over the CPU budget).
+- **2026-11-02 · Bandcamp blocks the Worker.** In production, bandcamp.com answers the Worker with a "Client
+  Challenge" bot-check page (status 200) instead of the fan page, so no fan can connect. The connector now says so
+  (503) instead of calling the fan name wrong, and the Me page hides the Bandcamp box (still shown to anyone already
+  connected, to disconnect). We do not route around the check (no proxies, readers or headless browsers), as with
+  razam.de.
 - **2026-11-04 · Rebuild Discover and For you after a music connect, and on demand.** Connecting Spotify, YouTube
   Music or Bandcamp re-scores the user, and the score run then starts the daily-review workflow (Discover, then For
   you), so both pages use the new artists the same day instead of the next morning. At most 3 such rebuilds per user

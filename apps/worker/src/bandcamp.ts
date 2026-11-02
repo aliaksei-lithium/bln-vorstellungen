@@ -22,6 +22,8 @@ const MAX_ARTISTS = 150;
 const NAME = /^[a-z0-9][a-z0-9_.-]{0,63}$/i;
 /** Compilations name no one in particular. */
 const NOBODY = /^(various( artists)?|v\.?\s?a\.?|unknown artist)$/i;
+/** Bandcamp's bot check page. */
+const CHALLENGE = /<title>\s*Client Challenge|\/_fs-ch-/i;
 
 type Fetch = typeof fetch;
 
@@ -60,6 +62,13 @@ export async function fanId(username: string, f: Fetch): Promise<number> {
   }
   if (!res.ok) throw new HTTPException(502, { message: `Bandcamp answered ${res.status}.` });
   const html = await res.text();
+  // Bandcamp answers requests from Cloudflare's network with a "Client Challenge" page (200) instead of the fan page.
+  if (CHALLENGE.test(html)) {
+    throw new HTTPException(503, {
+      message:
+        'Bandcamp is blocking our server with a bot check, so it cannot read fan pages right now. Your fan name is fine.',
+    });
+  }
   const q = '(?:&quot;|")';
   const m =
     new RegExp(`fan_data${q}:\\{[^{}]*?${q}fan_id${q}:(\\d+)`).exec(html) ??

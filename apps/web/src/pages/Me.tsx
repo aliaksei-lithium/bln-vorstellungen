@@ -513,6 +513,8 @@ function BandcampBox() {
   });
   const s = status.data;
   const error = link.error ?? sync.error ?? drop.error;
+  // Hidden while Bandcamp's bot check blocks the Worker (docs/09, 2026-11-02); shown only to disconnect.
+  if (!s?.connected) return null;
   return (
     <Box
       title="Bandcamp"
@@ -637,8 +639,8 @@ function RebuildBox() {
     >
       <div id="rebuild" className="grid gap-3 p-3">
         <p className="m-0 text-sm text-sub">
-          Both pages are written each morning. Rebuild them now to use your latest taste and artists. Connecting
-          Spotify, YouTube Music or Bandcamp rebuilds them by itself once your events are re-ranked.
+          Both pages are written each morning. Rebuild them now to use your latest taste and artists. Connecting Spotify
+          or YouTube Music rebuilds them by itself once your events are re-ranked.
         </p>
         {!r ? (
           <p className="m-0 text-sm text-sub">Loading…</p>
