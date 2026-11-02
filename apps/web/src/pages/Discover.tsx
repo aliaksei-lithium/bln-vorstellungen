@@ -375,6 +375,7 @@ function PickText({ p, big = false }: { p: DiscoverPick; big?: boolean }) {
         {e.venueName && <span>· {e.venueName}</span>}
         {price && <span>· {price}</span>}
       </span>
+      {p.about && <span className="mt-1 block text-[13.5px] leading-[18px] text-ink/85">{p.about}</span>}
       {p.note && <span className="mt-0.5 block text-[12.5px] font-bold text-moss">{p.note}</span>}
     </span>
   );
@@ -514,6 +515,7 @@ function RailStory({ story, personal }: { story: DiscoverStory; personal: boolea
                     {p.event.title}
                   </span>
                   {p.event.venueName && <span className="text-[12.5px] text-sub">{p.event.venueName}</span>}
+                  {p.about && <span className="line-clamp-3 text-[13px] leading-[17px] text-ink/85">{p.about}</span>}
                   <span className="mt-auto flex items-end justify-between gap-2 pt-1">
                     <span className="text-[12px] font-bold text-moss">{p.note ?? formatPrice(p.event) ?? ''}</span>
                     {personal && p.score != null && <ScoreBox score={p.score} />}
@@ -565,6 +567,9 @@ function StripStory({ story, personal }: { story: DiscoverStory; personal: boole
                       </span>
                       {story.kind === 'district' && p.event.venueName && (
                         <span className="block text-[12.5px] text-sub">{p.event.venueName}</span>
+                      )}
+                      {p.about && (
+                        <span className="mt-0.5 block text-[13px] leading-[17px] text-ink/85">{p.about}</span>
                       )}
                       {p.note && <span className="block text-[12.5px] font-bold text-moss">{p.note}</span>}
                     </span>

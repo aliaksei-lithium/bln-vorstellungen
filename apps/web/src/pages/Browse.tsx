@@ -11,7 +11,7 @@ import {
 } from '@bln/shared';
 import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useSearch } from '@tanstack/react-router';
-import { Check, Search, SlidersHorizontal } from 'lucide-react';
+import { Check, Search, SlidersHorizontal, Sparkle } from 'lucide-react';
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { z } from 'zod';
 import { TopBar } from '@/components/AppShell';
@@ -62,9 +62,10 @@ const VIA_LABELS: Record<Exclude<Via, Community>, string> = {
   scans: 'Added from photos & text',
 };
 
-/** Communities: events from their own sources or about them (services/events.ts). */
-type Community = 'belarusian';
+/** Collections: hand-picked venues, and communities (events from their own sources or about them; services/events.ts). */
+type Community = 'specials' | 'belarusian';
 const COMMUNITIES: { via: Community; label: string; Mark: () => React.ReactNode }[] = [
+  { via: 'specials', label: 'Berlin specials', Mark: () => <Sparkle className="size-4 text-moss" aria-hidden /> },
   { via: 'belarusian', label: 'Belarusian', Mark: () => <BelarusFlag /> },
 ];
 
@@ -452,7 +453,7 @@ function FilterSheet({
                 </Chip>
               ))}
           </div>
-          <div className={label}>Community</div>
+          <div className={label}>Collections</div>
           <div className="flex flex-wrap gap-2">
             {COMMUNITIES.map(({ via, label: name, Mark }) => (
               <Chip

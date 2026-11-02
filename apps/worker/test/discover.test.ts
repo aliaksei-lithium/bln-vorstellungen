@@ -32,6 +32,7 @@ function item(id: string, over: Partial<PoolItem> = {}): PoolItem {
     days: 10,
     age: 30,
     fresh: false,
+    about: null,
     isFree: false,
     weight: 60,
     score: 60,
@@ -179,7 +180,12 @@ function claudeEnv(onCall?: (user: string) => void) {
                 headline: 'A loud fortnight',
                 lede: 'Noise rock everywhere.',
                 lead: keys[0] ?? '',
-                stories: keys.map((k) => ({ key: k, title: `Title ${k}`, blurb: `Blurb ${k}` })),
+                stories: keys.map((k) => ({
+                  key: k,
+                  title: `Title ${k}`,
+                  blurb: `Blurb ${k}`,
+                  lines: [{ n: 1, text: `Why ${k}` }],
+                })),
                 theme: { title: 'Small rooms', blurb: 'Three tiny gigs.', events: [1, 2, 3] },
                 focus: [{ text: 'Keep Friday free', story: keys[0] ?? '' }],
               }),
@@ -226,6 +232,8 @@ describe('discover editions', () => {
     expect(ed.stories[0]!.kind).toBe('theme');
     expect(ed.stories.find((s) => s.kind === 'scene')?.title).toMatch(/^Title scene-shoegaze/);
     expect(ed.stories.find((s) => s.kind === 'ahead')?.picks.map((p) => p.event.slug)).toEqual(['d_far', 'd_far2']);
+    // A line on what each first pick is, from the same call; none for picks the model skipped.
+    expect(ed.stories.find((s) => s.kind === 'ahead')?.picks.map((p) => p.about)).toEqual(['Why ahead', null]);
     const slugs = ed.stories.flatMap((s) => s.picks.map((p) => p.event.slug));
     expect(slugs).not.toContain('d_n1');
     expect(ed.focus[0]).toEqual({ text: 'Keep Friday free', story: ed.lead });

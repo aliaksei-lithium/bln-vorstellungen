@@ -26,12 +26,14 @@ beforeAll(async () => {
   await env.DB.batch([
     env.DB.prepare(
       `INSERT INTO sources (id, name, type, config, schedule_minutes, community) VALUES
-         ('s_by', 'RAZAM', 'ical', '{}', 360, 'belarusian'), ('s_other', 'Other', 'ical', '{}', 360, NULL)`,
+         ('s_by', 'RAZAM', 'ical', '{}', 360, 'belarusian'), ('s_other', 'Other', 'ical', '{}', 360, NULL),
+         ('s_sp', '8MM', 'squarespace', '{}', 720, 'specials')`,
     ),
     env.DB.prepare(
       `INSERT INTO raw_items (id, source_id, external_id, content_hash, kind, content, fetched_at) VALUES
          ('raw-by', 's_by', 'a', 'h-by', 'ical', 'x', '2026-01-01T00:00:00Z'),
-         ('raw-other', 's_other', 'b', 'h-other', 'ical', 'x', '2026-01-01T00:00:00Z')`,
+         ('raw-other', 's_other', 'b', 'h-other', 'ical', 'x', '2026-01-01T00:00:00Z'),
+         ('raw-sp', 's_sp', 'c', 'h-sp', 'json', 'x', '2026-01-01T00:00:00Z')`,
     ),
   ]);
   const venues = await VenueIndex.load(env.DB);
@@ -41,6 +43,7 @@ beforeAll(async () => {
   await resolveEvent(env.DB, venues, ev('Lesung', 'Neue Literatur aus Weißrussland.'), prov('raw-other'));
   await resolveEvent(env.DB, venues, ev('Minsk Underground', 'Noise from the capital.'), prov('raw-other'));
   await resolveEvent(env.DB, venues, ev('Unrelated jazz night', 'Trio from Hamburg.'), prov('raw-other'));
+  await resolveEvent(env.DB, venues, ev('8MM Live: Fluppe', 'Garage punk.'), prov('raw-sp'));
 });
 
 describe('Belarusian filter', () => {
@@ -51,5 +54,13 @@ describe('Belarusian filter', () => {
     expect(items.map((i) => i.title).sort()).toEqual(
       ['Karova Belaya live', 'Lesung', 'Minsk Underground', 'Сабраныя нанова'].sort(),
     );
+  });
+});
+
+describe('Berlin specials', () => {
+  it("lists only the hand-picked venues' events", async () => {
+    const res = await exports.default.fetch(`https://x/api/events?via=specials&from=${day}&to=${day}`);
+    const { items } = (await res.json()) as { items: { title: string }[] };
+    expect(items.map((i) => i.title)).toEqual(['8MM Live: Fluppe']);
   });
 });

@@ -357,6 +357,14 @@ Format: date · decision · why · alternatives rejected. Newer entries supersed
   button at the bottom right (above the nav) on every page for signed-in users, except the scan review and sign-in;
   it opens as a sheet on phones and a 400 px panel in the corner on larger screens. Opening an event from an answer
   closes it; Escape too. The conversation still lives in the tab.
+- **2026-11-03 · Berlin specials; DJ bars; a line per Discover pick.** From The Berliner's "A DJ Walks into a Bar"
+  (8MM, Soulcat, Mysliwska, Minimal, Coro, Geist im Glas, Zweiners), only 8MM (Squarespace: a new `squarespace`
+  adapter reads `?format=json`, no LLM) and Soulcat (The Events Calendar iCal) publish a programme; the others post on
+  Instagram only, or are listed on sites that block bots (RA, Rausgegangen, GoOut). A source's `community` can now be
+  `specials`: Browse's "Berlin specials" (Collections, with Belarusian) lists everything such sources list, starting
+  with 8MM, Soulcat, OGH and Loge. Discover picks get one line on what the event is and why go (`about`), written in
+  the same daily call from the start of each description (`discover@2`): ~1.4k more tokens in, ~750 out, about
+  $0.0005 an edition. Picks the model has nothing to say about keep only their fact line.
 - **2026-10-02 · React + Vite + TanStack + Tailwind + shadcn/ui.** Best coverage by design tools and implementing
   models. Rejected: SvelteKit (good, but weaker design-tool output), Next.js on Workers via OpenNext (heavier than
   needed; no SSR requirement since public pages can be cached JSON + client render; revisit if SEO matters).

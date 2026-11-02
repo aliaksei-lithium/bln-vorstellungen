@@ -279,8 +279,8 @@ export const sources = sqliteTable(
     imageMode: text('image_mode', { enum: ['auto', 'feed', 'none'] })
       .notNull()
       .default('auto'),
-    /** A community this source is run by or for ("belarusian": RAZAM); Browse's community filter takes its events. */
-    community: text('community', { enum: ['belarusian'] }),
+    /** A community or collection the source belongs to ("belarusian": RAZAM; "specials"); Browse filters by it. */
+    community: text('community', { enum: ['belarusian', 'specials'] }),
     cursor: text('cursor'),
     nextRunAt: text('next_run_at'),
     lastRunAt: text('last_run_at'),

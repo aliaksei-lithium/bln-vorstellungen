@@ -9,3 +9,4 @@ export { rssAdapter, RssConfig } from './rss';
 export { htmlAdapter, HtmlConfig, chunkMarkdown } from './html';
 export { telegramAdapter, TelegramConfig, parseTelegramPage, hasDateHint } from './telegram';
 export { ticketShopAdapter, TicketShopConfig } from './ticketshop';
+export { squarespaceAdapter, SquarespaceConfig } from './squarespace';
