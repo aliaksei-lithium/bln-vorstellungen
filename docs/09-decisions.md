@@ -353,6 +353,17 @@ Format: date · decision · why · alternatives rejected. Newer entries supersed
   (External, published "In production": in "Testing" Google drops refresh tokens after 7 days; unverified is fine
   for up to 100 users, who see a warning), a Web OAuth client with the redirect `<origin>/youtube/callback`, then
   `wrangler secret put GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`. Without them the Me box says it is not set up.
+- **2026-11-04 · Bandcamp, like Spotify, by fan name.** Bandcamp has no API or sign-in for fans, but fan pages and
+  collections are public by default. The user gives their fan name (or the `bandcamp.com/<name>` link); the Worker
+  reads the fan id from the fan page's page data with one regex (no DOM parsing), then the collection, wishlist and
+  followed artists through the JSON endpoints the fan page itself uses (`/api/fancollection/1/collection_items`,
+  `wishlist_items`, `following_bands`): about 7 requests per sync. Artists: bought most first (ties: most recent),
+  then the wishlist, then followed; compilations ("Various Artists") dropped; genres from the same model call as
+  Spotify. Stored in `user_artists` with source `bandcamp`, so the ranking boost, "My artists" and the music taste
+  line use it. Only the fan name is kept (in `accounts.account_id`), no token; "Listen" goes to Bandcamp's artist
+  search when Bandcamp is the only service connected. These endpoints are unofficial: each list is best effort, and a
+  private collection simply gives no artists. Rejected: asking for the user's Bandcamp cookie (a full-account
+  credential) and scraping the rendered collection page (heavy HTML, over the CPU budget).
 - **2026-11-03 · Ask moves into a chat button.** The box on For you and Discover took a screen of space. Ask is now a
   button at the bottom right (above the nav) on every page for signed-in users, except the scan review and sign-in;
   it opens as a sheet on phones and a 400 px panel in the corner on larger screens. Opening an event from an answer

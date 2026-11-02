@@ -8,6 +8,7 @@ import {
   type Profile,
   type SpotifyStatus,
   type YoutubeStatus,
+  type BandcampStatus,
   type UsageDay,
 } from '@bln/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -91,6 +92,7 @@ export function MePage() {
             <TasteForm />
             <SpotifyBox />
             <YoutubeBox />
+            <BandcampBox />
             <SourcesBox />
             <PasswordBox />
             <OtherDevice />
@@ -480,6 +482,109 @@ function YoutubeBox() {
         {(sync.isError || drop.isError) && (
           <p role="alert" className="m-0 text-sm font-semibold text-danger">
             {(sync.error ?? drop.error)?.message}
+          </p>
+        )}
+      </div>
+    </Box>
+  );
+}
+
+/** Connect Bandcamp by fan name: artists from the public collection, wishlist and followed artists. */
+function BandcampBox() {
+  const qc = useQueryClient();
+  const status = useQuery({ queryKey: ['bandcamp'], queryFn: api.bandcamp });
+  const [name, setName] = useState('');
+  const done = (s: BandcampStatus) => {
+    qc.setQueryData(['bandcamp'], s);
+    void qc.invalidateQueries({ queryKey: ['inbox'] });
+  };
+  const link = useMutation({
+    mutationFn: () => api.bandcampConnect(name),
+    onSuccess: (s) => (done(s), setName(''), toast('Bandcamp connected. Your picks are being re-ranked.')),
+  });
+  const sync = useMutation({ mutationFn: api.bandcampSync, onSuccess: (s) => (done(s), toast('Artists updated')) });
+  const drop = useMutation({
+    mutationFn: api.bandcampDisconnect,
+    onSuccess: (s) => (done(s), toast('Bandcamp disconnected')),
+  });
+  const s = status.data;
+  const error = link.error ?? sync.error ?? drop.error;
+  return (
+    <Box
+      title="Bandcamp"
+      collapsed
+      summary={s ? (s.connected ? `Connected · ${s.artists.length} artists` : 'Not connected') : undefined}
+    >
+      <div id="bandcamp" className="grid gap-3 p-3">
+        {!s ? (
+          <p className="m-0 text-sm text-sub">Loading…</p>
+        ) : !s.connected ? (
+          <form
+            className="grid gap-3"
+            onSubmit={(e) => {
+              e.preventDefault();
+              link.mutate();
+            }}
+          >
+            <p className="m-0 text-sm text-sub">
+              Give your Bandcamp fan name: the artists in your collection, your wishlist and the artists you follow
+              count like Spotify artists. No sign-in; we read only what your public fan page shows.
+            </p>
+            <label className={fieldLabel}>
+              Fan name or fan page link
+              <input
+                className={fieldInput}
+                placeholder="bandcamp.com/yourname"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                required
+                maxLength={200}
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+              />
+            </label>
+            <Button type="submit" className="justify-self-start" disabled={link.isPending || !name.trim()}>
+              {link.isPending ? 'Reading your collection…' : 'Connect Bandcamp'}
+            </Button>
+          </form>
+        ) : (
+          <>
+            <p className="m-0 text-sm">
+              <b>{s.artists.length}</b> artists from{' '}
+              <a
+                href={`https://bandcamp.com/${encodeURIComponent(s.username ?? '')}`}
+                target="_blank"
+                rel="noreferrer"
+                className="font-bold text-moss"
+              >
+                bandcamp.com/{s.username}
+              </a>
+              {s.syncedAt && <span className="text-sub"> · updated {s.syncedAt.slice(0, 10)}</span>}
+            </p>
+            {s.artists.length > 0 ? (
+              <p className="m-0 text-sm text-sub">
+                {s.artists.slice(0, 12).join(', ')}
+                {s.artists.length > 12 && ` and ${s.artists.length - 12} more`}
+              </p>
+            ) : (
+              <p className="m-0 text-sm text-sub">
+                No artists found. Check that your collection is public in your Bandcamp settings, then update.
+              </p>
+            )}
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" disabled={sync.isPending} onClick={() => sync.mutate()}>
+                Update artists
+              </Button>
+              <Button size="sm" variant="ghost" disabled={drop.isPending} onClick={() => drop.mutate()}>
+                Disconnect
+              </Button>
+            </div>
+          </>
+        )}
+        {error && (
+          <p role="alert" className="m-0 text-sm font-semibold text-danger">
+            {error.message}
           </p>
         )}
       </div>

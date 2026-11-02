@@ -4,6 +4,7 @@ import {
   PasswordStatus,
   SpotifyStatus,
   YoutubeStatus,
+  BandcampStatus,
   SourcesOverview,
   UsageOverview,
   Scan,
@@ -103,6 +104,11 @@ export const api = {
   youtube: () => getJson('/api/me/youtube', YoutubeStatus),
   youtubeSync: () => request('/api/me/youtube/sync', YoutubeStatus, { method: 'POST', body: {} }),
   youtubeDisconnect: () => request('/api/me/youtube', YoutubeStatus, { method: 'DELETE' }),
+  bandcamp: () => getJson('/api/me/bandcamp', BandcampStatus),
+  bandcampConnect: (username: string) =>
+    request('/api/me/bandcamp', BandcampStatus, { method: 'PUT', body: { username } }),
+  bandcampSync: () => request('/api/me/bandcamp/sync', BandcampStatus, { method: 'POST', body: {} }),
+  bandcampDisconnect: () => request('/api/me/bandcamp', BandcampStatus, { method: 'DELETE' }),
   setPassword: (body: { password: string; current?: string }) =>
     request('/api/me/password', PasswordStatus, { method: 'PUT', body }),
   loginLink: () => request('/api/me/login-link', LoginLink, { method: 'POST', body: {} }),

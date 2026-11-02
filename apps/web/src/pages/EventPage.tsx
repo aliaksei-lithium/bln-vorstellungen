@@ -38,11 +38,15 @@ import { useListFilter } from '@/lib/marks';
 import { relativeDay } from '@/lib/dates';
 import { cn } from '@/lib/utils';
 
-/** "Listen" goes to the act on Spotify (its page, or a search) or on YouTube Music (a search). */
-const listenHref = (on: 'spotify' | 'youtube', name: string) =>
+type ListenOn = 'spotify' | 'youtube' | 'bandcamp';
+
+/** "Listen" goes to the act on Spotify (its page, or a search), or to a YouTube Music or Bandcamp search. */
+const listenHref = (on: ListenOn, name: string) =>
   on === 'youtube'
     ? `https://music.youtube.com/search?q=${encodeURIComponent(name)}`
-    : `/spotify/listen?artist=${encodeURIComponent(name)}`;
+    : on === 'bandcamp'
+      ? `https://bandcamp.com/search?item_type=b&q=${encodeURIComponent(name)}`
+      : `/spotify/listen?artist=${encodeURIComponent(name)}`;
 
 /** Categories where "Listen" makes sense. */
 const MUSIC = new Set(['concert', 'club', 'festival']);
@@ -80,10 +84,17 @@ export function EventPage({ slug }: { slug: string }) {
     },
   });
   const my = mine.data;
-  // Listen where they listen: YouTube Music when that is connected and Spotify is not.
+  // Listen where they listen: Spotify first, then YouTube Music, then Bandcamp, whichever is connected.
   const spotify = useQuery({ queryKey: ['spotify'], queryFn: api.spotify, enabled: !!user, staleTime: 300_000 });
   const youtube = useQuery({ queryKey: ['youtube'], queryFn: api.youtube, enabled: !!user, staleTime: 300_000 });
-  const listenOn: 'spotify' | 'youtube' = youtube.data?.connected && !spotify.data?.connected ? 'youtube' : 'spotify';
+  const bandcamp = useQuery({ queryKey: ['bandcamp'], queryFn: api.bandcamp, enabled: !!user, staleTime: 300_000 });
+  const listenOn: ListenOn = spotify.data?.connected
+    ? 'spotify'
+    : youtube.data?.connected
+      ? 'youtube'
+      : bandcamp.data?.connected
+        ? 'bandcamp'
+        : 'spotify';
 
   const head = (
     <div className="sticky top-[env(safe-area-inset-top,0px)] z-10 -mx-2 grid h-14 grid-cols-[44px_1fr_44px] items-center bg-background">
@@ -405,12 +416,12 @@ export function EventPage({ slug }: { slug: string }) {
                       </a>
                     ))}
                   <a
-                    href={listenHref(listenOn === 'youtube' ? 'spotify' : 'youtube', actsOf(e)[0]!)}
+                    href={listenHref(listenOn === 'spotify' ? 'youtube' : 'spotify', actsOf(e)[0]!)}
                     target="_blank"
                     rel="noreferrer"
                     className="text-[13px] text-sub underline underline-offset-2"
                   >
-                    {listenOn === 'youtube' ? 'on Spotify' : 'on YouTube Music'}
+                    {listenOn === 'spotify' ? 'on YouTube Music' : 'on Spotify'}
                   </a>
                 </dd>
               </>
