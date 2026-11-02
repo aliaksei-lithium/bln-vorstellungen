@@ -9,6 +9,7 @@ import { ForYouPage } from '@/pages/Inbox';
 import { LoginPage } from '@/pages/Login';
 import { MePage } from '@/pages/Me';
 import { ScanPage } from '@/pages/ScanPage';
+import { VenuePage } from '@/pages/VenuePage';
 
 const rootRoute = createRootRoute({
   component: AppShell,
@@ -50,6 +51,14 @@ const routes = [
       return <ScanPage id={id} />;
     },
   }),
+  createRoute({
+    getParentRoute: () => rootRoute,
+    path: '/venue/$id',
+    component: function VenueRoute() {
+      const { id } = venueRoute.useParams();
+      return <VenuePage id={id} />;
+    },
+  }),
   // The old name, for bookmarks and installed shortcuts.
   createRoute({
     getParentRoute: () => rootRoute,
@@ -62,6 +71,7 @@ const routes = [
 const eventRoute = routes[1];
 const loginRoute = routes[6];
 const scanRoute = routes[7];
+const venueRoute = routes[8];
 
 export const router = createRouter({
   routeTree: rootRoute.addChildren([...routes]),

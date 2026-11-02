@@ -323,6 +323,18 @@ Format: date · decision · why · alternatives rejected. Newer entries supersed
   a column on the source, not a hardcoded id, so another community is one value and one chip.
 - **2026-11-02 · The kink category is labelled "XXX".** "Sex-positive & kink" overflowed the category chip in event
   rows. The id stays `kink`; where someone switches it on (Me), a hint says what it covers.
+- **2026-11-02 · Browse shows highlights by default; venues get a page; "new" means newly announced.** With ~650
+  upcoming events from 30 sources, plain browsing (no search, category or source filter) shows each day's strongest
+  six ("Highlights"; "Everything" is one tap, remembered per browser): ranked by members' average score (`interest`
+  on every list row, from a new index on scores by event; the same for everyone, so the list stays publicly
+  cacheable), then image, then sources; at most one exhibition, talk or market per day, three of anything else.
+  "Show all N" opens a day. A day of six or fewer is shown whole. Venues get `/venue/:id` (`GET /api/venues/:id`,
+  `?venue=` on the event list), linked from the event page and Discover's venue stories; it ignores source and
+  category switches, since opening a venue asks for its programme. Discover's "new in the programme" counted every
+  event of a freshly added source; an event is now "just announced" only when it arrived at least 3 days after its
+  source was first read. A page image that another event's different page also gives is the site's own (Index
+  Berlin's featured picture, Lab.oratory's default): dropped for all of them. RAZAM's calendar is read through the
+  owner's Google Calendar subscription (Google's public iCal export), since razam.de refuses Cloudflare's network.
 - **2026-10-02 · React + Vite + TanStack + Tailwind + shadcn/ui.** Best coverage by design tools and implementing
   models. Rejected: SvelteKit (good, but weaker design-tool output), Next.js on Workers via OpenNext (heavier than
   needed; no SSR requirement since public pages can be cached JSON + client render; revisit if SEO matters).

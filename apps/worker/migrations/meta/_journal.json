@@ -92,6 +92,13 @@
       "when": 1793614887647,
       "tag": "0012_source_image_mode",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "6",
+      "when": 1793619622258,
+      "tag": "0013_scores_by_event",
+      "breakpoints": true
     }
   ]
 }

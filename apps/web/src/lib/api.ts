@@ -17,6 +17,7 @@ import {
   type ScanConfirm,
   CalendarLink,
   EventDetail,
+  VenueDetail,
   EventsList,
   EventsResponse,
   HealthResponse,
@@ -73,6 +74,7 @@ export const api = {
     return getJson(`/api/events?${params}`, EventsResponse);
   },
   event: (slug: string) => getJson(`/api/events/${enc(slug)}`, EventDetail),
+  venue: (id: string) => getJson(`/api/venues/${enc(id)}`, VenueDetail),
   similar: (slug: string) => getJson(`/api/events/${enc(slug)}/similar`, EventsList),
   searchByMeaning: (q: string) => getJson(`/api/events/search?${new URLSearchParams({ q })}`, EventsList),
 

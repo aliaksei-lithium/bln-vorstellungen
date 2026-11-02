@@ -30,6 +30,8 @@ const PER_STORY = 6;
 const MAX_STORIES = 9;
 const FAR_DAYS = 42;
 const FRESH_DAYS = 7;
+/** Events a source lists in its first days are its existing programme, not new announcements. */
+const SETTLE_DAYS = 3;
 const LOOSE = 18;
 const KEEP_DAYS = 14;
 const DAY_MS = 86_400_000;
@@ -48,6 +50,11 @@ export type PoolItem = {
   days: number;
   /** Days since the event entered the programme. */
   age: number;
+  /**
+   * Newly announced: added in the last FRESH_DAYS, and at least SETTLE_DAYS after its source was first read. A new
+   * source's first import is its whole programme, not news.
+   */
+  fresh: boolean;
   isFree: boolean;
   /** How much the reader should care: their score, or for the public the members' average plus demand. */
   weight: number;
@@ -75,6 +82,7 @@ function toItem(r: Row, today: string, weight: number, score: number | null): Po
   } catch {
     // Unreadable genres: none.
   }
+  const age = -dayDiff(utcToBerlinLocal(String(r.created_at)), today);
   return {
     id: String(r.id),
     title: String(r.title),
@@ -85,7 +93,11 @@ function toItem(r: Row, today: string, weight: number, score: number | null): Po
     district: (r.district as string | null) ?? null,
     nextLocal,
     days: dayDiff(nextLocal, today),
-    age: -dayDiff(utcToBerlinLocal(String(r.created_at)), today),
+    age,
+    fresh:
+      age <= FRESH_DAYS &&
+      !!r.source_since &&
+      Date.parse(String(r.created_at)) - Date.parse(String(r.source_since)) >= SETTLE_DAYS * DAY_MS,
     isFree: Boolean(r.is_free),
     weight,
     score,
@@ -101,6 +113,8 @@ const FACTS = `e.id, e.title, e.category, e.genres, e.is_free, e.created_at, e.n
        (SELECT COUNT(*) FROM occurrences o WHERE o.event_id = e.id AND o.start_utc >= ?1 AND o.status = 'scheduled') AS dates_left,
        (SELECT COUNT(*) FROM occurrences o WHERE o.event_id = e.id AND o.start_utc >= ?1 AND o.status = 'sold_out') AS sold_out,
        (SELECT MAX(o.start_local) FROM occurrences o WHERE o.event_id = e.id AND o.status != 'cancelled') AS last_local,
+       (SELECT MIN(so.created_at) FROM event_sources es JOIN raw_items r ON r.id = es.raw_item_id
+          JOIN sources so ON so.id = r.source_id WHERE es.event_id = e.id) AS source_since,
        ${SOURCE_IDS}`;
 
 /** A user's scored upcoming events, without what they switched off or already sorted out. */
@@ -375,7 +389,7 @@ export function buildStories(pool: PoolItem[], opts: { personal: boolean; today:
     'fresh',
     'fresh',
     null,
-    sorted.filter((i) => i.age <= FRESH_DAYS),
+    sorted.filter((i) => i.fresh),
     3,
     (p) => ['New in the programme', `Added this week: ${names(p)}.`],
   );
@@ -414,7 +428,7 @@ export function noteFor(i: PoolItem, kind: DiscoverKind): string | null {
       : `${i.datesLeft} dates until ${formatDay(i.lastLocal)}`;
   }
   if (i.isFree && kind !== 'free') return 'free';
-  if (i.age <= FRESH_DAYS && kind !== 'fresh') return 'new in the programme';
+  if (i.fresh && kind !== 'fresh') return 'just announced';
   return null;
 }
 

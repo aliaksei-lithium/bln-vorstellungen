@@ -1,0 +1,1 @@
+CREATE INDEX `user_event_scores_event_idx` ON `user_event_scores` (`event_id`,`score`);

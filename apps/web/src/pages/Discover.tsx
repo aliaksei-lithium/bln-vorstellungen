@@ -393,7 +393,7 @@ function StoryHead({ story, personal, more }: { story: DiscoverStory; personal: 
   );
 }
 
-/** A link to Browse with the story's own filter, where Browse has one. */
+/** A link to the story's whole list: Browse with its filter, or the venue's page. */
 function BrowseMore({ story }: { story: DiscoverStory }) {
   const cls = 'mt-1 inline-flex w-fit items-center gap-1 text-xs font-extrabold tracking-[.06em] text-moss uppercase';
   const label = (
@@ -419,7 +419,14 @@ function BrowseMore({ story }: { story: DiscoverStory }) {
         {label}
       </Link>
     );
-  if ((story.kind === 'venue' || story.kind === 'scene') && story.subject)
+  // A venue story's key is "venue-<venue id>" (services/discover.ts): its page has the whole programme.
+  if (story.kind === 'venue' && story.key.startsWith('venue-'))
+    return (
+      <Link to="/venue/$id" params={{ id: story.key.slice('venue-'.length) }} className={cls}>
+        {label}
+      </Link>
+    );
+  if (story.kind === 'scene' && story.subject)
     return (
       <Link to="/" search={{ q: story.subject }} className={cls}>
         {label}

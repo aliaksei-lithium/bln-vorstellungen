@@ -1,5 +1,6 @@
 import {
   EventDetail,
+  VenueDetail,
   OPT_IN_CATEGORIES,
   type Category,
   berlinLocalToUtc,
@@ -45,6 +46,7 @@ const listItem = (r: Record<string, unknown>): EventListItem => ({
   ...(r.lang === 'de' || r.lang === 'en' ? { lang: r.lang } : {}),
   ...(r.image_key ? { image: imageUrl(String(r.image_key)) } : {}),
   ...(r.source_ids ? { sources: String(r.source_ids).split(',') } : {}),
+  ...(r.interest != null ? { interest: Number(r.interest) } : {}),
 });
 
 /** Belarus in English, German, Belarusian and Russian, and its capital: "Belarus", "Weißrussland", "Беларусь",
@@ -136,13 +138,19 @@ export async function listEvents(
     }
     filters.push(`(${ways.map((w) => `(${w})`).join(' OR ')})`);
   }
+  if (q.venue) {
+    filters.push('e.venue_id = ?');
+    filterArgs.push(q.venue);
+  }
   if (q.q) {
     filters.push('e.id IN (SELECT event_id FROM events_fts WHERE events_fts MATCH ?)');
     filterArgs.push(ftsQuery(q.q));
   }
 
+  // Members' interest is the same for everyone, so public responses stay cacheable.
   const select = `e.slug, e.title, e.lang, e.category, e.price_min, e.price_max, e.is_free, e.image_key, v.name AS venue_name,
-                  v.district, ${SOURCE_IDS}`;
+                  v.district, ${SOURCE_IDS},
+                  (SELECT ROUND(AVG(s.score)) FROM user_event_scores s WHERE s.event_id = e.id) AS interest`;
   let stmt: D1PreparedStatement;
   if (!windowed) {
     const where = ["e.status = 'published'", 'e.next_start_utc >= ?', 'e.next_start_utc <= ?', ...filters];
@@ -359,4 +367,18 @@ export function ftsQuery(text: string): string {
     .filter(Boolean)
     .slice(0, 8);
   return words.map((w, i) => `"${w}"${i === words.length - 1 ? '*' : ''}`).join(' ');
+}
+
+/** A venue's page header; null for an unknown id. */
+export async function venueDetail(db: D1Database, id: string): Promise<VenueDetail | null> {
+  const v = await db
+    .prepare(
+      `SELECT v.id, v.name, v.address, v.district, v.url,
+              (SELECT COUNT(*) FROM events e WHERE e.venue_id = v.id AND e.status = 'published'
+                 AND e.next_start_utc IS NOT NULL) AS upcoming
+         FROM venues v WHERE v.id = ?`,
+    )
+    .bind(id)
+    .first<VenueDetail>();
+  return v ? VenueDetail.parse(v) : null;
 }

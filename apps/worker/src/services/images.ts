@@ -54,6 +54,7 @@ export async function fetchImages(env: Env, now = new Date(), limit = IMAGES_PER
     try {
       if (!src && (ev.mode ?? 'auto') === 'auto' && isEventPage(ev.url_official!)) {
         src = await pageImage(ev.url_official!);
+        if (src && (await siteWide(env, src, ev))) src = null;
       }
       if (src) key = await storeImage(env, ev.id, src);
       if (key) stored++;
@@ -70,6 +71,25 @@ export async function fetchImages(env: Env, now = new Date(), limit = IMAGES_PER
     if (key && ev.image_key && ev.image_key !== key) await env.MEDIA.delete(ev.image_key);
   }
   return stored;
+}
+
+/**
+ * Whether a page's image is the site's own rather than the event's: another event, with a different page, already
+ * has it (a listing site's featured picture, its default og:image). Those events lose it too, and keep no retry.
+ */
+async function siteWide(env: Env, src: string, ev: Pending): Promise<boolean> {
+  const { results } = await env.DB.prepare(
+    `SELECT id, image_key FROM events WHERE image_src = ? AND id != ? AND COALESCE(url_official, '') != ?`,
+  )
+    .bind(src, ev.id, ev.url_official ?? '')
+    .all<{ id: string; image_key: string | null }>();
+  if (!results.length) return false;
+  const keys = results.flatMap((r) => (r.image_key ? [r.image_key] : []));
+  if (keys.length) await env.MEDIA.delete(keys);
+  await env.DB.batch(
+    results.map((r) => env.DB.prepare('UPDATE events SET image_src = NULL, image_key = NULL WHERE id = ?').bind(r.id)),
+  );
+  return true;
 }
 
 /** Fetches, shrinks and stores one image; the R2 key, or null when the URL is not an image. */
