@@ -160,7 +160,7 @@ export async function fillGenres(env: Env, artists: Artist[]): Promise<Artist[]>
 export async function saveArtistsFrom(
   db: D1Database,
   userId: string,
-  source: 'spotify' | 'youtube',
+  source: 'spotify' | 'youtube' | 'bandcamp',
   artists: Artist[],
 ): Promise<void> {
   await db.batch([
@@ -273,8 +273,9 @@ export function artistMatch(
 }
 
 /**
- * The user's music taste as read from Spotify and YouTube Music: genres weighted by artist rank (top artists count most), and the
- * leading artists. Added to the taste behind the scenes (embedding and scoring), never into the user's own text.
+ * The user's music taste as read from Spotify, YouTube Music and Bandcamp: genres weighted by artist rank (top
+ * artists count most), and the leading artists. Added to the taste behind the scenes (embedding and scoring), never
+ * into the user's own text.
  */
 export async function musicTaste(db: D1Database, userId: string): Promise<{ genres: string[]; artists: string[] }> {
   const { results } = await db

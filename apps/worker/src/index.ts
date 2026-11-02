@@ -11,6 +11,7 @@ import { venuesApi } from './api/venues';
 import { discoverApi, highlightsApi, inviteRequestsApi } from './api/public';
 import { spotifyApi, spotifyPages } from './api/spotify';
 import { youtubeApi, youtubePages } from './api/youtube';
+import { bandcampApi } from './api/bandcamp';
 import { authorize, oauth } from './mcp/oauth';
 import { embedMissing } from './ai/embed';
 import { dispatchScoring, rescoreAfterPromptChange } from './ai/score';
@@ -73,6 +74,7 @@ app.route('/api/auth', authApi);
 app.route('/api/me/scans', scansApi);
 app.route('/api/me/spotify', spotifyApi);
 app.route('/api/me/youtube', youtubeApi);
+app.route('/api/me/bandcamp', bandcampApi);
 app.route('/api/me', meApi);
 app.route('/api/cal', calendarApi);
 
