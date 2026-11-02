@@ -21,6 +21,7 @@ import { createLoginLink, isAdmin, type AppEnv } from '../auth';
 import { HTTPException } from 'hono/http-exception';
 import { startSourceRun } from '../pipeline/scheduler';
 import { acceptInvite, declineInvite, listInviteRequests } from '../services/invites';
+import { dropPastImages, fetchImages } from '../services/images';
 import { startReview } from '../services/review';
 
 registerBuiltinAdapters();
@@ -386,4 +387,13 @@ adminApi.post('/reviews/run', async (c) => {
   const who = c.req.query('user') ?? null;
   const ok = await startReview(c.env, who, `review-${who ?? 'public'}-manual-${Date.now()}`);
   return c.json({ started: ok }, ok ? 202 : 409);
+});
+
+/** Runs the image job now (backfill after a new source, or checking a change): `?limit=` events, at most 40. */
+adminApi.post('/images/run', async (c) => {
+  const limit = Math.min(40, Math.max(1, Number(c.req.query('limit') ?? 10) || 10));
+  const dropped = await dropPastImages(c.env);
+  const t0 = Date.now();
+  const stored = await fetchImages(c.env, new Date(), limit);
+  return c.json({ stored, dropped, ms: Date.now() - t0 });
 });

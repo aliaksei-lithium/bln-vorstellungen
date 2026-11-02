@@ -125,14 +125,25 @@ export function EventPage({ slug }: { slug: string }) {
     <>
       {head}
       <div className="grid grid-cols-[minmax(0,1fr)] gap-3">
-        <div
-          className="hatch flex h-40 items-end border border-ink p-2.5"
-          style={{ ['--hatch-angle' as string]: hatchAngle(e.slug) }}
-          role="img"
-          aria-label="No image yet"
-        >
-          <CategoryChip category={e.category} className="bg-surface" />
-        </div>
+        {e.image ? (
+          // Posters come in every shape: shown whole, on the hatch, rather than cropped.
+          <div
+            className="hatch relative flex h-64 items-end overflow-hidden border border-ink p-2.5"
+            style={{ ['--hatch-angle' as string]: hatchAngle(e.slug) }}
+          >
+            <img src={e.image} alt="" decoding="async" className="absolute inset-0 size-full object-contain" />
+            <CategoryChip category={e.category} className="relative bg-surface" />
+          </div>
+        ) : (
+          <div
+            className="hatch flex h-40 items-end border border-ink p-2.5"
+            style={{ ['--hatch-angle' as string]: hatchAngle(e.slug) }}
+            role="img"
+            aria-label="No image yet"
+          >
+            <CategoryChip category={e.category} className="bg-surface" />
+          </div>
+        )}
         <div className="grid gap-1.5">
           <h2
             lang={e.lang === 'other' ? undefined : e.lang}

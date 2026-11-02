@@ -356,6 +356,8 @@ export const EventListItem = z.object({
   lang: Lang.optional(),
   /** Ids of the sources that list this event (none for events added from photos and text). */
   sources: z.array(z.string()).optional(),
+  /** A same-origin URL of the event's image (at most 800 px WebP), when there is one. */
+  image: z.string().nullable().optional(),
 });
 export type EventListItem = z.infer<typeof EventListItem>;
 
@@ -367,6 +369,8 @@ export const EventsList = z.object({ items: z.array(EventListItem) });
 export type EventsList = z.infer<typeof EventsList>;
 
 export const EventDetail = Event.extend({
+  /** A same-origin URL of the event's image (at most 800 px WebP), when there is one. */
+  image: z.string().nullable().default(null),
   venue: Venue.nullable(),
   occurrences: z.array(Occurrence),
   performers: z.array(Performer.pick({ id: true, name: true, kind: true })),

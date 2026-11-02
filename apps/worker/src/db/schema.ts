@@ -146,6 +146,10 @@ export const events = sqliteTable(
     urlOfficial: text('url_official'),
     urlTickets: text('url_tickets'),
     imageKey: text('image_key'),
+    /** The source's image URL; the cron stores it as `image_key` (services/images.ts). */
+    imageSrc: text('image_src'),
+    /** When the cron last tried this event's image; null = still to do. */
+    imageCheckedAt: text('image_checked_at'),
     status: text('status', { enum: ['draft', 'published', 'cancelled', 'merged'] })
       .notNull()
       .default('published'),

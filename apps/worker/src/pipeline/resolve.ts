@@ -158,6 +158,8 @@ export async function resolveEvent(
              description = COALESCE(description, ?), price_min = COALESCE(price_min, ?),
              price_max = COALESCE(price_max, ?), is_free = MAX(is_free, ?),
              url_official = COALESCE(url_official, ?), url_tickets = COALESCE(url_tickets, ?),
+             image_checked_at = CASE WHEN image_src IS NULL AND ?7 IS NOT NULL THEN NULL ELSE image_checked_at END,
+             image_src = COALESCE(image_src, ?7),
              updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
            WHERE id = ?`,
         )
@@ -168,6 +170,7 @@ export async function resolveEvent(
           isFree,
           ev.urls.official ?? null,
           ev.urls.tickets ?? null,
+          ev.imageUrl ?? null,
           eventId,
         ),
     );
@@ -177,8 +180,8 @@ export async function resolveEvent(
       db
         .prepare(
           `INSERT INTO events (id, slug, title, description, lang, category, genres, venue_id, price_min, price_max,
-             is_free, price_note, url_official, url_tickets, status, dedup_key, created_by)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+             is_free, price_note, url_official, url_tickets, image_src, status, dedup_key, created_by)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
         .bind(
           eventId,
@@ -195,6 +198,7 @@ export async function resolveEvent(
           price?.note ?? null,
           ev.urls.official ?? null,
           ev.urls.tickets ?? null,
+          ev.imageUrl ?? null,
           draft ? 'draft' : 'published',
           dedupKey(ev.title, venueId, firstLocal),
           prov.createdBy,

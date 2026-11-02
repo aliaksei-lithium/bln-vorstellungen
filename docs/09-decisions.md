@@ -270,6 +270,20 @@ Format: date · decision · why · alternatives rejected. Newer entries supersed
   Sending needs a domain onboarded to the account, and the site lives on workers.dev; with a domain, a `send_email`
   binding can notify the owner. Deutsches Theater joins the venues visitors start without. Visitors can switch on the
   opt-in "Sex-positive & kink" category in their browser (off by default), which adds its Browse filter.
+- **2026-11-02 · Event images, kept only while the event is on.** Resolve keeps the source's image URL
+  (`events.image_src`: JSON-LD `image`, iCal `ATTACH`, a Telegram flyer when the post has one event). Events from HTML
+  pages get their official page's `og:image`, else the first photo in the page (largest srcset entry up to 1600 px;
+  logos, icons and blur placeholders skipped). The cron takes 10 a run, soonest first: fetch, shrink once with the
+  Images binding to one WebP of at most 800 px (q72), store in R2 under `events/<id>/<hash of URL>.webp`, served at
+  `/api/img/…` as immutable. A failed image is tried again a day later; past events (2 days after their last date),
+  merged and cancelled ones lose theirs. Shown on the event page (whole, on the hatch) and in highlights.
+  Measured on the local copy of production (298 upcoming events): 240 got an image (80%; the misses are DT pages
+  without a photo and events from photos or text), 37 KB on average, 147 KB at most, 8.7 MB in all. Cost: R2 holds
+  only the live programme, ~10–100 MB of the 10 GB free; one transformation per new event, ~1–3k a month of the 5,000
+  free (over the limit, Images returns 9422 on the free plan and charges nothing; the event waits a day); R2 writes
+  and deletes ~2 per event of 1M free; reads one per image view of 10M free, fewer with Workers Caching. $0 a month.
+  Keeping past images would grow R2 by ~50 MB a month for pages nobody opens, so they are dropped. Rows in lists keep
+  no thumbnail for now (text-first design, and 30 more requests per list view).
 - **2026-10-02 · React + Vite + TanStack + Tailwind + shadcn/ui.** Best coverage by design tools and implementing
   models. Rejected: SvelteKit (good, but weaker design-tool output), Next.js on Workers via OpenNext (heavier than
   needed; no SSR requirement since public pages can be cached JSON + client render; revisit if SEO matters).
