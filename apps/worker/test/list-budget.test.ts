@@ -49,6 +49,14 @@ describe('public list row budget (docs/08 phase 1 checklist)', () => {
     expect(rowsRead).toBeLessThan(500);
   });
 
+  it('takes a bigger page for Browse, at most 100, still inside the row budget', async () => {
+    const { body, rowsRead } = await page('?limit=100');
+    expect(body.items.length).toBeGreaterThan(PAGE_SIZE);
+    expect(body.items.length).toBeLessThanOrEqual(100);
+    expect(rowsRead).toBeLessThan(1000);
+    expect((await exports.default.fetch('https://x/api/events?limit=500')).status).toBe(400);
+  });
+
   it('pages through every event exactly once, each at its next date', async () => {
     const seen: string[] = [];
     let cursor: string | null = null;

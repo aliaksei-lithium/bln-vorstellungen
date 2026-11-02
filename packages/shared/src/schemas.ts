@@ -349,6 +349,8 @@ export const EventsQuery = z.object({
   via: anyOf(Via),
   /** One venue's events (the venue page). */
   venue: z.string().min(1).max(64).optional(),
+  /** Events per page (default 40). Browse's compact view asks for more, so a page covers several whole days. */
+  limit: z.coerce.number().int().min(1).max(100).optional(),
   /** Opaque, from the previous page's `nextCursor`. */
   cursor: z.string().max(100).optional(),
 });

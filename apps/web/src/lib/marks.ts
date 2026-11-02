@@ -76,3 +76,18 @@ export function useListFilter(picked: Category[] = []) {
     [states, off, srcOff, picked],
   );
 }
+
+/**
+ * Whether useListFilter has what it needs: who is asking, and their switches (a signed-in user's profile and marks,
+ * a visitor's source defaults). Lists wait for it, so rows never show first and vanish a moment later.
+ */
+export function useListFilterReady(): boolean {
+  const { user, isPending } = useMe();
+  const signedIn = !!user;
+  const profile = useQuery({ queryKey: ['profile'], queryFn: api.profile, enabled: signedIn, staleTime: 60_000 });
+  const states = useQuery({ queryKey: ['states'], queryFn: api.states, enabled: signedIn, staleTime: 60_000 });
+  const visitor = useVisitorSources(!isPending && !signedIn);
+  if (isPending) return false;
+  if (signedIn) return !profile.isPending && !states.isPending;
+  return visitor.ready;
+}

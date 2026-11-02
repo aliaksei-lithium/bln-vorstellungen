@@ -69,7 +69,7 @@ export const SOURCE_IDS = `(SELECT group_concat(DISTINCT r.source_id) FROM event
 export async function listEvents(
   db: D1Database,
   q: EventsQuery,
-  pageSize = PAGE_SIZE,
+  pageSize: number = PAGE_SIZE,
   hidden: readonly Category[] = OPT_IN_CATEGORIES,
   /** Needed for `via: 'spotify'` (the user's own artists); without it that filter lists nothing. */
   userId?: string,
