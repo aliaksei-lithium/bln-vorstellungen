@@ -106,6 +106,15 @@ export function MePage() {
         {user?.isOwner && <InvitesBox />}
         {user?.isOwner && <AiUsage />}
         <Appearance />
+        <p className="m-0 text-center text-xs text-sub">
+          <Link to="/privacy" className="text-sub underline underline-offset-2">
+            Privacy
+          </Link>{' '}
+          ·{' '}
+          <Link to="/terms" className="text-sub underline underline-offset-2">
+            Terms
+          </Link>
+        </p>
         <Status />
         {user && <SignOut />}
       </div>
