@@ -21,7 +21,6 @@ import {
 } from 'react';
 import { TopBar } from '@/components/AppShell';
 import { CategoryChip } from '@/components/CategoryChip';
-import { AskBox } from '@/components/AskBox';
 import { HighlightsView } from '@/components/Highlights';
 import { InviteRequest } from '@/components/InviteRequest';
 import { hatchAngle } from '@/components/EventRow';
@@ -148,9 +147,6 @@ function MyHighlights({ tabs }: { tabs: ReactNode }) {
   return (
     <>
       {head}
-      <div className="mb-3">
-        <AskBox />
-      </div>
       <HighlightsView
         review={r}
         personal

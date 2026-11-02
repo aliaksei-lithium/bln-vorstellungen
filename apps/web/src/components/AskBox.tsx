@@ -1,16 +1,18 @@
 import type { AskResponse, AskTurn, EventListItem } from '@bln/shared';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { Link, useNavigate } from '@tanstack/react-router';
-import { ArrowUp, ExternalLink, Loader2, Plus, RotateCcw, Sparkles } from 'lucide-react';
+import { Link, useNavigate, useRouterState } from '@tanstack/react-router';
+import { ArrowUp, ExternalLink, Loader2, Plus, RotateCcw, Sparkles, X } from 'lucide-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { EventRow } from '@/components/EventRow';
 import { Button } from '@/components/ui/button';
 import { api } from '@/lib/api';
 import { toast } from '@/lib/toast';
+import { cn } from '@/lib/utils';
 
 /**
- * Ask (docs/11): a question in your own words, answered from the programme (and the web when it has nothing). The
- * conversation lives in this tab only; the server keeps nothing but a count.
+ * Ask (docs/11): a question in your own words, answered from the programme (and the web when it has nothing). A chat
+ * button at the bottom right on every page for signed-in users; it opens as a sheet on phones and a corner panel on
+ * larger screens. The conversation lives in this tab only; the server keeps nothing but a count.
  */
 
 type Exchange = { q: string; r: AskResponse };
@@ -25,10 +27,64 @@ function load(): Exchange[] {
   }
 }
 
-export function AskBox() {
+/** The chat button and its panel. `aboveNav` lifts both over the bottom navigation. */
+export function AskChat({ aboveNav }: { aboveNav: boolean }) {
+  const [open, setOpen] = useState(false);
+  const path = useRouterState({ select: (s) => s.location.pathname });
+  // Opening an event from an answer leaves the chat; it is one tap away to come back.
+  useEffect(() => setOpen(false), [path]);
+  useEffect(() => {
+    if (!open) return;
+    const esc = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
+    window.addEventListener('keydown', esc);
+    return () => window.removeEventListener('keydown', esc);
+  }, [open]);
+  const lift = aboveNav
+    ? 'bottom-[calc(80px+env(safe-area-inset-bottom,0px))]'
+    : 'bottom-[calc(16px+env(safe-area-inset-bottom,0px))]';
+  return (
+    <>
+      {!open && (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          aria-label="Ask about what’s on"
+          className={cn(
+            'fixed right-[max(16px,env(safe-area-inset-right,0px))] z-30 flex h-12 items-center gap-1.5 border-2 border-ink bg-ink px-3.5 text-[13px] font-extrabold tracking-[.06em] text-on-ink uppercase shadow-[4px_4px_0_0_var(--color-moss)]',
+            lift,
+          )}
+        >
+          <Sparkles className="size-[18px]" aria-hidden />
+          Ask
+        </button>
+      )}
+      {open && (
+        <>
+          <div className="fixed inset-0 z-30 bg-ink/30 md:hidden" aria-hidden onClick={() => setOpen(false)} />
+          <div
+            role="dialog"
+            aria-label="Ask"
+            className={cn(
+              'fixed z-40 flex flex-col border-ink bg-surface',
+              // Phones: a sheet from the bottom. Larger screens: a panel in the corner, above the nav.
+              'inset-x-0 bottom-0 h-[82dvh] border-t-2 pb-[env(safe-area-inset-bottom,0px)]',
+              'md:inset-x-auto md:right-4 md:h-[min(640px,calc(100dvh-140px))] md:w-[400px] md:border-2 md:pb-0 md:shadow-[6px_6px_0_0_var(--color-moss)]',
+              aboveNav ? 'md:bottom-[calc(80px+env(safe-area-inset-bottom,0px))]' : 'md:bottom-4',
+            )}
+          >
+            <AskPanel onClose={() => setOpen(false)} />
+          </div>
+        </>
+      )}
+    </>
+  );
+}
+
+function AskPanel({ onClose }: { onClose: () => void }) {
   const [log, setLog] = useState<Exchange[]>(load);
   const [text, setText] = useState('');
-  const end = useRef<HTMLDivElement>(null);
+  const scroller = useRef<HTMLDivElement>(null);
+  const input = useRef<HTMLTextAreaElement>(null);
   const left = useQuery({ queryKey: ['ask-left'], queryFn: api.askLeft, staleTime: 60_000 });
   useEffect(() => {
     try {
@@ -37,6 +93,12 @@ export function AskBox() {
       // Private mode: the conversation lasts as long as the page.
     }
   }, [log]);
+  const toEnd = () =>
+    requestAnimationFrame(() => scroller.current?.scrollTo({ top: scroller.current.scrollHeight, behavior: 'smooth' }));
+  useEffect(() => {
+    toEnd();
+    input.current?.focus();
+  }, []);
   const send = useMutation({
     mutationFn: (q: string) => {
       const turns: AskTurn[] = [
@@ -52,71 +114,98 @@ export function AskBox() {
       setLog((l) => [...l, { q, r }]);
       setText('');
       void left.refetch();
-      requestAnimationFrame(() => end.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }));
+      toEnd();
     },
     onError: (err) => toast(err instanceof Error ? err.message : 'That did not work. Try again.'),
   });
   const submit = (q = text) => {
     const v = q.trim();
-    if (v.length >= 3 && !send.isPending) send.mutate(v);
+    if (v.length >= 3 && !send.isPending) {
+      send.mutate(v);
+      toEnd();
+    }
   };
   const remaining = log.at(-1)?.r.left ?? left.data;
 
   return (
-    <section className="border border-ink bg-surface" aria-label="Ask">
-      <div className="flex h-9 items-center justify-between bg-ink px-3 text-xs font-extrabold tracking-[.1em] text-on-ink uppercase">
+    <>
+      <div className="flex h-11 shrink-0 items-center justify-between bg-ink pr-1 pl-3 text-xs font-extrabold tracking-[.1em] text-on-ink uppercase">
         <span className="flex items-center gap-1.5">
           <Sparkles className="size-3.5" aria-hidden />
           Ask
         </span>
-        {log.length > 0 && (
+        <span className="flex items-center">
+          {log.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setLog([])}
+              className="flex h-9 items-center gap-1 px-2 text-[11px] tracking-[.08em] text-on-ink/80 uppercase"
+            >
+              <RotateCcw className="size-3.5" aria-hidden />
+              New
+            </button>
+          )}
           <button
             type="button"
-            onClick={() => setLog([])}
-            className="flex items-center gap-1 text-[11px] tracking-[.08em] text-on-ink/80 uppercase"
+            onClick={onClose}
+            aria-label="Close"
+            className="flex size-9 items-center justify-center"
           >
-            <RotateCcw className="size-3.5" aria-hidden />
-            New question
+            <X className="size-5" aria-hidden />
           </button>
+        </span>
+      </div>
+
+      <div ref={scroller} className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+        {log.length === 0 && !send.isPending && (
+          <div className="grid gap-2 p-3">
+            <p className="m-0 text-sm text-sub">
+              Ask about what’s on in your own words. Answers come from the programme, and from the web when it has
+              nothing.
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {IDEAS.map((idea) => (
+                <button
+                  key={idea}
+                  type="button"
+                  onClick={() => submit(idea)}
+                  className="border border-line px-2 py-1 text-[12.5px] font-semibold text-sub hover:border-ink hover:text-ink"
+                >
+                  {idea}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        {log.map((x, i) => (
+          <div key={i} className="grid gap-2.5 border-b border-line p-3">
+            <p className="m-0 justify-self-end bg-chip px-2.5 py-1.5 text-[14px] font-semibold">{x.q}</p>
+            <Answer r={x.r} />
+          </div>
+        ))}
+        {send.isPending && (
+          <div className="grid gap-2 p-3">
+            <p className="m-0 justify-self-end bg-chip px-2.5 py-1.5 text-[14px] font-semibold">{send.variables}</p>
+            <p className="m-0 flex items-center gap-2 text-sm text-sub" aria-live="polite">
+              <Loader2 className="size-4 animate-spin" aria-hidden />
+              Looking through the programme…
+            </p>
+          </div>
         )}
       </div>
 
-      {log.map((x, i) => (
-        <div key={i} className="grid gap-2.5 border-b border-line p-3">
-          <p className="m-0 justify-self-end rounded-none bg-chip px-2.5 py-1.5 text-[14px] font-semibold">{x.q}</p>
-          <Answer r={x.r} />
-        </div>
-      ))}
-
       <form
-        className="grid gap-2 p-3"
+        className="grid shrink-0 gap-1.5 border-t border-line p-3"
         onSubmit={(e) => {
           e.preventDefault();
           submit();
         }}
       >
-        {log.length === 0 && (
-          <div className="flex flex-wrap gap-1.5">
-            {IDEAS.map((idea) => (
-              <button
-                key={idea}
-                type="button"
-                disabled={send.isPending}
-                onClick={() => {
-                  setText(idea);
-                  submit(idea);
-                }}
-                className="border border-line px-2 py-1 text-[12.5px] font-semibold text-sub hover:border-ink hover:text-ink"
-              >
-                {idea}
-              </button>
-            ))}
-          </div>
-        )}
         <div className="flex items-end gap-2">
           <label className="min-w-0 flex-1">
             <span className="sr-only">Your question</span>
             <textarea
+              ref={input}
               value={text}
               onChange={(e) => setText(e.target.value)}
               onKeyDown={(e) => {
@@ -128,7 +217,7 @@ export function AskBox() {
               rows={1}
               maxLength={1000}
               placeholder={log.length ? 'Ask a follow-up' : 'Ask about what’s on'}
-              className="block max-h-40 min-h-11 w-full resize-y border border-ink bg-surface px-3 py-2.5 text-[15px] outline-none placeholder:text-sub focus:outline-2 focus:outline-offset-1 focus:outline-moss"
+              className="block max-h-32 min-h-11 w-full resize-none border border-ink bg-surface px-3 py-2.5 text-[15px] outline-none placeholder:text-sub focus:outline-2 focus:outline-offset-1 focus:outline-moss"
             />
           </label>
           <Button type="submit" size="icon" className="size-11" disabled={send.isPending || text.trim().length < 3}>
@@ -136,16 +225,13 @@ export function AskBox() {
             <span className="sr-only">Ask</span>
           </Button>
         </div>
-        <p className="m-0 text-xs text-sub" aria-live="polite">
-          {send.isPending
-            ? 'Looking through the programme… a web search can take a few more seconds.'
-            : remaining
-              ? `${remaining.questions} questions and ${remaining.searches} web searches left today.`
-              : 'Answers come from the programme; the web only when it has nothing.'}
+        <p className="m-0 text-xs text-sub">
+          {remaining
+            ? `${remaining.questions} questions and ${remaining.searches} web searches left today.`
+            : 'Answers come from the programme; the web only when it has nothing.'}
         </p>
-        <div ref={end} />
       </form>
-    </section>
+    </>
   );
 }
 
