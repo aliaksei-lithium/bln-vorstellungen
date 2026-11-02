@@ -3,7 +3,14 @@ import { env, exports } from 'cloudflare:workers';
 import { describe, expect, it } from 'vitest';
 import { parseCopy } from '../src/ai/prompts/discover';
 import { refreshAllNextDates } from '../src/pipeline/next-dates';
-import { buildDiscover, buildStories, getDiscover, getPublicDiscover, type PoolItem } from '../src/services/discover';
+import {
+  buildDiscover,
+  buildStories,
+  gatherPool,
+  getDiscover,
+  getPublicDiscover,
+  type PoolItem,
+} from '../src/services/discover';
 
 /** Discover: computed stories, model copy with a template fallback, reading an edition back. */
 
@@ -24,6 +31,7 @@ function item(id: string, over: Partial<PoolItem> = {}): PoolItem {
     nextLocal: local(10),
     days: 10,
     age: 30,
+    fresh: false,
     isFree: false,
     weight: 60,
     score: 60,
@@ -281,5 +289,31 @@ describe('discover editions', () => {
   it('needs a sign-in for the personal edition', async () => {
     const res = await exports.default.fetch('https://x/api/me/discover');
     expect(res.status).toBe(401);
+  });
+
+  it("calls an event new only when its source was already being read: a new source's import is not news", async () => {
+    const fan = await user('Fresh');
+    await event(fan, 'n_old_src', { days: [5], fresh: true });
+    await event(fan, 'n_new_src', { days: [5], fresh: true });
+    await env.DB.batch([
+      env.DB.prepare(
+        `INSERT INTO sources (id, name, type, config, schedule_minutes, created_at) VALUES
+           ('s_settled', 'Settled', 'ical', '{}', 360, '2026-01-01T00:00:00.000Z'),
+           ('s_brand_new', 'Brand new', 'ical', '{}', 360, ?)`,
+      ).bind(new Date().toISOString()),
+      env.DB.prepare(
+        `INSERT INTO raw_items (id, source_id, external_id, content_hash, kind, content, fetched_at)
+         VALUES ('raw-settled', 's_settled', 's', 'hs', 'text', '', '2026-01-01T00:00:00Z'),
+                ('raw-brand', 's_brand_new', 'b', 'hb', 'text', '', '2026-01-01T00:00:00Z')`,
+      ),
+      env.DB.prepare(
+        `INSERT INTO event_sources (event_id, raw_item_id, extracted, confidence)
+         VALUES ('n_old_src', 'raw-settled', '{}', 1), ('n_new_src', 'raw-brand', '{}', 1)`,
+      ),
+    ]);
+    await refreshAllNextDates(env.DB);
+    const pool = await gatherPool(env.DB, fan, { categoriesOff: [], categoriesOn: [], frequency: {} } as never);
+    const fresh = Object.fromEntries(pool.map((p) => [p.id, p.fresh]));
+    expect(fresh).toMatchObject({ n_old_src: true, n_new_src: false });
   });
 });

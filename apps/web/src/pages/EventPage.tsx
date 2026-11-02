@@ -11,6 +11,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useRouter } from '@tanstack/react-router';
 import {
+  CalendarDays,
   CalendarPlus,
   Check,
   ChevronDown,
@@ -299,10 +300,22 @@ export function EventPage({ slug }: { slug: string }) {
           <Box title="Venue">
             <div className="grid gap-2.5 p-3">
               <div>
-                <div className="text-[17px] font-extrabold">{v.name}</div>
+                <Link
+                  to="/venue/$id"
+                  params={{ id: v.id }}
+                  className="text-[17px] font-extrabold text-ink underline decoration-line underline-offset-4"
+                >
+                  {v.name}
+                </Link>
                 <div className="text-sm text-sub">{[v.address, v.district].filter(Boolean).join(' · ')}</div>
               </div>
               <div className="flex flex-wrap gap-2">
+                <Button asChild>
+                  <Link to="/venue/$id" params={{ id: v.id }}>
+                    <CalendarDays aria-hidden />
+                    All events here
+                  </Link>
+                </Button>
                 {maps && (
                   <Button asChild>
                     <a href={maps} target="_blank" rel="noopener noreferrer">

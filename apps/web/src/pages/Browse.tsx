@@ -5,7 +5,6 @@ import {
   berlinToday,
   formatDay,
   hiddenCategories,
-  type EventListItem,
   Via,
   type Prefs,
   type Profile,
@@ -18,6 +17,7 @@ import { z } from 'zod';
 import { TopBar } from '@/components/AppShell';
 import { BelarusFlag } from '@/components/BelarusFlag';
 import { CategoryDot } from '@/components/CategoryChip';
+import { DayList } from '@/components/DayList';
 import { EventRow } from '@/components/EventRow';
 import { EmptyState, ErrorState, ListSkeleton } from '@/components/States';
 import { Button } from '@/components/ui/button';
@@ -26,7 +26,8 @@ import { api } from '@/lib/api';
 import { useMe } from '@/lib/auth';
 import { useListFilter } from '@/lib/marks';
 import { toast } from '@/lib/toast';
-import { WHEN_LABELS, relativeDay, whenRange, type When } from '@/lib/dates';
+import { WHEN_LABELS, whenRange, type When } from '@/lib/dates';
+import { PER_DAY } from '@/lib/highlights';
 import { useVisitorOptIn } from '@/lib/visitorSources';
 
 /**
@@ -46,6 +47,8 @@ const toggle = <T,>(list: T[], v: T) => (list.includes(v) ? list.filter((x) => x
 const list = (s?: string) => (s ? s.split(',').filter(Boolean) : []);
 const joined = (a: string[]) => (a.length ? a.join(',') : undefined);
 
+const VIEW_KEY = 'bln.browseView';
+
 /** Source kinds, not single venues (docs/09): where an event came from. Spotify joins when it is connected. */
 const VIA_LABELS: Record<Exclude<Via, Community>, string> = {
   spotify: 'My Spotify artists',
@@ -59,15 +62,6 @@ type Community = 'belarusian';
 const COMMUNITIES: { via: Community; label: string; Mark: () => React.ReactNode }[] = [
   { via: 'belarusian', label: 'Belarusian', Mark: () => <BelarusFlag /> },
 ];
-
-function groupByDay(items: EventListItem[]) {
-  const groups = new Map<string, EventListItem[]>();
-  for (const it of items) {
-    const day = it.next.startLocal.slice(0, 10);
-    groups.set(day, [...(groups.get(day) ?? []), it]);
-  }
-  return [...groups.entries()];
-}
 
 /**
  * Browse filters live in the address (?when=week&via=telegram&q=jazz), so Back from an event, a reload or a shared
@@ -163,7 +157,25 @@ export function BrowsePage() {
     const shown = new Set(items.map((i) => i.slug));
     return (meaning.data?.items ?? []).filter((i) => !shown.has(i.slug) && shows(i)).slice(0, 8);
   }, [meaning.data, items, shows]);
-  const groups = useMemo(() => groupByDay(items), [items]);
+  // Highlights (default) or everything: a few strong events a day, so a long day stays readable. Plain browsing
+  // only: a search, a category or a source asks for all of it.
+  const [view, setViewState] = useState<'highlights' | 'all'>(() => {
+    try {
+      return localStorage.getItem(VIEW_KEY) === 'all' ? 'all' : 'highlights';
+    } catch {
+      return 'highlights';
+    }
+  });
+  const setView = (v: 'highlights' | 'all') => {
+    setViewState(v);
+    try {
+      localStorage.setItem(VIEW_KEY, v);
+    } catch {
+      // Private mode: the choice lasts for this visit.
+    }
+  };
+  const plain = !query && !filters.category.length && !filters.via.length;
+  const compact = plain && view === 'highlights';
 
   // How many filters are on, for the badge on the Filter button (the chips themselves live in the sheet).
   const active =
@@ -207,7 +219,7 @@ export function BrowsePage() {
           <ListSkeleton />
         ) : events.isError ? (
           <ErrorState message={events.error.message} onRetry={() => events.refetch()} />
-        ) : groups.length === 0 ? (
+        ) : items.length === 0 ? (
           query.length >= 3 && related.length > 0 ? (
             <p className="m-0 border border-ink bg-surface px-3 py-2.5 text-sm">
               No exact matches for “{query}”. Closest by meaning:
@@ -223,20 +235,43 @@ export function BrowsePage() {
             </EmptyState>
           )
         ) : (
-          groups.map(([day, items]) => (
-            <section key={day} aria-label={formatDay(`${day}T00:00`)} className="border border-ink bg-surface">
-              <div className="flex h-8 items-center justify-between bg-ink px-3 text-xs font-extrabold tracking-[.08em] text-on-ink uppercase">
-                <span className="tabular-nums">
-                  {formatDay(`${day}T00:00`)}
-                  {relativeDay(day, today) && ` · ${relativeDay(day, today)}`}
+          <>
+            {plain && (
+              <div className="flex items-center justify-between gap-3">
+                <div
+                  className="inline-flex border border-ink bg-surface"
+                  role="radiogroup"
+                  aria-label="How much to show"
+                >
+                  {(
+                    [
+                      ['highlights', 'Highlights'],
+                      ['all', 'Everything'],
+                    ] as const
+                  ).map(([v, name]) => (
+                    <button
+                      key={v}
+                      type="button"
+                      role="radio"
+                      aria-checked={view === v}
+                      onClick={() => setView(v)}
+                      className={
+                        view === v
+                          ? 'h-9 bg-ink px-3 text-[13px] font-extrabold text-on-ink'
+                          : 'h-9 px-3 text-[13px] font-bold text-sub'
+                      }
+                    >
+                      {name}
+                    </button>
+                  ))}
+                </div>
+                <span className="text-right text-xs text-sub">
+                  {compact ? `Up to ${PER_DAY} a day, most liked first` : 'Every event, by time'}
                 </span>
-                <span className="tabular-nums">{items.length}</span>
               </div>
-              {items.map((it) => (
-                <EventRow key={it.slug} item={it} />
-              ))}
-            </section>
-          ))
+            )}
+            <DayList items={items} today={today} compact={compact} />
+          </>
         )}
         {query.length >= 3 && related.length > 0 && (
           <section className="border border-ink bg-surface" aria-label="Related by meaning">

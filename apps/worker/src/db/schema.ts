@@ -492,7 +492,12 @@ export const userEventScores = sqliteTable(
     profileVersion: integer('profile_version').notNull(),
     computedAt: text('computed_at').notNull(),
   },
-  (t) => [primaryKey({ columns: [t.userId, t.eventId] }), index('user_event_scores_rank_idx').on(t.userId, t.score)],
+  (t) => [
+    primaryKey({ columns: [t.userId, t.eventId] }),
+    index('user_event_scores_rank_idx').on(t.userId, t.score),
+    // Members' interest in one event (Browse's compact view): a few rows per event instead of a table scan.
+    index('user_event_scores_event_idx').on(t.eventId, t.score),
+  ],
 );
 
 /**

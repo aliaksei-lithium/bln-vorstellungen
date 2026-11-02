@@ -163,6 +163,28 @@ describe('event images', () => {
     expect(rows.results.every((r) => r.image_key === null && r.image_checked_at !== null)).toBe(true);
   });
 
+  it("drops a page image that another event's different page also gives: the site's own picture", async () => {
+    const soon = new Date(Date.now() + 3 * DAY_MS).toISOString();
+    for (const n of [1, 2])
+      await addEvent(`img-site-${n}`, { next_start_utc: soon, url_official: `https://listing.test/e/${n}` });
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const url = String(input instanceof Request ? input.url : input);
+      if (url.startsWith('https://listing.test/e/')) {
+        return new Response('<head><meta property="og:image" content="/featured.jpg"></head>', {
+          headers: { 'content-type': 'text/html' },
+        });
+      }
+      return new Response(new Uint8Array([1]), { headers: { 'content-type': 'image/jpeg' } });
+    });
+    while ((await fetchImages(withImages(fakeImages([])), new Date(), 50)) > 0);
+    const rows = await env.DB.prepare(
+      `SELECT image_src, image_key, image_checked_at FROM events WHERE id LIKE 'img-site-%'`,
+    ).all<{ image_src: string | null; image_key: string | null; image_checked_at: string | null }>();
+    expect(rows.results).toHaveLength(2);
+    for (const r of rows.results) expect(r).toMatchObject({ image_src: null, image_key: null });
+    expect(rows.results.every((r) => r.image_checked_at)).toBe(true);
+  });
+
   it('tries a failed image again a day later', async () => {
     await addEvent('img-retry', {
       next_start_utc: new Date(Date.now() + 9 * DAY_MS).toISOString(),

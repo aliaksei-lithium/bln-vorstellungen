@@ -347,6 +347,8 @@ export const EventsQuery = z.object({
    * close to my Spotify taste (by meaning).
    */
   via: anyOf(Via),
+  /** One venue's events (the venue page). */
+  venue: z.string().min(1).max(64).optional(),
   /** Opaque, from the previous page's `nextCursor`. */
   cursor: z.string().max(100).optional(),
 });
@@ -370,6 +372,8 @@ export const EventListItem = z.object({
   sources: z.array(z.string()).optional(),
   /** A same-origin URL of the event's image (at most 800 px WebP), when there is one. */
   image: z.string().nullable().optional(),
+  /** Members' average score, 0-100 (null before anyone's taste has scored it): Browse's compact view ranks by it. */
+  interest: z.number().int().nullable().optional(),
 });
 export type EventListItem = z.infer<typeof EventListItem>;
 
@@ -390,6 +394,12 @@ export const EventDetail = Event.extend({
   sources: z.array(z.object({ id: z.string(), name: z.string(), link: z.string().nullable() })).default([]),
 });
 export type EventDetail = z.infer<typeof EventDetail>;
+
+/** The venue page's header: where it is and how many upcoming events it has. */
+export const VenueDetail = Venue.pick({ id: true, name: true, address: true, district: true, url: true }).extend({
+  upcoming: z.number().int().nonnegative(),
+});
+export type VenueDetail = z.infer<typeof VenueDetail>;
 
 /* ---------- people (phase 2) ---------- */
 
