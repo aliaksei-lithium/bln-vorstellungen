@@ -25,6 +25,8 @@ export const IcalConfig = z.object({
   ...baseConfig,
   /** Keep at most this many upcoming VEVENTs per run. */
   maxItems: z.number().int().min(1).max(500).default(200),
+  /** Only events whose LOCATION names this city (a community calendar that also lists other cities: RAZAM). */
+  city: z.string().trim().min(2).optional(),
 });
 export type IcalConfig = z.infer<typeof IcalConfig>;
 
@@ -169,7 +171,13 @@ export const icalAdapter: SourceAdapter<IcalConfig> = {
       const start = icalDate(first(props, 'DTSTART'));
       const end = icalDate(first(props, 'DTEND'));
       const recurring = props.has('RRULE');
-      if (!start || (!recurring && !isUpcoming((end ?? start).local, ctx.today)) || items.length >= config.maxItems) {
+      const elsewhere = config.city && !text(props, 'LOCATION').toLowerCase().includes(config.city.toLowerCase());
+      if (
+        !start ||
+        elsewhere ||
+        (!recurring && !isUpcoming((end ?? start).local, ctx.today)) ||
+        items.length >= config.maxItems
+      ) {
         skipped++;
         continue;
       }

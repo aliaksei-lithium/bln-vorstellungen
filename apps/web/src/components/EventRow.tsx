@@ -7,7 +7,7 @@ import { SwipeRow } from './SwipeRow';
 
 const ANGLES = [90, 60, 145, 35, 120, 0, 160, 75];
 
-/** Stable pseudo-random hatch angle per event, standing in for a thumbnail until images exist. */
+/** Stable pseudo-random hatch angle per event: the thumbnail's background, and the thumbnail when there is no image. */
 export function hatchAngle(slug: string): string {
   let h = 0;
   for (const ch of slug) h = (h * 31 + ch.charCodeAt(0)) | 0;
@@ -75,7 +75,14 @@ function RowLink({
       draggable={false}
       className="flex min-h-16 items-center gap-3 px-3 py-2 text-ink no-underline hover:bg-chip/60"
     >
-      <div className="hatch size-12 shrink-0" style={{ ['--hatch-angle' as string]: hatchAngle(item.slug) }} />
+      <div
+        className="hatch size-12 shrink-0 overflow-hidden"
+        style={{ ['--hatch-angle' as string]: hatchAngle(item.slug) }}
+      >
+        {item.image && (
+          <img src={item.image} alt="" loading="lazy" decoding="async" className="size-full object-cover" />
+        )}
+      </div>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5 text-[15.5px] leading-5 font-bold">
           <span className="truncate">{item.title}</span>

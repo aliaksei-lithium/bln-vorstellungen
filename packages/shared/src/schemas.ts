@@ -243,6 +243,12 @@ export type SourcesOverview = z.infer<typeof SourcesOverview>;
 export const SourceVisibility = z.enum(['public', 'private']);
 
 /** A `sources` row as created or edited by the owner. `config` is validated by the adapter's own schema. */
+export const SourceImages = z.enum(['auto', 'feed', 'none']);
+/** A source run by or for a community; Browse's community filters (Via) include all its events. */
+export const SourceCommunity = z.enum(['belarusian']);
+export type SourceCommunity = z.infer<typeof SourceCommunity>;
+export type SourceImages = z.infer<typeof SourceImages>;
+
 export const SourceConfig = z.object({
   name: z.string().min(1),
   type: z.string().min(1),
@@ -254,6 +260,9 @@ export const SourceConfig = z.object({
     .max(7 * 24 * 60),
   enabled: z.boolean().default(true),
   visibility: SourceVisibility.default('public'),
+  /** Where event images come from: the source's own, else the event page (`auto`); only the source's; none. */
+  images: SourceImages.default('auto'),
+  community: SourceCommunity.nullable().default(null),
 });
 export type SourceConfig = z.infer<typeof SourceConfig>;
 
@@ -268,6 +277,8 @@ export const SourceUpdate = z.object({
   scheduleMinutes: SourceConfig.shape.scheduleMinutes.optional(),
   enabled: z.boolean().optional(),
   visibility: SourceVisibility.optional(),
+  images: SourceImages.optional(),
+  community: SourceCommunity.nullable().optional(),
 });
 export type SourceUpdate = z.infer<typeof SourceUpdate>;
 
@@ -321,7 +332,8 @@ const anyOf = <T extends z.ZodType>(item: T) =>
     )
     .optional();
 
-export const Via = z.enum(['telegram', 'scans', 'spotify', 'spotifylike']);
+/** Ways in: source kinds, the user's Spotify, and communities (events from a community's sources or about it). */
+export const Via = z.enum(['telegram', 'scans', 'spotify', 'spotifylike', 'belarusian']);
 export type Via = z.infer<typeof Via>;
 
 export const EventsQuery = z.object({
