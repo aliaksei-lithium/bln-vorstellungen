@@ -4,18 +4,30 @@ import {
   ScanText,
   type ScanCreated,
   type ScanInsight,
+  type ScanListItem,
   type ScanPlaylistResult,
 } from '@bln/shared';
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { requireUser, type AppEnv } from '../auth';
 import { scanMore, scanPlaylist } from '../services/scan-insights';
-import { IMAGE_TYPES, MAX_IMAGE_BYTES, confirmScan, createScan, getScan, scanImage } from '../services/scans';
+import {
+  IMAGE_TYPES,
+  MAX_IMAGE_BYTES,
+  confirmScan,
+  createScan,
+  deleteScan,
+  getScan,
+  listScans,
+  rereadScan,
+  scanImage,
+} from '../services/scans';
 
 /**
  * Scans for signed-in users: POST a photo (multipart `image`, optional `takenAt` and `note`) or JSON `{ text }`,
  * poll GET until `ready`, then POST the reviewed events to /confirm. Before that, /more/:i explains one event and
- * /playlist makes a Spotify playlist from the picked ones.
+ * /playlist makes a Spotify playlist from the picked ones. GET / lists the user's scans; a scan can be read again
+ * (/reread) or deleted.
  */
 export const scansApi = new Hono<AppEnv>();
 
@@ -54,6 +66,8 @@ scansApi.post('/', async (c) => {
   }
   return c.json({ id } satisfies ScanCreated, 201);
 });
+
+scansApi.get('/', async (c) => c.json((await listScans(c.env.DB, requireUser(c).id)) satisfies ScanListItem[]));
 
 scansApi.get('/:id', async (c) => c.json(await getScan(c.env.DB, requireUser(c).id, c.req.param('id'))));
 
@@ -95,4 +109,15 @@ scansApi.post('/:id/playlist', async (c) => {
   const p = ScanPlaylist.safeParse(raw);
   if (!p.success) throw new HTTPException(400, { message: p.error.issues[0]?.message ?? 'Invalid events' });
   return c.json((await scanPlaylist(c.env, user.id, c.req.param('id'), p.data.indexes)) satisfies ScanPlaylistResult);
+});
+
+scansApi.post('/:id/reread', async (c) => {
+  const user = requireUser(c);
+  await rereadScan(c.env, user.id, c.req.param('id'));
+  return c.json(await getScan(c.env.DB, user.id, c.req.param('id')), 202);
+});
+
+scansApi.delete('/:id', async (c) => {
+  await deleteScan(c.env, requireUser(c).id, c.req.param('id'));
+  return c.body(null, 204);
 });

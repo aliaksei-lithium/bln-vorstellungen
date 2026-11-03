@@ -1,5 +1,5 @@
 import { Link, useNavigate } from '@tanstack/react-router';
-import { Camera, ChevronLeft, ImageUp, Info, Loader2, Type } from 'lucide-react';
+import { Camera, ChevronLeft, ChevronRight, History, ImageUp, Info, Loader2, Type } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { Button } from './ui/button';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from './ui/sheet';
@@ -126,6 +126,15 @@ export function ScanSheet({ open, onOpenChange }: { open: boolean; onOpenChange:
                 <Info className="mt-px size-[18px] shrink-0" aria-hidden />
                 You review everything before it is added. Nothing is published automatically.
               </p>
+              <Link
+                to="/scans"
+                onClick={() => close(false)}
+                className="flex min-h-12 items-center gap-3 px-1 font-bold text-ink no-underline"
+              >
+                <History className="size-5" aria-hidden />
+                <span className="flex-1">Your scans</span>
+                <ChevronRight className="size-5 text-sub" aria-hidden />
+              </Link>
             </>
           ) : (
             <form

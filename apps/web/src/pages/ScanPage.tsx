@@ -10,7 +10,7 @@ import {
   type ScanInsight,
 } from '@bln/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link, useRouter } from '@tanstack/react-router';
+import { Link, useNavigate, useRouter } from '@tanstack/react-router';
 import {
   AlertTriangle,
   ArrowDownUp,
@@ -21,7 +21,9 @@ import {
   ListMusic,
   Loader2,
   Pencil,
+  RotateCw,
   Sparkles,
+  Trash2,
   X,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
@@ -38,28 +40,66 @@ import { cn } from '@/lib/utils';
  * Review a scan (docs/09, 2026-11-01 "Scans"): what the AI read from a photo or text, one card per event, all
  * ticked. Untick what is wrong, fix what is close, then add. Known events merge instead of duplicating. Events come
  * ranked for the user with genres ("Scan insights"); "More" explains one, "Listen" opens an act on Spotify, and the
- * ticked ones can become a Spotify playlist.
+ * ticked ones can become a Spotify playlist. Scans stay in "Your scans" (/scans) until deleted, so a review can wait;
+ * "Read again" has the model read the same photo once more.
  */
 
 type Draft = ExtractedEvent & { key: number; on: boolean };
 
 export function ScanPage({ id }: { id: string }) {
   const router = useRouter();
+  const navigate = useNavigate();
+  const qc = useQueryClient();
   const { user, isPending } = useMe();
+  const [confirming, setConfirming] = useState(false);
   const scan = useQuery({
     queryKey: ['scan', id],
     queryFn: () => api.scan(id),
     enabled: !!user,
     refetchInterval: (q) => (q.state.data && ['queued', 'reading'].includes(q.state.data.status) ? 2000 : false),
   });
+  const drop = useMutation({
+    mutationFn: () => api.deleteScan(id),
+    onSuccess: () => {
+      qc.removeQueries({ queryKey: ['scan', id] });
+      void qc.invalidateQueries({ queryKey: ['scans'] });
+      toast('Scan deleted');
+      void navigate({ to: '/scans', replace: true });
+    },
+    onError: (err) => toast(err.message),
+  });
 
   const head = (
-    <div className="sticky top-[env(safe-area-inset-top,0px)] z-10 -mx-2 grid h-14 grid-cols-[44px_1fr_44px] items-center bg-background">
-      <Button variant="ghost" size="icon" aria-label="Back" onClick={() => router.history.back()}>
-        <ChevronLeft className="size-[26px]" aria-hidden />
-      </Button>
-      <h1 className="text-center text-base font-extrabold tracking-[.06em] uppercase">Review</h1>
-    </div>
+    <>
+      <div className="sticky top-[env(safe-area-inset-top,0px)] z-10 -mx-2 grid h-14 grid-cols-[44px_1fr_44px] items-center bg-background">
+        <Button variant="ghost" size="icon" aria-label="Back" onClick={() => router.history.back()}>
+          <ChevronLeft className="size-[26px]" aria-hidden />
+        </Button>
+        <h1 className="text-center text-base font-extrabold tracking-[.06em] uppercase">Review</h1>
+        {scan.data && (
+          <Button variant="ghost" size="icon" aria-label="Delete scan" onClick={() => setConfirming(!confirming)}>
+            <Trash2 className="size-5" aria-hidden />
+          </Button>
+        )}
+      </div>
+      {confirming && scan.data && (
+        <div className="mb-3 flex flex-wrap items-center gap-2 border border-ink bg-surface p-3">
+          <span className="min-w-48 flex-1 text-sm">
+            Delete this scan{scan.data.kind === 'photo' ? ' and its photo' : ''}?
+            {scan.data.status === 'done' ? ' Events you added stay.' : ''}
+          </span>
+          <div className="flex gap-2">
+            <Button size="sm" onClick={() => setConfirming(false)}>
+              Keep
+            </Button>
+            <Button size="sm" variant="dark" disabled={drop.isPending} onClick={() => drop.mutate()}>
+              {drop.isPending && <Loader2 className="animate-spin" aria-hidden />}
+              Delete
+            </Button>
+          </div>
+        </div>
+      )}
+    </>
   );
 
   if (!isPending && !user) {
@@ -85,7 +125,7 @@ export function ScanPage({ id }: { id: string }) {
       {!s || s.status === 'queued' || s.status === 'reading' ? (
         <Reading id={id} kind={s?.kind ?? 'photo'} />
       ) : s.status === 'failed' ? (
-        <EmptyState title="Could not read this">
+        <EmptyState title="Could not read this" action={<ReadAgain scan={s} />}>
           {s.error ?? 'Try a sharper photo, or paste the text instead.'}
         </EmptyState>
       ) : s.status === 'done' ? (
@@ -121,7 +161,7 @@ function Reading({ id, kind }: { id: string; kind: Scan['kind'] }) {
           </div>
           <p className="mt-1.5 mb-0 text-sm text-sub">
             Finding titles, dates, venues and prices. A poster takes a few seconds, a full listing page up to a minute.
-            You can leave this page and come back.
+            You can close the app: it waits in <Link to="/scans">Your scans</Link>.
           </p>
         </div>
       </div>
@@ -158,7 +198,30 @@ function Done({ scan }: { scan: Scan }) {
           </Link>
         ))}
       </section>
+      <Link to="/scans" className="text-sm font-bold">
+        All your scans
+      </Link>
     </div>
+  );
+}
+
+/** "Read again": another model read of the same photo or text, replacing what was found (a few per scan). */
+function ReadAgain({ scan }: { scan: Scan }) {
+  const qc = useQueryClient();
+  const again = useMutation({
+    mutationFn: () => api.rereadScan(scan.id),
+    onSuccess: (r) => {
+      qc.setQueryData(['scan', scan.id], r);
+      void qc.invalidateQueries({ queryKey: ['scans'] });
+    },
+    onError: (err) => toast(err.message),
+  });
+  if (scan.rereadsLeft <= 0) return null;
+  return (
+    <Button size="sm" disabled={again.isPending} onClick={() => again.mutate()}>
+      {again.isPending ? <Loader2 className="animate-spin" aria-hidden /> : <RotateCw aria-hidden />}
+      Read again
+    </Button>
   );
 }
 
@@ -171,7 +234,7 @@ const PLAYLIST_MAX = 25;
 const listenHref = (name: string) => `/spotify/listen?artist=${encodeURIComponent(name)}`;
 
 function Review({ scan }: { scan: Scan }) {
-  const router = useRouter();
+  const navigate = useNavigate();
   const qc = useQueryClient();
   const { user } = useMe();
   const spotify = useQuery({ queryKey: ['spotify'], queryFn: api.spotify, enabled: !!user });
@@ -254,7 +317,8 @@ function Review({ scan }: { scan: Scan }) {
           {scan.kind === 'photo' && <Photo id={scan.id} className="h-24" />}
           <div>
             <div className="font-extrabold">Nothing to add</div>
-            <p className="mt-1.5 mb-0 text-sm text-sub">{scan.error ?? 'No dated events found.'}</p>
+            <p className="mt-1.5 mb-2 text-sm text-sub">{scan.error ?? 'No dated events found.'}</p>
+            <ReadAgain scan={scan} />
           </div>
         </div>
       </div>
@@ -297,6 +361,7 @@ function Review({ scan }: { scan: Scan }) {
                 Explain top {top.size}
               </Button>
             )}
+            <ReadAgain scan={scan} />
           </div>
         </div>
       </div>
@@ -373,8 +438,8 @@ function Review({ scan }: { scan: Scan }) {
 
       <div className="fixed inset-x-0 bottom-0 z-20 border-t border-ink bg-surface-a pb-[env(safe-area-inset-bottom,0px)] backdrop-blur-md">
         <div className="gutter mx-auto flex max-w-[600px] gap-2 py-2.5">
-          <Button className="w-28" onClick={() => router.history.back()}>
-            Discard
+          <Button className="w-28" onClick={() => void navigate({ to: '/scans' })}>
+            Later
           </Button>
           <Button
             variant="default"

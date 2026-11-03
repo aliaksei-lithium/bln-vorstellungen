@@ -14,7 +14,7 @@ import {
 } from '@bln/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
-import { ChevronRight, ExternalLink, Loader2, LogOut, RefreshCw, Smartphone } from 'lucide-react';
+import { ChevronRight, ExternalLink, History, Loader2, LogOut, RefreshCw, Smartphone } from 'lucide-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { TopBar } from '@/components/AppShell';
 import { CategoryDot } from '@/components/CategoryChip';
@@ -90,6 +90,14 @@ export function MePage() {
                 </div>
               </div>
             </div>
+            <Link
+              to="/scans"
+              className="flex min-h-12 items-center gap-3 border border-ink bg-surface px-3.5 font-extrabold text-ink no-underline"
+            >
+              <History className="size-5" aria-hidden />
+              <span className="flex-1">Your scans</span>
+              <ChevronRight className="size-5 text-sub" aria-hidden />
+            </Link>
             <TasteForm />
             <SpotifyBox />
             <YoutubeBox />
