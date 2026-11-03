@@ -336,11 +336,17 @@ export function buildServer(
       run(async () => {
         if (!canWrite) return needsWrite();
         const scan = await getScan(env.DB, userId, a.scanId);
-        const picked = a.pick?.length
-          ? a.pick.map((n) => scan.candidates[n - 1]).filter((e): e is NonNullable<typeof e> => !!e)
-          : scan.candidates;
-        if (!picked.length) return fail(`Pick numbers between 1 and ${scan.candidates.length}.`);
-        const r = await confirmScan(env, userId, a.scanId, picked);
+        const indexes = (a.pick?.length ? a.pick.map((n) => n - 1) : scan.candidates.map((_, i) => i)).filter(
+          (i) => !!scan.candidates[i],
+        );
+        if (!indexes.length) return fail(`Pick numbers between 1 and ${scan.candidates.length}.`);
+        const r = await confirmScan(
+          env,
+          userId,
+          a.scanId,
+          indexes.map((i) => scan.candidates[i]!),
+          indexes,
+        );
         return text(
           `Added ${r.added} new, merged ${r.merged} into events already listed:\n` +
             r.events.map((e) => `- [${e.title}](${origin}/e/${e.slug}) · ${e.created ? 'new' : 'merged'}`).join('\n'),

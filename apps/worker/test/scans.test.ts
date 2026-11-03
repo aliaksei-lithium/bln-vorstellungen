@@ -185,4 +185,29 @@ describe('scans', () => {
     ).first<{ r2_key: string | null }>();
     expect(src).toEqual({ r2_key: null });
   });
+
+  it('adds more from a confirmed scan later, never the same candidate twice', async () => {
+    const uid = await user('Ana');
+    const e = claudeEnv([listing('Terror', day(26)), listing('Thrown', day(27)), listing('Health', day(28))]);
+    const id = await createScan(e, uid, { kind: 'text', text: 'Terror, Thrown and Health at Columbiahalle.' });
+    await runScan(e, id);
+    const c = (await getScan(env.DB, uid, id)).candidates;
+
+    expect(await confirmScan(e, uid, id, [c[0]!], [0])).toMatchObject({
+      added: 1,
+      events: [{ title: 'Terror', index: 0 }],
+    });
+    // Later: Terror again (skipped) and Thrown.
+    const r = await confirmScan(e, uid, id, [c[0]!, c[1]!], [0, 1]);
+    expect(r.added).toBe(2);
+    expect(r.events.map((x) => [x.title, x.index])).toEqual([
+      ['Terror', 0],
+      ['Thrown', 1],
+    ]);
+    const scan = await getScan(env.DB, uid, id);
+    expect(scan).toMatchObject({ status: 'done', result: { added: 2 } });
+    await expect(confirmScan(e, uid, id, [c[1]!], [1])).rejects.toThrow('already added');
+    // Without indexes a confirmed scan cannot tell what is new.
+    await expect(confirmScan(e, uid, id, [c[2]!])).rejects.toThrow('already added');
+  });
 });

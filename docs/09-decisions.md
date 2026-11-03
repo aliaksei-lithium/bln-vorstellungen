@@ -403,6 +403,11 @@ Format: date · decision · why · alternatives rejected. Newer entries supersed
   Delete removes the photo from R2 and the scan; the raw item goes too, unless events added from it cite it as their
   source, then it stays without the photo or note. Unticks and edits in a review are not saved: reopening shows what
   the model found.
+- **2026-11-03 · The review stays after adding.** A confirmed scan opens on the same review, not a list of what was
+  added: More, Listen and the playlist keep working, added events link to their page ("Added" or "Merged"), and the
+  rest can be ticked and added later. Confirming now sends the candidate number of each event (`indexes`), stored in
+  the result, so later adds skip candidates added before and the counts accumulate. Scans confirmed earlier match
+  their added events by title. "Read again" stays off once anything was added: new candidates would lose that match.
 - **2026-10-02 · React + Vite + TanStack + Tailwind + shadcn/ui.** Best coverage by design tools and implementing
   models. Rejected: SvelteKit (good, but weaker design-tool output), Next.js on Workers via OpenNext (heavier than
   needed; no SSR requirement since public pages can be cached JSON + client render; revisit if SEO matters).

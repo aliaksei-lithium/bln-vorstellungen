@@ -190,7 +190,9 @@ export async function runScan(env: Env, scanId: string): Promise<{ status: Scan[
 const ScanResult = z.object({
   added: z.number(),
   merged: z.number(),
-  events: z.array(z.object({ slug: z.string(), title: z.string(), created: z.boolean() })),
+  events: z.array(
+    z.object({ slug: z.string(), title: z.string(), created: z.boolean(), index: z.number().int().optional() }),
+  ),
 });
 
 export async function getScan(db: D1Database, userId: string, id: string): Promise<Scan> {
@@ -320,31 +322,49 @@ export async function scanImage(env: Env, userId: string, id: string): Promise<R
   return obj;
 }
 
-/** Adds the reviewed events. Each goes through the same resolve step as sources: a known event gains dates. */
+/**
+ * Adds the reviewed events. Each goes through the same resolve step as sources: a known event gains dates. With
+ * `indexes` (the candidate each event came from), a confirmed scan can add more later: candidates added before are
+ * skipped, and the result accumulates.
+ */
 export async function confirmScan(
   env: Env,
   userId: string,
   id: string,
   events: ExtractedEvent[],
+  indexes?: number[],
 ): Promise<NonNullable<Scan['result']>> {
   const row = await env.DB.prepare(
-    `SELECT status, raw_item_id, model, prompt_version FROM scans WHERE id = ? AND user_id = ?`,
+    `SELECT status, raw_item_id, model, prompt_version, result FROM scans WHERE id = ? AND user_id = ?`,
   )
     .bind(id, userId)
-    .first<{ status: Scan['status']; raw_item_id: string; model: string | null; prompt_version: string | null }>();
+    .first<{
+      status: Scan['status'];
+      raw_item_id: string;
+      model: string | null;
+      prompt_version: string | null;
+      result: string | null;
+    }>();
   if (!row) throw new HTTPException(404, { message: 'Scan not found' });
-  if (row.status === 'done') throw new HTTPException(409, { message: 'These events were already added.' });
-  if (row.status !== 'ready') throw new HTTPException(409, { message: 'This scan is not ready yet.' });
+  if (row.status !== 'ready' && row.status !== 'done') {
+    throw new HTTPException(409, { message: 'This scan is not ready yet.' });
+  }
+  const before = row.result ? ScanResult.parse(JSON.parse(row.result)) : { added: 0, merged: 0, events: [] };
+  const done = new Set(before.events.flatMap((e) => (e.index === undefined ? [] : [e.index])));
+  const picked = events
+    .map((ev, i) => ({ ev, index: indexes?.[i] }))
+    .filter((p) => (row.status === 'done' ? p.index !== undefined && !done.has(p.index) : true));
+  if (!picked.length) throw new HTTPException(409, { message: 'These events were already added.' });
   const venues = await VenueIndex.load(env.DB);
-  const touched: { id: string; created: boolean }[] = [];
-  for (const ev of events) {
+  const touched: { id: string; created: boolean; index: number | undefined }[] = [];
+  for (const { ev, index } of picked) {
     const r = await resolveEvent(env.DB, venues, ev, {
       rawItemId: row.raw_item_id,
       model: row.model ?? 'unknown',
       promptVersion: row.prompt_version,
       createdBy: `user:${userId}`,
     });
-    touched.push({ id: r.eventId, created: r.created });
+    touched.push({ id: r.eventId, created: r.created, index });
   }
   const { results } = await env.DB.prepare(
     `SELECT id, slug, title FROM events WHERE id IN (${touched.map(() => '?').join(',')})`,
@@ -353,12 +373,17 @@ export async function confirmScan(
     .all<{ id: string; slug: string; title: string }>();
   const byId = new Map(results.map((e) => [e.id, e]));
   const result = {
-    added: touched.filter((t) => t.created).length,
-    merged: touched.filter((t) => !t.created).length,
-    events: touched.flatMap((t) => {
-      const e = byId.get(t.id);
-      return e ? [{ slug: e.slug, title: e.title, created: t.created }] : [];
-    }),
+    added: before.added + touched.filter((t) => t.created).length,
+    merged: before.merged + touched.filter((t) => !t.created).length,
+    events: [
+      ...before.events,
+      ...touched.flatMap((t) => {
+        const e = byId.get(t.id);
+        return e
+          ? [{ slug: e.slug, title: e.title, created: t.created, ...(t.index === undefined ? {} : { index: t.index }) }]
+          : [];
+      }),
+    ],
   };
   await setStatus(env.DB, id, { status: 'done', result: JSON.stringify(result) });
   return result;

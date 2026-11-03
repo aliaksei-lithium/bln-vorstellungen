@@ -41,7 +41,8 @@ import { cn } from '@/lib/utils';
  * ticked. Untick what is wrong, fix what is close, then add. Known events merge instead of duplicating. Events come
  * ranked for the user with genres ("Scan insights"); "More" explains one, "Listen" opens an act on Spotify, and the
  * ticked ones can become a Spotify playlist. Scans stay in "Your scans" (/scans) until deleted, so a review can wait;
- * "Read again" has the model read the same photo once more.
+ * "Read again" has the model read the same photo once more. After adding, the review stays: added events link to
+ * their page, and the rest can still be added or made into a playlist.
  */
 
 type Draft = ExtractedEvent & { key: number; on: boolean };
@@ -128,8 +129,6 @@ export function ScanPage({ id }: { id: string }) {
         <EmptyState title="Could not read this" action={<ReadAgain scan={s} />}>
           {s.error ?? 'Try a sharper photo, or paste the text instead.'}
         </EmptyState>
-      ) : s.status === 'done' ? (
-        <Done scan={s} />
       ) : (
         <Review scan={s} />
       )}
@@ -169,42 +168,6 @@ function Reading({ id, kind }: { id: string; kind: Scan['kind'] }) {
   );
 }
 
-function Done({ scan }: { scan: Scan }) {
-  const r = scan.result!;
-  return (
-    <div className="grid gap-3">
-      <p className="m-0 border border-moss bg-moss-soft p-3 text-sm">
-        <b>{r.added}</b> new {r.added === 1 ? 'event' : 'events'} added
-        {r.merged > 0 && (
-          <>
-            , <b>{r.merged}</b> matched {r.merged === 1 ? 'an event' : 'events'} already listed and got their dates
-            merged
-          </>
-        )}
-        . They are listed now and ranked for you within a few minutes.
-      </p>
-      <section className="border border-ink bg-surface">
-        {r.events.map((e) => (
-          <Link
-            key={e.slug}
-            to="/e/$slug"
-            params={{ slug: e.slug }}
-            className="flex min-h-12 items-center justify-between gap-3 border-b border-line px-3 font-bold text-ink no-underline last:border-b-0"
-          >
-            <span className="truncate">{e.title}</span>
-            <span className="shrink-0 text-xs font-extrabold tracking-[.06em] text-sub uppercase">
-              {e.created ? 'New' : 'Merged'}
-            </span>
-          </Link>
-        ))}
-      </section>
-      <Link to="/scans" className="text-sm font-bold">
-        All your scans
-      </Link>
-    </div>
-  );
-}
-
 /** "Read again": another model read of the same photo or text, replacing what was found (a few per scan). */
 function ReadAgain({ scan }: { scan: Scan }) {
   const qc = useQueryClient();
@@ -226,6 +189,20 @@ function ReadAgain({ scan }: { scan: Scan }) {
 }
 
 type More = NonNullable<ScanInsight['more']>;
+type Added = { slug: string; created: boolean };
+
+/**
+ * Which candidates were added, by candidate number. Scans confirmed before the result kept numbers match by title.
+ */
+function addedByCandidate(scan: Scan): Map<number, Added> {
+  const out = new Map<number, Added>();
+  const key = (t: string) => t.trim().toLowerCase();
+  for (const e of scan.result?.events ?? []) {
+    const i = e.index ?? scan.candidates.findIndex((c, k) => !out.has(k) && key(c.title) === key(e.title));
+    if (i >= 0 && !out.has(i)) out.set(i, { slug: e.slug, created: e.created });
+  }
+  return out;
+}
 /** The first ranked events worth a "More" note in one go, and how many may go into one playlist. */
 const TOP = 5;
 const TOP_MIN = 60;
@@ -248,8 +225,9 @@ function Review({ scan }: { scan: Scan }) {
   const [open, setOpen] = useState<Set<number>>(new Set());
   const [busy, setBusy] = useState<Set<number>>(new Set());
   useEffect(() => {
-    setDrafts(scan.candidates.map((c, key) => ({ ...c, key, on: true })));
-  }, [scan.candidates]);
+    // After adding, nothing is ticked: ticking picks more to add, or events for a playlist.
+    setDrafts(scan.candidates.map((c, key) => ({ ...c, key, on: scan.status !== 'done' })));
+  }, [scan.candidates, scan.status]);
 
   const scoreOf = (key: number) => scan.insights[key]?.score ?? -1;
   const shown = ranked && byTaste ? [...drafts].sort((a, b) => scoreOf(b.key) - scoreOf(a.key)) : drafts;
@@ -261,15 +239,20 @@ function Review({ scan }: { scan: Scan }) {
       .map((d) => d.key),
   );
 
+  const done = scan.status === 'done';
+  const added = addedByCandidate(scan);
   const chosen = drafts.filter((d) => d.on);
+  const toAdd = chosen.filter((d) => !added.has(d.key));
   const add = useMutation({
     mutationFn: () =>
       api.confirmScan(scan.id, {
-        events: chosen.map(({ key: _k, on: _o, ...e }) => e),
+        events: toAdd.map(({ key: _k, on: _o, ...e }) => e),
+        indexes: toAdd.map((d) => d.key),
       }),
     onSuccess: (r) => {
-      toast(`Added ${r.added} new, merged ${r.merged}`);
+      toast(done ? `Added ${toAdd.length} more` : `Added ${r.added} new, merged ${r.merged}`);
       void qc.invalidateQueries({ queryKey: ['scan', scan.id] });
+      void qc.invalidateQueries({ queryKey: ['scans'] });
       void qc.invalidateQueries({ queryKey: ['events'] });
     },
   });
@@ -337,10 +320,26 @@ function Review({ scan }: { scan: Scan }) {
             <Sparkles className="size-4" aria-hidden />
             Read by AI
           </div>
-          <p className="mt-1.5 mb-2 text-[15px] leading-5">
-            <b>{drafts.length}</b> {drafts.length === 1 ? 'event' : 'events'} found
-            {ranked && byTaste ? ', best for you first' : ''}. Untick anything wrong, tap Edit to fix a detail.
-          </p>
+          {done && scan.result ? (
+            <p className="mt-1.5 mb-2 text-[15px] leading-5">
+              <b>{drafts.length}</b> {drafts.length === 1 ? 'event' : 'events'} found, <b>{scan.result.added}</b> added
+              {scan.result.merged > 0 && (
+                <>
+                  {' '}
+                  and <b>{scan.result.merged}</b> merged into events already listed
+                </>
+              )}
+              .{' '}
+              {added.size < drafts.length
+                ? 'Tick more to add them, or to make a playlist.'
+                : 'Tick events to make a playlist.'}
+            </p>
+          ) : (
+            <p className="mt-1.5 mb-2 text-[15px] leading-5">
+              <b>{drafts.length}</b> {drafts.length === 1 ? 'event' : 'events'} found
+              {ranked && byTaste ? ', best for you first' : ''}. Untick anything wrong, tap Edit to fix a detail.
+            </p>
+          )}
           <div className="flex flex-wrap gap-2">
             <Button
               size="sm"
@@ -422,6 +421,8 @@ function Review({ scan }: { scan: Scan }) {
           <Candidate
             key={d.key}
             d={d}
+            added={added.get(d.key)}
+            dimmed={!d.on && !done}
             insight={scan.insights[d.key] ?? null}
             more={mores[d.key]}
             top={top.has(d.key)}
@@ -439,16 +440,20 @@ function Review({ scan }: { scan: Scan }) {
       <div className="fixed inset-x-0 bottom-0 z-20 border-t border-ink bg-surface-a pb-[env(safe-area-inset-bottom,0px)] backdrop-blur-md">
         <div className="gutter mx-auto flex max-w-[600px] gap-2 py-2.5">
           <Button className="w-28" onClick={() => void navigate({ to: '/scans' })}>
-            Later
+            {done ? 'All scans' : 'Later'}
           </Button>
           <Button
             variant="default"
             className="flex-1"
-            disabled={!chosen.length || add.isPending}
+            disabled={!toAdd.length || add.isPending}
             onClick={() => add.mutate()}
           >
             {add.isPending && <Loader2 className="animate-spin" aria-hidden />}
-            {chosen.length ? `Add ${chosen.length} ${chosen.length === 1 ? 'event' : 'events'}` : 'Nothing ticked'}
+            {toAdd.length
+              ? `Add ${toAdd.length}${done ? ' more' : ''} ${toAdd.length === 1 ? 'event' : 'events'}`
+              : chosen.length
+                ? 'Already added'
+                : 'Nothing ticked'}
           </Button>
         </div>
         {add.isError && (
@@ -463,6 +468,8 @@ function Review({ scan }: { scan: Scan }) {
 
 function Candidate({
   d,
+  added,
+  dimmed,
   insight,
   more,
   top,
@@ -475,6 +482,10 @@ function Candidate({
   onChange,
 }: {
   d: Draft;
+  /** Added from this scan already: links to the event; not editable any more. */
+  added?: Added | undefined;
+  /** Unticked before anything was added: shown faded. */
+  dimmed: boolean;
   insight: ScanInsight | null;
   more: More | undefined;
   top: boolean;
@@ -497,13 +508,13 @@ function Candidate({
   const input =
     'h-11 w-full border border-ink bg-surface px-3 text-[15px] font-semibold tracking-normal text-ink normal-case outline-none focus-visible:outline-2 focus-visible:outline-moss';
   return (
-    <div className={cn('border-b border-line last:border-b-0', !d.on && 'opacity-55')}>
+    <div className={cn('border-b border-line last:border-b-0', dimmed && 'opacity-55')}>
       <div className="flex items-start gap-3 px-3 pt-2.5">
         <button
           type="button"
           role="checkbox"
           aria-checked={d.on}
-          aria-label={`Add ${d.title}`}
+          aria-label={added ? `Pick ${d.title}` : `Add ${d.title}`}
           onClick={onToggle}
           className={cn(
             'mt-0.5 grid size-6 shrink-0 place-items-center border border-ink',
@@ -554,10 +565,19 @@ function Candidate({
             </a>
           </Button>
         )}
-        <Button variant="ghost" size="sm" onClick={onEdit} aria-expanded={editing}>
-          {editing ? <X aria-hidden /> : <Pencil aria-hidden />}
-          {editing ? 'Close' : 'Edit'}
-        </Button>
+        {added ? (
+          <Button variant="ghost" size="sm" asChild>
+            <Link to="/e/$slug" params={{ slug: added.slug }} className="text-moss no-underline">
+              <Check aria-hidden />
+              {added.created ? 'Added' : 'Merged'}
+            </Link>
+          </Button>
+        ) : (
+          <Button variant="ghost" size="sm" onClick={onEdit} aria-expanded={editing}>
+            {editing ? <X aria-hidden /> : <Pencil aria-hidden />}
+            {editing ? 'Close' : 'Edit'}
+          </Button>
+        )}
       </div>
       {more && moreOpen && <MoreNote more={more} acts={acts} />}
       {editing && (

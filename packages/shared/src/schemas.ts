@@ -169,7 +169,10 @@ export const Scan = z.object({
     .object({
       added: z.number(),
       merged: z.number(),
-      events: z.array(z.object({ slug: z.string(), title: z.string(), created: z.boolean() })),
+      /** `index`: the candidate it came from (absent on scans confirmed before 2026-11-03). */
+      events: z.array(
+        z.object({ slug: z.string(), title: z.string(), created: z.boolean(), index: z.number().int().optional() }),
+      ),
     })
     .nullable(),
   error: z.string().nullable(),
@@ -210,7 +213,13 @@ export type ScanPlaylistResult = z.infer<typeof ScanPlaylistResult>;
 export const ScanText = z.object({ text: z.string().trim().min(10, 'Paste a bit more text.').max(20000) });
 export const ScanCreated = z.object({ id: z.string() });
 export type ScanCreated = z.infer<typeof ScanCreated>;
-export const ScanConfirm = z.object({ events: z.array(ExtractedEvent).min(1, 'Pick at least one event.').max(100) });
+export const ScanConfirm = z
+  .object({
+    events: z.array(ExtractedEvent).min(1, 'Pick at least one event.').max(100),
+    /** Per event, the candidate it was edited from; lets a confirmed scan add more later without repeats. */
+    indexes: z.array(z.number().int().min(0)).optional(),
+  })
+  .refine((c) => !c.indexes || c.indexes.length === c.events.length, 'One index per event.');
 export type ScanConfirm = z.infer<typeof ScanConfirm>;
 
 /** AI spend for the owner's overview (Me page). Whole site, not per user; days are UTC. */
