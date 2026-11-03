@@ -485,16 +485,6 @@ export const YoutubeStatus = SpotifyStatus.omit({ canPlaylist: true }).extend({
 });
 export type YoutubeStatus = z.infer<typeof YoutubeStatus>;
 
-/** Bandcamp (docs/09, 2026-11-04): artists from a public fan collection, wishlist and followed artists. */
-export const BandcampStatus = SpotifyStatus.omit({ canPlaylist: true }).extend({
-  /** The Bandcamp fan name the artists are read from, when connected. */
-  username: z.string().nullable(),
-});
-export type BandcampStatus = z.infer<typeof BandcampStatus>;
-
-/** Connect Bandcamp: the fan name, or the fan page link ("https://bandcamp.com/name"). */
-export const BandcampConnect = z.object({ username: z.string().trim().min(1).max(200) });
-export type BandcampConnect = z.infer<typeof BandcampConnect>;
 export type PasswordStatus = z.infer<typeof PasswordStatus>;
 
 export const LoginLink = z.object({ url: z.url(), expiresAt: UtcInstant });

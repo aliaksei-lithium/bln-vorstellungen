@@ -350,7 +350,7 @@ export const userArtists = sqliteTable(
     nameLc: text('name_lc').notNull(),
     name: text('name').notNull(),
     genres: json<string[]>('genres').notNull().default([]),
-    source: text('source', { enum: ['spotify', 'youtube', 'bandcamp'] })
+    source: text('source', { enum: ['spotify', 'youtube'] })
       .notNull()
       .default('spotify'),
     /** Order of importance: top artists first, then followed. */

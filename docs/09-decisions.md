@@ -408,6 +408,13 @@ Format: date · decision · why · alternatives rejected. Newer entries supersed
   rest can be ticked and added later. Confirming now sends the candidate number of each event (`indexes`), stored in
   the result, so later adds skip candidates added before and the counts accumulate. Scans confirmed earlier match
   their added events by title. "Read again" stays off once anything was added: new candidates would lose that match.
+- **2026-11-03 · Bandcamp removed.** Supersedes "Bandcamp, like Spotify, by fan name" and "Bandcamp blocks the
+  Worker": bandcamp.com answers the Worker only with a bot check, so the connector could never work. Its code, API
+  routes, Me box, "Listen on Bandcamp" and privacy/terms text are gone; no user had connected it.
+- **2026-11-03 · The Highlights switch stays with filters on.** Supersedes the "plain browsing only" part of "Browse
+  shows highlights by default": a signed-in user's saved default usually picks several categories, which hid the
+  switch and always showed everything. Highlights or Everything now applies with any filter; only a search lists
+  every match.
 - **2026-10-02 · React + Vite + TanStack + Tailwind + shadcn/ui.** Best coverage by design tools and implementing
   models. Rejected: SvelteKit (good, but weaker design-tool output), Next.js on Workers via OpenNext (heavier than
   needed; no SSR requirement since public pages can be cached JSON + client render; revisit if SEO matters).

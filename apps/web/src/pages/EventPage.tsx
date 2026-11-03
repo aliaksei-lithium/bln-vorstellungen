@@ -38,15 +38,13 @@ import { useListFilter } from '@/lib/marks';
 import { relativeDay } from '@/lib/dates';
 import { cn } from '@/lib/utils';
 
-type ListenOn = 'spotify' | 'youtube' | 'bandcamp';
+type ListenOn = 'spotify' | 'youtube';
 
-/** "Listen" goes to the act on Spotify (its page, or a search), or to a YouTube Music or Bandcamp search. */
+/** "Listen" goes to the act on Spotify (its page, or a search), or to a YouTube Music search. */
 const listenHref = (on: ListenOn, name: string) =>
   on === 'youtube'
     ? `https://music.youtube.com/search?q=${encodeURIComponent(name)}`
-    : on === 'bandcamp'
-      ? `https://bandcamp.com/search?item_type=b&q=${encodeURIComponent(name)}`
-      : `/spotify/listen?artist=${encodeURIComponent(name)}`;
+    : `/spotify/listen?artist=${encodeURIComponent(name)}`;
 
 /** Categories where "Listen" makes sense. */
 const MUSIC = new Set(['concert', 'club', 'festival']);
@@ -84,17 +82,10 @@ export function EventPage({ slug }: { slug: string }) {
     },
   });
   const my = mine.data;
-  // Listen where they listen: Spotify first, then YouTube Music, then Bandcamp, whichever is connected.
+  // Listen where they listen: Spotify first, then YouTube Music, whichever is connected.
   const spotify = useQuery({ queryKey: ['spotify'], queryFn: api.spotify, enabled: !!user, staleTime: 300_000 });
   const youtube = useQuery({ queryKey: ['youtube'], queryFn: api.youtube, enabled: !!user, staleTime: 300_000 });
-  const bandcamp = useQuery({ queryKey: ['bandcamp'], queryFn: api.bandcamp, enabled: !!user, staleTime: 300_000 });
-  const listenOn: ListenOn = spotify.data?.connected
-    ? 'spotify'
-    : youtube.data?.connected
-      ? 'youtube'
-      : bandcamp.data?.connected
-        ? 'bandcamp'
-        : 'spotify';
+  const listenOn: ListenOn = spotify.data?.connected ? 'spotify' : youtube.data?.connected ? 'youtube' : 'spotify';
 
   const head = (
     <div className="sticky top-[env(safe-area-inset-top,0px)] z-10 -mx-2 grid h-14 grid-cols-[44px_1fr_44px] items-center bg-background">
