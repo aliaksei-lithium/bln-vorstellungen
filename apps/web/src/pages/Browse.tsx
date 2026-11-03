@@ -208,8 +208,8 @@ export function BrowsePage() {
     const shown = new Set(items.map((i) => i.slug));
     return (meaning.data?.items ?? []).filter((i) => !shown.has(i.slug) && shows(i)).slice(0, 8);
   }, [meaning.data, items, shows]);
-  // Highlights (default) or everything: a few strong events a day, so a long day stays readable. Plain browsing
-  // only: a search, a category or a source asks for all of it.
+  // Highlights (default) or everything: a few strong events a day, so a long day stays readable. Filters keep the
+  // choice (a saved default usually picks several categories); only a search shows every match.
   const [view, setViewState] = useState<'highlights' | 'all'>(() => {
     try {
       return localStorage.getItem(VIEW_KEY) === 'all' ? 'all' : 'highlights';
@@ -225,7 +225,7 @@ export function BrowsePage() {
       // Private mode: the choice lasts for this visit.
     }
   };
-  const plain = !query && !filters.category.length && !filters.via.length;
+  const plain = !query;
   const compact = plain && view === 'highlights';
 
   // How many filters are on, for the badge on the Filter button (the chips themselves live in the sheet).
