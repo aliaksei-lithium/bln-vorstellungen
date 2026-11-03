@@ -263,6 +263,7 @@ describe('discover editions', () => {
 
   it('serves a public edition without signing in, built on first read, without default-off venues', async () => {
     // A member loves both, so both would lead the public edition if p_off's venue were not off by default.
+    // All four are newly announced from a source, so they make "New in the programme" whatever the weekday.
     const fan = await user('Fan');
     await event(fan, 'p_on', { days: [6], score: 99, fresh: true });
     await event(fan, 'p_off', { days: [6], score: 99, fresh: true });
@@ -270,8 +271,9 @@ describe('discover editions', () => {
     await event(null, 'p_on3', { days: [6], fresh: true });
     await env.DB.batch([
       env.DB.prepare(
-        `INSERT INTO sources (id, name, type, config, schedule_minutes, default_off) VALUES
-           ('s_quiet_d', 'Quiet', 'ical', '{}', 360, 1), ('s_loud_d', 'Loud', 'ical', '{}', 360, 0)`,
+        `INSERT INTO sources (id, name, type, config, schedule_minutes, default_off, created_at) VALUES
+           ('s_quiet_d', 'Quiet', 'ical', '{}', 360, 1, '2026-01-01T00:00:00Z'),
+           ('s_loud_d', 'Loud', 'ical', '{}', 360, 0, '2026-01-01T00:00:00Z')`,
       ),
       env.DB.prepare(
         `INSERT INTO raw_items (id, source_id, external_id, content_hash, kind, content, fetched_at)
@@ -280,7 +282,8 @@ describe('discover editions', () => {
       ),
       env.DB.prepare(
         `INSERT INTO event_sources (event_id, raw_item_id, extracted, confidence)
-         VALUES ('p_off', 'raw-q', '{}', 1), ('p_on', 'raw-l', '{}', 1)`,
+         VALUES ('p_off', 'raw-q', '{}', 1), ('p_on', 'raw-l', '{}', 1), ('p_on2', 'raw-l', '{}', 1),
+                ('p_on3', 'raw-l', '{}', 1)`,
       ),
     ]);
     await refreshAllNextDates(env.DB);

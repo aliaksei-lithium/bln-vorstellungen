@@ -1,0 +1,1 @@
+ALTER TABLE `scans` ADD `runs` integer DEFAULT 1 NOT NULL;

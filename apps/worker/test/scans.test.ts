@@ -1,7 +1,17 @@
 import { env } from 'cloudflare:workers';
 import { describe, expect, it } from 'vitest';
 import { listEvents } from '../src/services/events';
-import { confirmScan, createScan, getScan, runScan, toBase64 } from '../src/services/scans';
+import {
+  MAX_RUNS,
+  confirmScan,
+  createScan,
+  deleteScan,
+  getScan,
+  listScans,
+  rereadScan,
+  runScan,
+  toBase64,
+} from '../src/services/scans';
 
 /** Scans end to end with a stubbed model: photo in R2, the workflow's read step, review, confirm and merge. */
 
@@ -108,5 +118,71 @@ describe('scans', () => {
     });
     expect(await runScan(noClaude, id2)).toEqual({ status: 'failed', events: 0 });
     expect((await getScan(env.DB, uid, id2)).error).toMatch(/Reading photos needs Claude/);
+  });
+
+  it('lists scans, reads one again a few times, and deletes it with its photo', async () => {
+    const uid = await user('Lou');
+    const started: string[] = [];
+    const e = {
+      ...claudeEnv([listing('Horsegiirl', day(10)), listing('Orbital', day(12))]),
+      PHOTO_INGEST: { create: async ({ id }: { id: string }) => (started.push(id), { id }) },
+    } as unknown as Env;
+    const photo = await createScan(e, uid, {
+      kind: 'photo',
+      bytes: new Uint8Array([1]).buffer,
+      contentType: 'image/png',
+    });
+    const text = await createScan(e, uid, { kind: 'text', text: 'Some club night, Friday at 23:00, Berghain.' });
+    await runScan(e, photo);
+
+    const list = await listScans(env.DB, uid);
+    expect(list.map((s) => s.id)).toEqual(expect.arrayContaining([photo, text]));
+    expect(list.find((s) => s.id === photo)).toMatchObject({
+      status: 'ready',
+      found: 2,
+      preview: 'Horsegiirl · Orbital',
+    });
+    expect(list.find((s) => s.id === text)).toMatchObject({ status: 'queued', found: 0 });
+    expect(list.find((s) => s.id === text)!.preview).toMatch(/^Some club night/);
+    expect(await listScans(env.DB, await user('Nobody'))).toEqual([]);
+
+    // Read again: queued with nothing found yet, until the cap.
+    await expect(rereadScan(e, uid, text)).rejects.toThrow('still being read');
+    expect((await getScan(env.DB, uid, photo)).rereadsLeft).toBe(MAX_RUNS - 1);
+    for (let n = 2; n <= MAX_RUNS; n++) {
+      await rereadScan(e, uid, photo);
+      expect(await getScan(env.DB, uid, photo)).toMatchObject({ status: 'queued', candidates: [], rereadsLeft: 0 });
+      await runScan(e, photo);
+    }
+    expect(started).toContain(`${photo}-r${MAX_RUNS}`);
+    expect((await getScan(env.DB, uid, photo)).rereadsLeft).toBe(0);
+    await expect(rereadScan(e, uid, photo)).rejects.toThrow(`read ${MAX_RUNS} times`);
+
+    // Delete: only the owner; the photo goes from R2 and the raw item with it.
+    const raw = await env.DB.prepare(`SELECT raw_item_id FROM scans WHERE id = ?`)
+      .bind(photo)
+      .first<{ raw_item_id: string }>();
+    await expect(deleteScan(e, await user('Other'), photo)).rejects.toThrow('Scan not found');
+    await deleteScan(e, uid, photo);
+    await expect(getScan(env.DB, uid, photo)).rejects.toThrow('Scan not found');
+    expect(await env.MEDIA.get(`scans/${uid}/${photo}`)).toBeNull();
+    expect(await env.DB.prepare(`SELECT 1 FROM raw_items WHERE id = ?`).bind(raw!.raw_item_id).first()).toBeNull();
+  });
+
+  it('keeps added events and their source when a confirmed scan is deleted', async () => {
+    const uid = await user('Max');
+    const e = claudeEnv([listing('Dinosaur Jr.', day(15))]);
+    const id = await createScan(e, uid, { kind: 'photo', bytes: new Uint8Array([2]).buffer, contentType: 'image/png' });
+    await runScan(e, id);
+    await confirmScan(e, uid, id, (await getScan(env.DB, uid, id)).candidates);
+    expect((await listScans(env.DB, uid))[0]).toMatchObject({ status: 'done', added: 1 });
+
+    await deleteScan(e, uid, id);
+    expect(await env.MEDIA.get(`scans/${uid}/${id}`)).toBeNull();
+    const src = await env.DB.prepare(
+      `SELECT r.r2_key FROM events e JOIN event_sources es ON es.event_id = e.id JOIN raw_items r ON r.id = es.raw_item_id
+        WHERE e.title = 'Dinosaur Jr.'`,
+    ).first<{ r2_key: string | null }>();
+    expect(src).toEqual({ r2_key: null });
   });
 });

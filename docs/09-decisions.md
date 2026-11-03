@@ -395,6 +395,14 @@ Format: date · decision · why · alternatives rejected. Newer entries supersed
   line when it would only restate the title, category and venue. An event that later gets a description from another
   source is written again. Shown under the title in every event row (two lines at most) and as Discover's fallback
   when its own call skipped a pick. About $0.02 per 1,000 events.
+- **2026-11-03 · "Your scans": saved scans to review later, read again, or delete.** Scans were already stored and
+  read in the background, but only reachable by their URL. `/scans` lists them newest first (status, events found or
+  added, first titles, from SQLite's JSON functions so the list never parses candidates in the Worker), linked from
+  the + sheet and Me; the review's "Discard" becomes "Later". "Read again" re-runs the model on the same input,
+  replacing the candidates, at most 3 reads per scan (`scans.runs`), each a new PhotoIngest instance `<id>-r<n>`.
+  Delete removes the photo from R2 and the scan; the raw item goes too, unless events added from it cite it as their
+  source, then it stays without the photo or note. Unticks and edits in a review are not saved: reopening shows what
+  the model found.
 - **2026-10-02 · React + Vite + TanStack + Tailwind + shadcn/ui.** Best coverage by design tools and implementing
   models. Rejected: SvelteKit (good, but weaker design-tool output), Next.js on Workers via OpenNext (heavier than
   needed; no SSR requirement since public pages can be cached JSON + client render; revisit if SEO matters).

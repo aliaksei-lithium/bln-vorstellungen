@@ -175,8 +175,26 @@ export const Scan = z.object({
   error: z.string().nullable(),
   /** Per candidate, same order; null while not ranked (or when ranking failed). */
   insights: z.array(ScanInsight.nullable()).default([]),
+  /** How many more times "Read again" may run on this scan. */
+  rereadsLeft: z.number().int().default(0),
 });
 export type Scan = z.infer<typeof Scan>;
+
+/** One row of "Your scans": enough to recognise it without opening it. */
+export const ScanListItem = z.object({
+  id: z.string(),
+  kind: z.enum(['photo', 'text']),
+  status: ScanStatus,
+  createdAt: z.string(),
+  /** Events found (before review). */
+  found: z.number(),
+  /** Events added or merged, once confirmed. */
+  added: z.number().nullable(),
+  /** The first titles found, or the start of the pasted text. */
+  preview: z.string().nullable(),
+  error: z.string().nullable(),
+});
+export type ScanListItem = z.infer<typeof ScanListItem>;
 
 export const ScanPlaylist = z.object({
   indexes: z.array(z.number().int().min(0)).min(1, 'Pick at least one event.').max(25),

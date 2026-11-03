@@ -9,6 +9,7 @@ import { ForYouPage } from '@/pages/Inbox';
 import { LoginPage } from '@/pages/Login';
 import { MePage } from '@/pages/Me';
 import { ScanPage } from '@/pages/ScanPage';
+import { ScansPage } from '@/pages/ScansPage';
 import { VenuePage } from '@/pages/VenuePage';
 
 const rootRoute = createRootRoute({
@@ -59,6 +60,7 @@ const routes = [
       return <VenuePage id={id} />;
     },
   }),
+  createRoute({ getParentRoute: () => rootRoute, path: '/scans', component: ScansPage }),
   // The old name, for bookmarks and installed shortcuts.
   createRoute({
     getParentRoute: () => rootRoute,

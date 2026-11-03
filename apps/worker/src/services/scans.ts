@@ -1,4 +1,4 @@
-import { ExtractedEvent, ScanInsight, type Scan } from '@bln/shared';
+import { ExtractedEvent, ScanInsight, type Scan, type ScanListItem } from '@bln/shared';
 import { HTTPException } from 'hono/http-exception';
 import { z } from 'zod';
 import { extractEvents, extractFromImage, type ExtractResult } from '../ai/extract';
@@ -18,6 +18,8 @@ import { rankCandidates } from './scan-insights';
 export const SCANS_PER_DAY = 40;
 export const MAX_IMAGE_BYTES = 6 * 1024 * 1024;
 export const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const;
+/** Model reads per scan, the first included: "Read again" is another model call on the same photo or text. */
+export const MAX_RUNS = 3;
 
 type ScanRow = {
   id: string;
@@ -29,6 +31,7 @@ type ScanRow = {
   result: string | null;
   error: string | null;
   insights: string | null;
+  runs: number;
   created_at: string;
 };
 
@@ -208,7 +211,101 @@ export async function getScan(db: D1Database, userId: string, id: string): Promi
       .array(ScanInsight.nullable().catch(null))
       .catch([])
       .parse(JSON.parse(row.insights ?? '[]')),
+    rereadsLeft: row.status === 'ready' || row.status === 'failed' ? Math.max(0, MAX_RUNS - row.runs) : 0,
   };
+}
+
+/**
+ * "Your scans", newest first. Counts and titles come from SQLite's JSON functions, so a long list does not parse
+ * every scan's candidates in the Worker.
+ */
+export async function listScans(db: D1Database, userId: string, limit = 50): Promise<ScanListItem[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT s.id, s.kind, s.status, s.created_at, s.error,
+              COALESCE(json_array_length(s.candidates), 0) AS found,
+              json_extract(s.result, '$.added') + json_extract(s.result, '$.merged') AS added,
+              json_extract(s.candidates, '$[0].title') AS t1, json_extract(s.candidates, '$[1].title') AS t2,
+              substr(r.content, 1, 140) AS text
+         FROM scans s LEFT JOIN raw_items r ON r.id = s.raw_item_id
+        WHERE s.user_id = ? ORDER BY s.created_at DESC LIMIT ?`,
+    )
+    .bind(userId, limit)
+    .all<{
+      id: string;
+      kind: 'photo' | 'text';
+      status: Scan['status'];
+      created_at: string;
+      error: string | null;
+      found: number;
+      added: number | null;
+      t1: string | null;
+      t2: string | null;
+      text: string | null;
+    }>();
+  return results.map((r) => ({
+    id: r.id,
+    kind: r.kind,
+    status: r.status,
+    createdAt: r.created_at,
+    found: r.found,
+    added: r.added,
+    // Titles first; before reading, the pasted text (or the photo's note).
+    preview: [r.t1, r.t2].filter(Boolean).join(' · ') || r.text?.replace(/\s+/g, ' ').trim() || null,
+    error: r.error,
+  }));
+}
+
+/** "Read again": the model reads the same photo or text once more, replacing what it found. */
+export async function rereadScan(env: Env, userId: string, id: string): Promise<void> {
+  const row = await env.DB.prepare(`SELECT status, runs FROM scans WHERE id = ? AND user_id = ?`)
+    .bind(id, userId)
+    .first<{ status: Scan['status']; runs: number }>();
+  if (!row) throw new HTTPException(404, { message: 'Scan not found' });
+  if (row.status === 'done') throw new HTTPException(409, { message: 'These events were already added.' });
+  if (row.status !== 'ready' && row.status !== 'failed') {
+    throw new HTTPException(409, { message: 'This scan is still being read.' });
+  }
+  if (row.runs >= MAX_RUNS) {
+    throw new HTTPException(429, { message: `This one was read ${MAX_RUNS} times already. Try a new photo.` });
+  }
+  // Guarded on status and runs, so two taps start one read.
+  const res = await env.DB.prepare(
+    `UPDATE scans SET status = 'queued', error = NULL, candidates = NULL, insights = NULL, runs = runs + 1,
+            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+      WHERE id = ? AND status IN ('ready', 'failed') AND runs = ?`,
+  )
+    .bind(id, row.runs)
+    .run();
+  if (!res.meta.changes) throw new HTTPException(409, { message: 'This scan is already being read again.' });
+  await env.PHOTO_INGEST.create({ id: `${id}-r${row.runs + 1}`, params: { scanId: id } });
+}
+
+/**
+ * Deletes a scan and its photo. Events already added from it stay (they are listings now), and so does the raw item
+ * they cite as their source, without the photo or note.
+ */
+export async function deleteScan(env: Env, userId: string, id: string): Promise<void> {
+  const row = await env.DB.prepare(
+    `SELECT s.raw_item_id, r.r2_key, r.upload_id,
+            EXISTS (SELECT 1 FROM event_sources es WHERE es.raw_item_id = s.raw_item_id) AS cited
+       FROM scans s LEFT JOIN raw_items r ON r.id = s.raw_item_id WHERE s.id = ? AND s.user_id = ?`,
+  )
+    .bind(id, userId)
+    .first<{ raw_item_id: string | null; r2_key: string | null; upload_id: string | null; cited: number }>();
+  if (!row) throw new HTTPException(404, { message: 'Scan not found' });
+  if (row.r2_key) await env.MEDIA.delete(row.r2_key);
+  const stmts = [env.DB.prepare(`DELETE FROM scans WHERE id = ?`).bind(id)];
+  if (row.raw_item_id && row.cited) {
+    stmts.push(env.DB.prepare(`UPDATE raw_items SET r2_key = NULL, content = NULL WHERE id = ?`).bind(row.raw_item_id));
+  } else if (row.raw_item_id) {
+    stmts.push(
+      env.DB.prepare(`UPDATE review_queue SET raw_item_id = NULL WHERE raw_item_id = ?`).bind(row.raw_item_id),
+      env.DB.prepare(`DELETE FROM raw_items WHERE id = ?`).bind(row.raw_item_id),
+    );
+    if (row.upload_id) stmts.push(env.DB.prepare(`DELETE FROM uploads WHERE id = ?`).bind(row.upload_id));
+  }
+  await env.DB.batch(stmts);
 }
 
 /** The user's photo, for the review page. */

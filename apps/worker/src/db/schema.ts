@@ -382,6 +382,8 @@ export const scans = sqliteTable(
     error: text('error'),
     model: text('model'),
     promptVersion: text('prompt_version'),
+    /** How many times the model read this scan: the first read plus "Read again" (at most MAX_RUNS). */
+    runs: integer('runs').notNull().default(1),
     createdAt: createdAt(),
     updatedAt: text('updated_at')
       .notNull()
