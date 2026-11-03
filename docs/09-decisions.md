@@ -415,6 +415,11 @@ Format: date · decision · why · alternatives rejected. Newer entries supersed
   shows highlights by default": a signed-in user's saved default usually picks several categories, which hid the
   switch and always showed everything. Highlights or Everything now applies with any filter; only a search lists
   every match.
+- **2026-11-03 · Untitled shows are named after their artists.** Index Berlin lists some gallery openings with the
+  title "N/A", and the model copied it. `titleOrActs` (packages/sources) catches placeholder titles (N/A, TBA,
+  Untitled, Ohne Titel, a lone dash, and "n-a (Name)") and names the event after its artists, as galleries do, or
+  drops it when no artist is known. Applied to every model-read event (sources and scans) and in `finalize` for feed
+  adapters. The two live "N/A" events were duplicates of shows already listed by name and were merged into them.
 - **2026-10-02 · React + Vite + TanStack + Tailwind + shadcn/ui.** Best coverage by design tools and implementing
   models. Rejected: SvelteKit (good, but weaker design-tool output), Next.js on Workers via OpenNext (heavier than
   needed; no SSR requirement since public pages can be cached JSON + client render; revisit if SEO matters).

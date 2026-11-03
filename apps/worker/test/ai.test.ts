@@ -259,4 +259,25 @@ describe('toExtracted titles', () => {
     );
     expect(e?.title).toBe('Sofoquina');
   });
+
+  it('names an untitled show after its artists, and drops one with no artists', () => {
+    const show = (title: string, performers: string[]) =>
+      toExtracted(
+        {
+          title,
+          lang: 'en',
+          category: 'exhibition',
+          dates: [{ start: '2099-01-02T18:00', note: 'Opening' }],
+          venue: 'Lars Friedrich',
+          performers,
+          confidence: 0.6,
+          quote: 'Brad Kronz Lars Friedrich Opening',
+        } as never,
+        '2099-01-01',
+      );
+    expect(show('N/A', ['Brad Kronz'])?.title).toBe('Brad Kronz');
+    expect(show('Untitled', ['A', 'B', 'C', 'D'])?.title).toBe('A, B, C and others');
+    expect(show('TBA', [])).toBeNull();
+    expect(show('Nana', ['Brad Kronz'])?.title).toBe('Nana');
+  });
 });
