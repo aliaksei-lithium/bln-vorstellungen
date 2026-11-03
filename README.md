@@ -24,7 +24,7 @@ in a sentence what you like, and it ranks every upcoming event for you and says 
 - **One list for the whole city.** Theatre, opera, concerts, clubs and talks side by side. A production with twelve
   performances is one entry, not twelve rows.
 - **AI reads the venue pages.** Claude reads Spielplan pages that have no feed: every date, price and room.
-- **Ranked for your taste.** Describe what you like in a sentence, or connect Spotify, YouTube Music or Bandcamp;
+- **Ranked for your taste.** Describe what you like in a sentence, or connect Spotify or YouTube Music;
   every event gets a score and a one-line reason. Swipe to sort.
 - **Ask in your own words.** "Something loud with guitars this Friday?" gets an answer from the programme, with
   reviews from the web when you ask for them.

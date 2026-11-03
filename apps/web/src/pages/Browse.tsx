@@ -400,8 +400,7 @@ function FilterSheet({
   const categories = listCategories(user ? profile.data?.prefs : { categoriesOn: optIn.on });
   const spotify = useQuery({ queryKey: ['spotify'], queryFn: api.spotify, enabled: !!user && open });
   const youtube = useQuery({ queryKey: ['youtube'], queryFn: api.youtube, enabled: !!user && open });
-  const bandcamp = useQuery({ queryKey: ['bandcamp'], queryFn: api.bandcamp, enabled: !!user && open });
-  const music = !!spotify.data?.connected || !!youtube.data?.connected || !!bandcamp.data?.connected;
+  const music = !!spotify.data?.connected || !!youtube.data?.connected;
   const qc = useQueryClient();
   const saved = profile.data?.prefs.browseDefault ?? '';
   const current = filterQuery(filters);
