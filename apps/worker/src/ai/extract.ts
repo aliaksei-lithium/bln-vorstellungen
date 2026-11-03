@@ -1,5 +1,5 @@
 import { Category, ExtractedEvent, berlinToday, cleanTitle, truncate } from '@bln/shared';
-import { isUpcoming, looksFree } from '@bln/sources';
+import { isUpcoming, looksFree, titleOrActs } from '@bln/sources';
 import { callJson, providerFrom, type LlmProvider } from './llm';
 import * as prompt from './prompts/extract';
 import * as photo from './prompts/photo';
@@ -89,8 +89,14 @@ export function toExtracted(m: prompt.ModelEvent, today = berlinToday()): Extrac
   const venue = venueOf(m.venue, m.address);
   const acts = (m.performers ?? []).filter((p) => typeof p === 'string' && p.trim());
   const rawTitle = cleanTitle(m.title ?? '');
-  const title =
+  const named =
     venue && acts.length && rawTitle.toLowerCase() === venue.name.toLowerCase() ? cleanTitle(acts[0]!) : rawTitle;
+  // "N/A" or "Untitled": named after the artists, or dropped.
+  const title = titleOrActs(
+    named,
+    acts.map((name) => ({ name: cleanTitle(name) })),
+  );
+  if (!title) return null;
   const r = ExtractedEvent.safeParse({
     title,
     ...(m.description?.trim() ? { description: truncate(m.description.trim(), 2000) } : {}),

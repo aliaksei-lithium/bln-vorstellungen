@@ -122,12 +122,32 @@ export function pickCategory(
 const PLACEHOLDER = /^(heute\s+)?geschlossen\b|\b(today|we are) closed\b|^closed\b|^ruhetag\b|^betriebsferien\b/i;
 export const isPlaceholder = (title: string): boolean => PLACEHOLDER.test(title.trim());
 
+/** A title that names nothing: listings print "N/A", "TBA" or "Untitled" for a show without a title of its own. */
+const UNTITLED =
+  /^(n[./-]?\s?a\.?|tba|tbc|tbd|t\.b\.[act]\.?|untitled|ohne titel|o\.\s?t\.|titel folgt|title tba|[-–—?.\s]*)$/i;
+
+/**
+ * The title to list, or null to drop the entry. An untitled show is named after its artists (galleries do the same:
+ * "Brad Kronz" at Lars Friedrich); with no artists either, there is nothing to list it by.
+ */
+export function titleOrActs(title: string, performers: { name: string }[]): string | null {
+  // "n-a (I. S. Kalter)": the name is already there, in brackets.
+  const bracketed = /^(.*?)\s*\((.+)\)$/.exec(title.trim());
+  if (bracketed && UNTITLED.test(bracketed[1]!)) return bracketed[2]!.trim();
+  if (!UNTITLED.test(title.trim())) return title;
+  const names = performers.map((p) => p.name.trim()).filter(Boolean);
+  if (!names.length) return null;
+  return names.length > 3 ? `${names.slice(0, 3).join(', ')} and others` : names.join(', ');
+}
+
 export const pickLang = (forced: Lang | undefined, text: string): Lang => forced ?? guessLang(text) ?? 'other';
 
 /** Validates a candidate; adapters drop items that do not fit the schema instead of failing the run. */
 export function finalize(candidate: unknown): ExtractedEvent | null {
   const r = ExtractedEvent.safeParse(candidate);
-  return r.success ? r.data : null;
+  if (!r.success) return null;
+  const title = titleOrActs(r.data.title, r.data.performers);
+  return title ? { ...r.data, title } : null;
 }
 
 /** "A-TRANE PRÄSENTIERT · Kat Eaton" → "Kat Eaton" when the source's own venue opens every title. */
