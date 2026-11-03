@@ -89,7 +89,7 @@ scansApi.post('/:id/confirm', async (c) => {
   }
   const p = ScanConfirm.safeParse(raw);
   if (!p.success) throw new HTTPException(400, { message: p.error.issues[0]?.message ?? 'Invalid events' });
-  return c.json(await confirmScan(c.env, user.id, c.req.param('id'), p.data.events));
+  return c.json(await confirmScan(c.env, user.id, c.req.param('id'), p.data.events, p.data.indexes));
 });
 
 scansApi.post('/:id/more/:i', async (c) => {
