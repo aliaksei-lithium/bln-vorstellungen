@@ -31,9 +31,12 @@ export class ScoreEventsWorkflow extends WorkflowEntrypoint<Env, ScoreParams> {
         console.error('score llm batch failed', { userId, err: String(err) });
       }
     }
-    // A step, so a retry of the workflow does not start a second rebuild.
+    // A step, so a retry of the workflow does not start a second rebuild. The id keeps this run's minute and stays
+    // under the Workflows id limit (100 characters); the full score instance id inside it did not.
     const rebuilt = event.payload.rebuild
-      ? await step.do('rebuild', () => startReview(this.env, userId, `review-${userId}-${event.instanceId}`))
+      ? await step.do('rebuild', () =>
+          startReview(this.env, userId, `review-${userId}-${event.instanceId.replace(`score-${userId}-`, '')}`),
+        )
       : false;
     return { scored: rules.scored, llm, rebuilt };
   }
