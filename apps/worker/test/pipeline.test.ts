@@ -3,7 +3,7 @@ import { jsonldAdapter, JsonLdConfig, type SourceContext } from '@bln/sources';
 import { env } from 'cloudflare:workers';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { resolveEvent, VenueIndex } from '../src/pipeline/resolve';
-import { dispatchDueSources } from '../src/pipeline/scheduler';
+import { QUIET_SOURCE_MINUTES, dispatchDueSources, intervalFor } from '../src/pipeline/scheduler';
 import { finishRun, resolveItems, startRun, storeRawItems } from '../src/pipeline/source-run';
 
 const DAY = 86_400_000;
@@ -201,5 +201,15 @@ describe('dispatchDueSources', () => {
       next_run_at: string;
     }>();
     expect(Date.parse(next!.next_run_at) - now.getTime()).toBe(360 * 60_000);
+  });
+});
+
+describe('intervalFor', () => {
+  it('reads default-off sources the model has to read weekly, everything else on its own schedule', () => {
+    expect(intervalFor({ type: 'html', schedule_minutes: 1440, default_off: 1 })).toBe(QUIET_SOURCE_MINUTES);
+    expect(intervalFor({ type: 'telegram', schedule_minutes: 120, default_off: 1 })).toBe(QUIET_SOURCE_MINUTES);
+    expect(intervalFor({ type: 'html', schedule_minutes: 1440, default_off: 0 })).toBe(1440);
+    // Feeds are mapped without the model: no reason to slow them down.
+    expect(intervalFor({ type: 'ical', schedule_minutes: 360, default_off: 1 })).toBe(360);
   });
 });

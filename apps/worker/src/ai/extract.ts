@@ -52,11 +52,11 @@ function venueOf(name: string | undefined, address: string | undefined): Extract
   return rest.length && /\d/.test(rest.join(' ')) ? { name: first!, address: rest.join(', ') } : { name: n };
 }
 
-export function toExtracted(m: prompt.ModelEvent, today = berlinToday()): ExtractedEvent | null {
+export function toExtracted(m: prompt.ModelEvent, today = berlinToday(), until?: string): ExtractedEvent | null {
   const occurrences = (m.dates ?? [])
     .map((d) => {
       const start = local(d.start);
-      if (!start || !isUpcoming(start, today)) return null;
+      if (!start || !isUpcoming(start, today) || (until && start.slice(0, 10) > until)) return null;
       const end = local(d.end);
       const doors = local(d.doors);
       return {
@@ -127,22 +127,29 @@ export type ExtractProvider = LlmProvider;
 /** The configured extractor: `EXTRACT_MODEL` in wrangler.jsonc vars, Workers AI unless it names a Claude model. */
 export const configuredProvider = (env: Env): ExtractProvider => providerFrom(env.EXTRACT_MODEL);
 
+/**
+ * Text → ExtractedEvent[]. `horizonDays` (sources, docs/09 2026-11-04) keeps only dates in the coming days: the prompt
+ * asks for no more, and later dates the model returns anyway are dropped.
+ */
 export async function extractEvents(
   env: Env,
   input: ExtractInput,
-  opts: { today?: string; provider?: ExtractProvider } = {},
+  opts: { today?: string; provider?: ExtractProvider; horizonDays?: number } = {},
 ): Promise<ExtractResult> {
   const today = opts.today ?? berlinToday();
+  const until = opts.horizonDays
+    ? new Date(Date.parse(`${today}T12:00:00Z`) + opts.horizonDays * 86_400_000).toISOString().slice(0, 10)
+    : undefined;
   const r = await callJson(env, {
     provider: opts.provider ?? configuredProvider(env),
-    system: prompt.system({ today }),
+    system: prompt.system({ today, ...(until ? { until } : {}) }),
     user: prompt.user(input, input.content),
     schema: prompt.strictSchema,
     parse: parseResponse,
     maxTokens: 6000,
     metric: 'ai_extract_calls',
   });
-  const events = r.value.map((m) => toExtracted(m, today));
+  const events = r.value.map((m) => toExtracted(m, today, until));
   const ok = events.filter((e): e is ExtractedEvent => !!e);
   return {
     events: ok,

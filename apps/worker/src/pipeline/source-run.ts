@@ -16,6 +16,8 @@ registerBuiltinAdapters();
 export const RESOLVE_BATCH = 8;
 /** LLM extractions per run; the rest stay pending for the next run (and the daily neuron budget). */
 export const EXTRACT_PER_RUN = 12;
+/** Source pages are read this far ahead (docs/09, 2026-11-04); scans and pasted text are read whole. */
+export const SOURCE_HORIZON_DAYS = 56;
 const STRUCTURED_VERSION = 1;
 
 type SourceRow = {
@@ -236,13 +238,17 @@ export async function extractItem(env: Env, sourceId: string, rawItemId: string)
             .slice(0, 700),
           ...(row.published_at ? { takenAt: row.published_at.slice(0, 10) } : {}),
         })
-      : await extractEvents(env, {
-          content: row.content,
-          sourceName: source.name,
-          ...(row.url ? { url: row.url } : {}),
-          ...(venueText ? { venue: venueText } : {}),
-          ...(row.published_at ? { publishedAt: row.published_at } : {}),
-        });
+      : await extractEvents(
+          env,
+          {
+            content: row.content,
+            sourceName: source.name,
+            ...(row.url ? { url: row.url } : {}),
+            ...(venueText ? { venue: venueText } : {}),
+            ...(row.published_at ? { publishedAt: row.published_at } : {}),
+          },
+          { horizonDays: SOURCE_HORIZON_DAYS },
+        );
     out.neurons = Math.round(r.neurons);
     const venues = await VenueIndex.load(env.DB);
     for (const ev of r.events) {

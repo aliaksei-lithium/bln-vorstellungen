@@ -420,6 +420,24 @@ Format: date · decision · why · alternatives rejected. Newer entries supersed
   Untitled, Ohne Titel, a lone dash, and "n-a (Name)") and names the event after its artists, as galleries do, or
   drops it when no artist is known. Applied to every model-read event (sources and scans) and in `finalize` for feed
   adapters. The two live "N/A" events were duplicates of shows already listed by name and were merged into them.
+- **2026-11-04 · Leaner daily AI: shared research, recent users, quiet sources weekly, 8 weeks ahead.** Measured on
+  2026-11-03: about $0.20 of Claude a day, $0.12 of it web searches (up to 4 per review, one review per user plus
+  the public edition). Supersedes the per-review research of "Daily review":
+  - Research is shared: the first review of the Berlin day claims a `daily_research` row and makes one search call
+    (at most 3 searches) over the public edition's best and each recent user's top two, round robin; every other
+    review and every rebuild that day reuses its notes (by event id). A review that finds the row being built waits
+    up to two minutes, then composes without notes; a claim older than ten minutes is taken over.
+  - Daily work is for users seen in the last 7 days (`users.last_seen_at`, written at most hourly from the session
+    middleware and from MCP requests; set to the deploy time for existing users): the cron's reviews and the model
+    scoring of new events. A user back after longer is caught up on their first visit: re-scored, then a fresh
+    Discover and For you, with the last edition and "a fresh one is on its way" shown meanwhile.
+  - Sources off by default for visitors that the model has to read (html, rss, telegram) are read at most weekly;
+    their programmes are published months ahead and listed dates stay.
+  - Source pages are read 56 days ahead (`extract@9`): the prompt asks for no later dates and later ones are
+    dropped. Re-reads only add dates, so dates already listed further out stay. Scans and pasted text are read whole.
+  - Scan limits stay: 40 scans per user and UTC day, 3 reads per scan, inside the $0.50 daily cap.
+  Also fixed: the review started after a music connect had a workflow id over the 100-character limit, so that
+  rebuild never ran.
 - **2026-10-02 · React + Vite + TanStack + Tailwind + shadcn/ui.** Best coverage by design tools and implementing
   models. Rejected: SvelteKit (good, but weaker design-tool output), Next.js on Workers via OpenNext (heavier than
   needed; no SSR requirement since public pages can be cached JSON + client render; revisit if SEO matters).
