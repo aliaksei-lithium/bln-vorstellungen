@@ -4,7 +4,7 @@ import { Category } from '@bln/shared';
  * Extraction prompt (docs/05). Bump `version` on any change: event_sources rows carry it, so items extracted
  * with an older prompt can be found and re-run.
  */
-export const version = 'extract@8';
+export const version = 'extract@9';
 
 /**
  * What the model returns. Kept flatter and more forgiving than ExtractedEvent; extract.ts maps and validates.
@@ -95,15 +95,19 @@ function closeObjects(node: unknown): unknown {
 }
 
 /** Instructions only; ai/llm.ts adds the schema for models without constrained decoding. */
-export function system(ctx: { today: string }): string {
+export function system(ctx: { today: string; until?: string }): string {
   const weekday = WEEKDAYS[new Date(`${ctx.today}T12:00:00Z`).getUTCDay()];
+  // Season pages list months ahead; reading only the coming weeks keeps the reply (the costly part) short.
+  const horizon = ctx.until
+    ? `\n- Only dates up to ${ctx.until}. Leave out later dates, and events with no date up to then.`
+    : '';
   return `You extract events in Berlin from web pages, feeds and newsletters for an event calendar.
 
 Today is ${weekday}, ${ctx.today}. All times are Europe/Berlin local time.
 
 Rules:
 - Return only events in Berlin with at least one concrete date. Skip guest performances in other cities, opening
-  hours, ongoing services, past dates and pure news. If nothing qualifies, return {"events": []}.
+  hours, ongoing services, past dates and pure news. If nothing qualifies, return {"events": []}.${horizon}
 - Dates: absolute "YYYY-MM-DDTHH:mm". When the year is missing, use the next such date on or after today.
   Read German forms like "Fr 13.11. 19:30", "13. November, 20 Uhr", "Beginn 19 Uhr / Einlass 18 Uhr".
   If only a day is given, use 00:00 and lower the confidence.

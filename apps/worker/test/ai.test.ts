@@ -136,7 +136,7 @@ describe('extractItem (LLM path)', () => {
       note: 'Berliner Ensemble, Großes Haus',
       dates: 2,
       model: MODELS.extract.id,
-      prompt_version: 'extract@8',
+      prompt_version: 'extract@9',
     });
     const item = await env.DB.prepare(`SELECT extraction_status FROM raw_items WHERE id = 'raw-be-1'`).first();
     expect(item).toEqual({ extraction_status: 'done' });
@@ -258,6 +258,25 @@ describe('toExtracted titles', () => {
       '2099-01-01',
     );
     expect(e?.title).toBe('Sofoquina');
+  });
+
+  it('keeps only dates up to the horizon, and drops an event left without any', () => {
+    const e = (dates: string[]) =>
+      toExtracted(
+        {
+          title: 'Season',
+          lang: 'de',
+          category: 'theatre',
+          dates: dates.map((start) => ({ start })),
+          venue: 'Berliner Ensemble',
+          confidence: 0.9,
+          quote: 'Season',
+        } as never,
+        '2099-01-01',
+        '2099-02-26',
+      );
+    expect(e(['2099-01-10T19:30', '2099-04-01T19:30'])?.occurrences.map((o) => o.start)).toEqual(['2099-01-10T19:30']);
+    expect(e(['2099-05-01T19:30'])).toBeNull();
   });
 
   it('names an untitled show after its artists, and drops one with no artists', () => {

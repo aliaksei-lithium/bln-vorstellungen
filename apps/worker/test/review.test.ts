@@ -14,6 +14,8 @@ import {
   rebuildNow,
   research,
   researchPicks,
+  sharedPicks,
+  sharedResearch,
 } from '../src/services/review';
 import { dispatchScoring, loadProfile } from '../src/ai/score';
 
@@ -244,6 +246,77 @@ describe('daily review', () => {
       { n: 1, note: 'Sold out in Hamburg', url: 'https://a.example/x' },
       { n: 3, note: 'no url', url: null },
     ]);
+  });
+
+  it('dispatches reviews for users seen in the last week only', async () => {
+    const recent = await user('Recent');
+    const away = await user('Away');
+    await env.DB.batch([
+      env.DB.prepare(`UPDATE users SET last_seen_at = '2026-12-04T20:00:00Z' WHERE id = ?`).bind(recent),
+      env.DB.prepare(`UPDATE users SET last_seen_at = '2026-11-01T20:00:00Z' WHERE id = ?`).bind(away),
+    ]);
+    const started: string[] = [];
+    const e = {
+      ...env,
+      DAILY_REVIEW: { create: async ({ id }: { id: string }) => void started.push(id) },
+    } as unknown as Env;
+    await dispatchDailyReviews(e, new Date('2026-12-05T06:00:00Z'));
+    expect(started).toContain('review-public-2026-12-05');
+    expect(started).toContain(`review-${recent}-2026-12-05`);
+    expect(started).not.toContain(`review-${away}-2026-12-05`);
+  });
+
+  it('shares one web research a day between every review, and waits for the one building it', async () => {
+    await env.DB.prepare(`DELETE FROM daily_research`).run();
+    const a = await user('Ana');
+    const b = await user('Ben');
+    await env.DB.prepare(`UPDATE users SET last_seen_at = ? WHERE id IN (?, ?)`)
+      .bind(new Date().toISOString(), a, b)
+      .run();
+    await event(a, 'sr_a', 'Ana Gig', 'concert', 92, [5]);
+    await event(b, 'sr_b', 'Ben Play', 'theatre', 90, [6]);
+    await refreshAllNextDates(env.DB);
+    const seen: { tools: boolean }[] = [];
+    // A note for every line the research call lists.
+    const notes = Array.from({ length: 10 }, (_, i) => `${i + 1} | note ${i + 1} | https://n.example/${i + 1}`);
+    const e = claudeEnv({}, notes.join('\n'), seen);
+    const listA = await gatherCandidates(env.DB, a, (await loadProfile(env.DB, a)).prefs);
+    const listB = await gatherCandidates(env.DB, b, (await loadProfile(env.DB, b)).prefs);
+
+    const forA = await sharedResearch(e, listA);
+    const forB = await sharedResearch(e, listB);
+    // One search call for both: each user's best is in it.
+    expect(seen.filter((x) => x.tools)).toHaveLength(1);
+    expect(forA.searches).toBe(2);
+    expect(forA.notes.map((n) => listA[n.index]!.id)).toContain('sr_a');
+    expect(forB.notes.map((n) => listB[n.index]!.id)).toContain('sr_b');
+
+    // Tomorrow, another review is building it: this one waits, then reads it.
+    const tomorrow = new Date(Date.now() + DAY);
+    const day = berlinToday(tomorrow);
+    await env.DB.prepare(`INSERT INTO daily_research (day, status) VALUES (?, 'building')`).bind(day).run();
+    let waits = 0;
+    const r = await sharedResearch(e, listA, tomorrow, async () => {
+      waits++;
+      await env.DB.prepare(`UPDATE daily_research SET status = 'ready', notes = ?, searches = 1 WHERE day = ?`)
+        .bind(JSON.stringify([{ eventId: 'sr_a', note: 'sold out soon', url: null }]), day)
+        .run();
+    });
+    expect(waits).toBe(1);
+    expect(r).toEqual({
+      notes: [{ index: listA.findIndex((c) => c.id === 'sr_a'), note: 'sold out soon', url: null }],
+      searches: 1,
+    });
+    expect(seen.filter((x) => x.tools)).toHaveLength(1);
+  });
+
+  it("puts every reader's best first in the shared research", () => {
+    const c = (id: string, score: number, members?: number) =>
+      ({ id, score, days: 5, ...(members === undefined ? {} : { members }) }) as never;
+    const pub = [c('p1', 0, 3), c('p2', 0, 2), c('p3', 0, 1)];
+    const ida = [c('i1', 90), c('i2', 85), c('i3', 80)];
+    const jo = [c('p1', 95), c('j2', 88)];
+    expect(sharedPicks([pub, ida, jo]).map((x: { id: string }) => x.id)).toEqual(['p1', 'i1', 'p2', 'i2', 'j2', 'p3']);
   });
 
   it('dispatches once a Berlin day, from 05:00, for users with a taste', async () => {

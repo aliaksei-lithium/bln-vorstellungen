@@ -2,6 +2,7 @@ import type { Me } from '@bln/shared';
 import type { Context, MiddlewareHandler } from 'hono';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import { HTTPException } from 'hono/http-exception';
+import { seen } from './services/activity';
 
 /**
  * Pre-defined users with one-time login links (docs/09, 2026-11-01). No passwords: hashing them properly costs more
@@ -91,7 +92,10 @@ export async function endSession(c: Context<AppEnv>): Promise<void> {
   deleteCookie(c, SESSION_COOKIE, { path: '/', secure: true });
 }
 
-/** Sets `user` (or null) from the session cookie. Extends sessions that are past their refresh point. */
+/**
+ * Sets `user` (or null) from the session cookie. Extends sessions that are past their refresh point, and notes the
+ * visit (at most hourly) in the background, catching up a user who was away (services/activity.ts).
+ */
 export const loadUser: MiddlewareHandler<AppEnv> = async (c, next) => {
   const token = getCookie(c, SESSION_COOKIE);
   c.set('user', null);
@@ -99,13 +103,15 @@ export const loadUser: MiddlewareHandler<AppEnv> = async (c, next) => {
     const now = new Date();
     const hash = await sha256(token);
     const row = await c.env.DB.prepare(
-      `SELECT u.id, u.name, u.email, u.is_owner, s.expires_at FROM sessions s JOIN users u ON u.id = s.user_id
-        WHERE s.token = ? AND s.expires_at > ?`,
+      `SELECT u.id, u.name, u.email, u.is_owner, u.last_seen_at, s.expires_at FROM sessions s
+         JOIN users u ON u.id = s.user_id WHERE s.token = ? AND s.expires_at > ?`,
     )
       .bind(hash, now.toISOString())
-      .first<UserRow & { expires_at: string }>();
+      .first<UserRow & { expires_at: string; last_seen_at: string | null }>();
     if (row) {
       c.set('user', toMe(row));
+      const visit = seen(c.env, row.id, row.last_seen_at, now);
+      if (visit) background(c, visit);
       if (Date.parse(row.expires_at) - now.getTime() < REFRESH_BELOW_DAYS * DAY_MS) {
         const expires = new Date(now.getTime() + SESSION_DAYS * DAY_MS).toISOString();
         await c.env.DB.prepare('UPDATE sessions SET expires_at = ? WHERE token = ?').bind(expires, hash).run();
@@ -114,6 +120,16 @@ export const loadUser: MiddlewareHandler<AppEnv> = async (c, next) => {
   }
   await next();
 };
+
+/** Work that may outlive the response; awaited where there is no execution context (tests). */
+function background(c: Context<AppEnv>, work: Promise<void>): void {
+  const done = work.catch((err) => console.warn('background', String(err)));
+  try {
+    c.executionCtx.waitUntil(done);
+  } catch {
+    void done;
+  }
+}
 
 export function requireUser(c: Context<AppEnv>): Me {
   const user = c.get('user');

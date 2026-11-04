@@ -9,6 +9,7 @@ import {
 import { createMcpHandler } from 'agents/mcp/server';
 import type { Context } from 'hono';
 import type { AppEnv } from '../auth';
+import { seenById } from '../services/activity';
 import { buildServer, type McpProps } from './server';
 
 /**
@@ -57,6 +58,8 @@ export function oauth(env: Env): Oauth {
       fetch(request, env, ctx) {
         if (!ctx.auth.scope.includes('mcp:read')) return insufficientScope(ctx.auth, ['mcp:read']);
         const opts = { userId: ctx.props.userId, scopes: ctx.auth.scope, origin };
+        // Using the site through Claude counts as a visit (services/activity.ts).
+        ctx.waitUntil(seenById(env, ctx.props.userId).catch((err) => console.warn('mcp seen', String(err))));
         return createMcpHandler(() => buildServer(env, ctx, opts), { route: '/mcp' })(request, env, ctx);
       },
     },

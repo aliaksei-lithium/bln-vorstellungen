@@ -1,7 +1,7 @@
 import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from 'cloudflare:workers';
 import { loadProfile } from './ai/score';
 import { buildDiscover } from './services/discover';
-import { composeReview, gatherCandidates, gatherPublicCandidates, research } from './services/review';
+import { composeReview, gatherCandidates, gatherPublicCandidates, sharedResearch } from './services/review';
 import { runScan } from './services/scans';
 
 /**
@@ -55,7 +55,7 @@ export class DailyReviewWorkflow extends WorkflowEntrypoint<Env, { userId?: stri
         const candidates = userId
           ? await gatherCandidates(this.env.DB, userId, (await loadProfile(this.env.DB, userId)).prefs)
           : await gatherPublicCandidates(this.env.DB);
-        return { candidates, ...(await research(this.env, candidates)) };
+        return { candidates, ...(await sharedResearch(this.env, candidates)) };
       },
     );
     return step.do('compose', { retries: { limit: 2, delay: '30 seconds' }, timeout: '5 minutes' }, async () => ({

@@ -1,4 +1,5 @@
 import { CATEGORY_LABELS, Prefs, formatPrice, hiddenCategories, type Category, type Reason } from '@bln/shared';
+import { activeSince } from '../services/activity';
 import { artistMatch, musicTasteLine } from '../spotify';
 import { cosine, embedTexts, EMBED_MODEL_TAG } from './embed';
 import { callJson, providerFrom } from './llm';
@@ -305,7 +306,10 @@ export async function rescoreAfterPromptChange(env: Env, now = new Date()): Prom
   return true;
 }
 
-/** Starts a ScoreEvents run per user (all users, or one). Instance ids keep a re-dispatch within a minute idempotent. */
+/**
+ * Starts a ScoreEvents run per user: one, or every user seen in the last ACTIVE_DAYS (others are caught up when they
+ * come back, services/activity.ts). Instance ids keep a re-dispatch within a minute idempotent.
+ */
 export async function dispatchScoring(
   env: Env,
   userId?: string,
@@ -314,7 +318,7 @@ export async function dispatchScoring(
 ): Promise<number> {
   const { results } = userId
     ? { results: [{ id: userId }] }
-    : await env.DB.prepare('SELECT id FROM users').all<{ id: string }>();
+    : await env.DB.prepare('SELECT id FROM users WHERE last_seen_at >= ?').bind(activeSince(now)).all<{ id: string }>();
   const minute = Math.floor(now.getTime() / 60_000);
   for (const u of results) {
     try {

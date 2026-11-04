@@ -120,6 +120,13 @@
       "when": 1793694765458,
       "tag": "0016_scan_runs",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "6",
+      "when": 1793829789115,
+      "tag": "0017_lean_ai",
+      "breakpoints": true
     }
   ]
 }

@@ -14,13 +14,15 @@ import { callJson, claudeSearch, providerFrom } from '../ai/llm';
 import { isClaudeModel } from '../ai/models';
 import * as prompt from '../ai/prompts/review';
 import { loadProfile, prefsLine } from '../ai/score';
+import { activeSince } from './activity';
 import { SOURCE_IDS, listItemsByIds } from './events';
 
 /**
  * The daily review on the Inbox (docs/09, 2026-11-02 "Daily review"). Once a Berlin day per user with a taste:
  *  1. candidates, free: the user's scored upcoming events (6 months) with facts the scores don't show: how soon, dates
  *     left, sold-out dates, how many sources list it, and whether it falls on a day already in their agenda;
- *  2. research, Claude with web search (at most MAX_SEARCHES): reviews and demand for the most promising few;
+ *  2. research, Claude with web search: reviews and demand for the most promising few. Shared: one call a Berlin day
+ *     (at most MAX_SEARCHES) covers the public edition's best and each recent user's top picks (sharedResearch);
  *  3. compose: one structured call picks what stands out, grouped by category, each pick with a kind and why.
  * Runs as DailyReviewWorkflow from the cron after REVIEW_HOUR, or on demand from the Inbox.
  */
@@ -30,12 +32,21 @@ const MIN_SCORE = 55;
 const PER_CATEGORY = 6;
 const MAX_CANDIDATES = 36;
 const RESEARCH_EVENTS = 6;
-export const MAX_SEARCHES = 4;
+/** Web searches for the whole day's shared research (each about a cent). */
+export const MAX_SEARCHES = 3;
+/** Events in the shared research: the public edition's best, and each recent user's top RESEARCH_PER_USER. */
+const SHARED_EVENTS = 10;
+const RESEARCH_PER_USER = 2;
+/** A research claim older than this is taken over: the review that made it did not finish. */
+const CLAIM_MS = 10 * 60_000;
+/** How long another review waits for the day's research before composing without it. */
+const WAIT_MS = 10_000;
+const WAIT_TRIES = 12;
 /** From this far ahead, an event counts as "book early" material. */
 const FAR_DAYS = 42;
 export const REVIEW_HOUR = 5;
 const RUNNING_TTL = 900;
-/** Manual rebuilds of today's edition, per user and Berlin day: each one can spend web searches. */
+/** Manual rebuilds of today's edition, per user and Berlin day: each one is a compose call (research is shared). */
 export const REBUILDS_PER_DAY = 3;
 const rebuildKey = (userId: string, day: string) => `rebuilds:${userId}:${day}`;
 const DAY_MS = 86_400_000;
@@ -184,13 +195,21 @@ export function researchPicks(candidates: Candidate[]): number[] {
 
 export type Note = { index: number; note: string; url: string | null };
 
-/** Step 2: web notes for a few candidates. Skipped (empty) without Claude or when the day's budget is short. */
+/** Step 2 for one list: web notes for its research picks. */
 export async function research(env: Env, candidates: Candidate[]): Promise<{ notes: Note[]; searches: number }> {
-  const model = env.SCORE_MODEL;
   const picks = researchPicks(candidates);
-  if (!model || !isClaudeModel(model) || !picks.length) return { notes: [], searches: 0 };
-  const lines = picks.map((i, k) => {
-    const c = candidates[i]!;
+  const r = await researchEvents(
+    env,
+    picks.map((i) => candidates[i]!),
+  );
+  return { notes: r.notes.map((n) => ({ ...n, index: picks[n.index]! })), searches: r.searches };
+}
+
+/** Web notes for these events (index into `events`). Skipped (empty) without Claude or when the budget is short. */
+async function researchEvents(env: Env, events: Candidate[]): Promise<{ notes: Note[]; searches: number }> {
+  const model = env.SCORE_MODEL;
+  if (!model || !isClaudeModel(model) || !events.length) return { notes: [], searches: 0 };
+  const lines = events.map((c, k) => {
     return [
       `${k + 1}. ${c.title}`,
       CATEGORY_LABELS[c.category],
@@ -211,13 +230,115 @@ export async function research(env: Env, candidates: Candidate[]): Promise<{ not
       metric: 'ai_review_calls',
     });
     const notes = prompt
-      .parseResearch(r.text, picks.length)
-      .map((n) => ({ index: picks[n.n - 1]!, note: n.note, url: n.url }));
+      .parseResearch(r.text, events.length)
+      .map((n) => ({ index: n.n - 1, note: n.note, url: n.url }));
     return { notes, searches: r.searches };
   } catch (err) {
     console.warn('review research skipped', String(err));
     return { notes: [], searches: 0 };
   }
+}
+
+type SharedNote = { eventId: string; note: string; url: string | null };
+type DayResearch = { notes: SharedNote[]; searches: number };
+
+/** Users who get a daily review: seen recently, with a taste or artists to go on. */
+async function reviewUsers(db: D1Database, now = new Date()): Promise<string[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT p.user_id FROM user_profiles p JOIN users u ON u.id = p.user_id
+        WHERE u.last_seen_at >= ?
+          AND (trim(p.taste_text) != '' OR EXISTS (SELECT 1 FROM user_artists a WHERE a.user_id = p.user_id))`,
+    )
+    .bind(activeSince(now))
+    .all<{ user_id: string }>();
+  return results.map((r) => r.user_id);
+}
+
+/**
+ * The events the day's research covers: the first pick of every list, then the second, and so on, so each reader's
+ * best is searched first. The public list goes deeper than a user's RESEARCH_PER_USER.
+ */
+export function sharedPicks(lists: Candidate[][]): Candidate[] {
+  const ranked = lists.map((l) => researchPicks(l).map((i) => l[i]!));
+  const out: Candidate[] = [];
+  const seen = new Set<string>();
+  for (let k = 0; k < RESEARCH_EVENTS; k++) {
+    ranked.forEach((r, j) => {
+      const c = r[k];
+      if (!c || (j > 0 && k >= RESEARCH_PER_USER) || seen.has(c.id) || out.length >= SHARED_EVENTS) return;
+      seen.add(c.id);
+      out.push(c);
+    });
+  }
+  return out;
+}
+
+async function buildResearch(env: Env, now: Date): Promise<DayResearch> {
+  const lists = [await gatherPublicCandidates(env.DB, now)];
+  for (const userId of await reviewUsers(env.DB, now)) {
+    lists.push(await gatherCandidates(env.DB, userId, (await loadProfile(env.DB, userId)).prefs, now));
+  }
+  const events = sharedPicks(lists);
+  const r = await researchEvents(env, events);
+  return {
+    notes: r.notes.map((n) => ({ eventId: events[n.index]!.id, note: n.note, url: n.url })),
+    searches: r.searches,
+  };
+}
+
+/** The day's research: read it, or claim and build it, or wait for the review building it (then go on without). */
+async function dayResearch(env: Env, now: Date, wait: (ms: number) => Promise<void>): Promise<DayResearch> {
+  const day = berlinToday(now);
+  for (let tries = 0; ; tries++) {
+    const row = await env.DB.prepare(`SELECT status, notes, searches, updated_at FROM daily_research WHERE day = ?`)
+      .bind(day)
+      .first<{ status: 'building' | 'ready'; notes: string; searches: number; updated_at: string }>();
+    if (row?.status === 'ready') return { notes: JSON.parse(row.notes) as SharedNote[], searches: row.searches };
+    if (!row || Date.now() - Date.parse(row.updated_at) > CLAIM_MS) {
+      const claim = row
+        ? await env.DB.prepare(
+            `UPDATE daily_research SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+              WHERE day = ? AND status = 'building' AND updated_at = ?`,
+          )
+            .bind(day, row.updated_at)
+            .run()
+        : await env.DB.prepare(`INSERT OR IGNORE INTO daily_research (day, status) VALUES (?, 'building')`)
+            .bind(day)
+            .run();
+      if (claim.meta.changes) {
+        const built = await buildResearch(env, now);
+        await env.DB.prepare(
+          `UPDATE daily_research SET status = 'ready', notes = ?, searches = ?,
+                  updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE day = ?`,
+        )
+          .bind(JSON.stringify(built.notes), built.searches, day)
+          .run();
+        return built;
+      }
+    }
+    if (tries >= WAIT_TRIES) return { notes: [], searches: 0 };
+    await wait(WAIT_MS);
+  }
+}
+
+/**
+ * Step 2, shared (docs/09, 2026-11-04): the day's web notes that concern these candidates. Every review of the day
+ * and every rebuild reuses one research call; `searches` is the day's count when any note applies, else 0.
+ */
+export async function sharedResearch(
+  env: Env,
+  candidates: Candidate[],
+  now = new Date(),
+  wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms)),
+): Promise<{ notes: Note[]; searches: number }> {
+  const day = await dayResearch(env, now, wait);
+  const at = new Map(candidates.map((c, i) => [c.id, i]));
+  const notes = day.notes.flatMap((n) => {
+    const index = at.get(n.eventId);
+    return index === undefined ? [] : [{ index, note: n.note, url: n.url }];
+  });
+  return { notes, searches: notes.length ? day.searches : 0 };
 }
 
 function candidateLine(c: Candidate, i: number, note: Note | undefined): string {
@@ -563,8 +684,8 @@ export async function claimTasteRebuild(env: Env, userId: string, now = new Date
 }
 
 /**
- * From the cron: once per Berlin day after REVIEW_HOUR, the public edition and a review for everyone with a taste
- * or Spotify artists.
+ * From the cron: once per Berlin day after REVIEW_HOUR, the public edition and a review for every recent user with a
+ * taste or artists.
  */
 export async function dispatchDailyReviews(env: Env, now = new Date()): Promise<number> {
   const local = utcToBerlinLocal(now);
@@ -573,11 +694,10 @@ export async function dispatchDailyReviews(env: Env, now = new Date()): Promise<
   const key = `reviews:${day}`;
   if (await env.CACHE.get(key)) return 0;
   await env.CACHE.put(key, now.toISOString(), { expirationTtl: 2 * 86_400 });
-  const { results } = await env.DB.prepare(
-    `SELECT p.user_id FROM user_profiles p
-      WHERE trim(p.taste_text) != '' OR EXISTS (SELECT 1 FROM user_artists a WHERE a.user_id = p.user_id)`,
-  ).all<{ user_id: string }>();
   let started = (await startReview(env, null, `review-public-${day}`)) ? 1 : 0;
-  for (const u of results) if (await startReview(env, u.user_id, `review-${u.user_id}-${day}`)) started++;
+  // Users away longer get theirs on their next visit (services/activity.ts).
+  for (const userId of await reviewUsers(env.DB, now)) {
+    if (await startReview(env, userId, `review-${userId}-${day}`)) started++;
+  }
   return started;
 }

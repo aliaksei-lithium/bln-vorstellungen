@@ -82,7 +82,7 @@ describe('scans', () => {
       `SELECT e.created_by, es.prompt_version FROM events e JOIN event_sources es ON es.event_id = e.id
         WHERE e.title = 'Royal Blood (edited)'`,
     ).first<{ created_by: string; prompt_version: string }>();
-    expect(ev).toEqual({ created_by: `user:${uid}`, prompt_version: 'photo@1+extract@8' });
+    expect(ev).toEqual({ created_by: `user:${uid}`, prompt_version: 'photo@1+extract@9' });
     await expect(confirmScan(e, uid, id, scan.candidates)).rejects.toThrow('already added');
 
     // The Browse source filter: added from photos & text, not from Telegram.

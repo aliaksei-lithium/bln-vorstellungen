@@ -29,6 +29,8 @@ export const users = sqliteTable('users', {
   emailVerified: integer('email_verified', { mode: 'boolean' }).notNull().default(false),
   image: text('image'),
   isOwner: integer('is_owner', { mode: 'boolean' }).notNull().default(false),
+  /** Last signed-in request, at most hourly (docs/09, 2026-11-04): daily AI work is done for recent users only. */
+  lastSeenAt: text('last_seen_at'),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
 });
@@ -543,6 +545,18 @@ export const publicReviews = sqliteTable('public_reviews', {
   promptVersion: text('prompt_version').notNull(),
   searches: integer('searches').notNull().default(0),
   createdAt: createdAt(),
+});
+
+/**
+ * The day's web research, shared by every review that Berlin day (docs/09, 2026-11-04): one search call instead of
+ * one per user. `status` 'building' is the claim of the review that runs it; `notes` are per event.
+ */
+export const dailyResearch = sqliteTable('daily_research', {
+  day: text('day').primaryKey(),
+  status: text('status', { enum: ['building', 'ready'] }).notNull(),
+  notes: json<{ eventId: string; note: string; url: string | null }[]>('notes').notNull().default([]),
+  searches: integer('searches').notNull().default(0),
+  updatedAt: updatedAt(),
 });
 
 /**
