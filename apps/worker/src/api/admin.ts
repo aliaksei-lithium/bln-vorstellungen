@@ -20,6 +20,7 @@ import { Hono } from 'hono';
 import { createLoginLink, isAdmin, type AppEnv } from '../auth';
 import { HTTPException } from 'hono/http-exception';
 import { startSourceRun } from '../pipeline/scheduler';
+import { activityOverview } from '../services/analytics';
 import { acceptInvite, declineInvite, listInviteRequests } from '../services/invites';
 import { buildDiscover } from '../services/discover';
 import { dropPastImages, fetchImages } from '../services/images';
@@ -312,6 +313,12 @@ adminApi.get('/usage/days', async (c) => {
     neuronBudget: DAILY_NEURON_BUDGET,
     models: { extract: c.env.EXTRACT_MODEL ?? 'workers-ai', score: c.env.SCORE_MODEL ?? 'workers-ai' },
   } satisfies UsageOverview);
+});
+
+/** Who uses the app (services/analytics.ts): per-user counts for the last `?days=` Berlin days (1–180, default 30). */
+adminApi.get('/activity', async (c) => {
+  const days = Math.min(180, Math.max(1, Number(c.req.query('days')) || 30));
+  return c.json(await activityOverview(c.env.DB, days));
 });
 
 /** Embeds every upcoming event that has no vector yet (in rounds of 32), then rebuilds the vector index. */

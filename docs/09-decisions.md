@@ -438,6 +438,15 @@ Format: date · decision · why · alternatives rejected. Newer entries supersed
   - Scan limits stay: 40 scans per user and UTC day, 3 reads per scan, inside the $0.50 daily cap.
   Also fixed: the review started after a music connect had a workflow id over the 100-character limit, so that
   rebuild never ran.
+- **2026-11-09 · Own usage counts, no analytics library.** The owner wants to see who uses the app: how often it
+  is opened, which pages, how many clicks, whether Ask is used. Self-hosted tools (Umami, Plausible, PostHog) need
+  Postgres or ClickHouse and a server, so they do not fit Workers Free; Cloudflare Web Analytics knows no users;
+  Analytics Engine would be one more binding for a few hundred rows. Instead one D1 table, `user_activity`: a counter
+  per user, Berlin day, kind (`open`, `view`, `click`, `ask`) and page kind (`event`, not which event). The web app
+  (`lib/track.ts`) counts in memory and sends a beacon to `POST /api/me/track` every 30 s and when the tab is
+  hidden, signed-in only; Ask is counted in its API route. No question text, searches, event or venue ids are
+  stored. The owner reads it in Me → People (`GET /api/admin/activity?days=`). Counters are dropped after 180 days
+  by the cron and go with the account. MCP use is not counted (it already moves `users.last_seen_at`).
 - **2026-10-02 · React + Vite + TanStack + Tailwind + shadcn/ui.** Best coverage by design tools and implementing
   models. Rejected: SvelteKit (good, but weaker design-tool output), Next.js on Workers via OpenNext (heavier than
   needed; no SSR requirement since public pages can be cached JSON + client render; revisit if SEO matters).
