@@ -18,6 +18,7 @@ import { markIndexStale, rebuildIndex } from './ai/vector-index';
 import { sweepPassedDates } from './pipeline/next-dates';
 import { dispatchDueSources } from './pipeline/scheduler';
 import { dropPastImages, fetchImages } from './services/images';
+import { purgeActivity } from './services/analytics';
 import { dispatchDailyReviews } from './services/review';
 import { writeTaglines } from './services/taglines';
 
@@ -168,6 +169,10 @@ export default {
       images = await fetchImages(env, now);
     } catch (err) {
       console.error('images', String(err));
+    }
+    // Once a night: drop usage counters past their keep time.
+    if (now.getUTCHours() === 3 && now.getUTCMinutes() < 15) {
+      await purgeActivity(env.DB, now).catch((err) => console.error('activity', String(err)));
     }
     console.log('cron', {
       cron: controller.cron,

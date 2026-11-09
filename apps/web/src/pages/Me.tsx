@@ -115,6 +115,7 @@ export function MePage() {
         )}
         {user?.isOwner && <InvitesBox />}
         {user?.isOwner && <AiUsage />}
+        {user?.isOwner && <PeopleUsage />}
         <Appearance />
         <p className="m-0 text-center text-xs text-sub">
           {/* Static pages (public/*.html), readable without JavaScript for Google's consent-screen review. */}
@@ -1092,6 +1093,84 @@ function AiUsage() {
       <p className="m-0 border-t border-line p-3 text-xs text-sub">
         Whole site, days in UTC. Reading pages and photos uses {models.extract}; ranking uses {models.score}. Tokens are
         counted from 1 Nov 2026, so earlier days show spend without tokens.
+      </p>
+    </Box>
+  );
+}
+
+const PAGE_LABEL: Record<string, string> = {
+  browse: 'Browse',
+  event: 'Events',
+  venue: 'Venues',
+  discover: 'Discover',
+  'for-you': 'For you',
+  agenda: 'Agenda',
+  me: 'Me',
+  scan: 'Scan review',
+  scans: 'Scans',
+  other: 'Other',
+};
+
+/** Owner only: who uses the app and how much. Counts per person; nothing about what they asked or opened. */
+function PeopleUsage() {
+  const [days, setDays] = useState(30);
+  const q = useQuery({ queryKey: ['activity', days], queryFn: () => api.activity(days), staleTime: 60_000 });
+  const users = q.data?.users ?? [];
+  const active = users.filter((u) => u.activeDays > 0).length;
+  const th = 'px-2 py-1.5 text-right text-[11px] font-extrabold tracking-[.08em] text-sub uppercase first:text-left';
+  const td = 'px-2 py-1.5 text-right align-top whitespace-nowrap tabular-nums first:text-left first:whitespace-normal';
+  return (
+    <Box title="People" collapsed summary={q.data ? `${active} of ${users.length} active` : undefined}>
+      <div className="flex gap-2 p-3">
+        {[7, 30, 90].map((d) => (
+          <Button key={d} size="sm" aria-pressed={d === days} onClick={() => setDays(d)}>
+            {d} days
+          </Button>
+        ))}
+      </div>
+      {!q.data ? (
+        <p className="m-0 border-t border-line p-3 text-sub">{q.isError ? 'Could not load usage.' : 'Loading…'}</p>
+      ) : (
+        <div className="overflow-x-auto border-t border-line">
+          <table className="w-full border-collapse text-sm">
+            <thead>
+              <tr className="border-b border-line">
+                <th className={th}>Who</th>
+                <th className={th}>Days</th>
+                <th className={th}>Opens</th>
+                <th className={th}>Views</th>
+                <th className={th}>Clicks</th>
+                <th className={th}>Asks</th>
+              </tr>
+            </thead>
+            <tbody>
+              {users.map((u) => {
+                const pages = Object.entries(u.pages).sort((a, b) => b[1] - a[1]);
+                return (
+                  <tr key={u.id} className={cn('border-b border-line last:border-b-0', !u.activeDays && 'text-sub')}>
+                    <td className={td}>
+                      <span className="font-bold">{u.name}</span>
+                      {pages.length > 0 && (
+                        <span className="block text-xs text-sub">
+                          {pages.map(([p, n]) => `${PAGE_LABEL[p] ?? p} ${n}`).join(' · ')}
+                        </span>
+                      )}
+                    </td>
+                    <td className={td}>{u.activeDays}</td>
+                    <td className={td}>{u.opens}</td>
+                    <td className={td}>{u.views}</td>
+                    <td className={td}>{u.clicks}</td>
+                    <td className={td}>{u.asks}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <p className="m-0 border-t border-line p-3 text-xs text-sub">
+        Signed-in use of the web app, days in Berlin time, counted from 9 Nov 2026. Counts only: not what was asked,
+        searched or opened. Use from Claude (MCP) is not counted.
       </p>
     </Box>
   );

@@ -76,6 +76,9 @@ languages, weekdays), `spotify` (json: top artists, genres, imported_at), `profi
 **review_queue**: `id`, `kind` (`low_confidence|possible_duplicate|manual`), `payload` (json), `event_id?`,
 `raw_item_id?`, `status`, `resolved_by`, `resolved_at`.
 
+**user_activity**: `user_id`, `day` (Berlin), `kind` (`open|view|click|ask`), `name` (page kind), `count`. Usage
+counts per signed-in user, kept 180 days (docs/09, 2026-11-09).
+
 **usage_counters**: `day`, `metric` (`d1_rows_read|d1_rows_written|ai_neurons|claude_input_tokens|...`), `value`.
 Updated from `meta` of D1 results and AI Gateway responses, displayed on the admin usage page so the free limits
 are visible before they bite.

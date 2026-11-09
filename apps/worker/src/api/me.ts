@@ -7,6 +7,7 @@ import {
   SourceSwitch,
   BrowseDefault,
   StateUpdate,
+  TrackBatch,
   type MyStates,
   type PasswordStatus,
   type SourcesOverview,
@@ -31,6 +32,7 @@ import {
 } from '../auth';
 import { agendaItems, eventIdBySlug, inbox, inboxUntil, myEvent, setEventState, statesBySlug } from '../services/me';
 import { hasPassword, setPassword, signInWithPassword } from '../passwords';
+import { recordActivity, recordAsk } from '../services/analytics';
 import { ask, askLeft } from '../services/ask';
 import { getDiscover } from '../services/discover';
 import { getReview, rebuildNow } from '../services/review';
@@ -180,7 +182,22 @@ meApi.post('/ask', async (c) => {
   if (!body.success || body.data.turns.at(-1)?.role !== 'user') {
     throw new HTTPException(400, { message: 'Send the conversation, ending with your question.' });
   }
-  return c.json((await ask(c.env, user.id, body.data.turns)) satisfies AskResponse);
+  const answer = await ask(c.env, user.id, body.data.turns);
+  // Usage counts only (services/analytics.ts): that a question was asked, never what it said.
+  await recordAsk(c.env.DB, user.id).catch((err) => console.warn('activity', String(err)));
+  return c.json(answer satisfies AskResponse);
+});
+
+/**
+ * Usage counts from the web app (lib/track.ts): opens, page views and clicks by page kind. Sent as a beacon, so
+ * there is nothing to answer; a visitor without a session is ignored.
+ */
+meApi.post('/track', async (c) => {
+  const user = c.get('user');
+  const body = TrackBatch.safeParse(await c.req.json().catch(() => null));
+  if (!body.success) throw new HTTPException(400, { message: 'Invalid usage batch.' });
+  if (user) await recordActivity(c.env.DB, user.id, body.data.items);
+  return c.body(null, 204);
 });
 
 /** Discover (docs/09, 2026-11-02): the latest edition; the first one is built on the spot. */
