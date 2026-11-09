@@ -12,7 +12,8 @@ INSERT OR IGNORE INTO venues (id, name, aliases, address, district, url) VALUES
   ('v_polish_losers', 'Club der polnischen Versager', '["Club of Polish Losers"]', 'Ackerstraße 168, 10115 Berlin', 'Mitte', NULL),
   ('v_be', 'Berliner Ensemble', '["BE"]', 'Bertolt-Brecht-Platz 1, 10117 Berlin', 'Mitte', 'https://www.berliner-ensemble.de'),
   ('v_dt', 'Deutsches Theater', '["Deutsches Theater Berlin", "DT"]', 'Schumannstraße 13a, 10117 Berlin', 'Mitte', 'https://www.deutschestheater.de'),
-  ('v_staatsoper', 'Staatsoper Unter den Linden', '["Staatsoper Berlin", "Staatsoper"]', 'Unter den Linden 7, 10117 Berlin', 'Mitte', 'https://www.staatsoper-berlin.de');
+  ('v_staatsoper', 'Staatsoper Unter den Linden', '["Staatsoper Berlin", "Staatsoper"]', 'Unter den Linden 7, 10117 Berlin', 'Mitte', 'https://www.staatsoper-berlin.de'),
+  ('v_silentgreen', 'silent green Kulturquartier', '["silent green", "Silent Green"]', 'Gerichtstraße 35, 13347 Berlin', 'Wedding', 'https://www.silent-green.net');
 
 INSERT OR IGNORE INTO sources (id, name, type, config, schedule_minutes) VALUES
   ('s_theleftberlin', 'The Left Berlin', 'ical',
@@ -33,4 +34,6 @@ INSERT OR IGNORE INTO sources (id, name, type, config, schedule_minutes) VALUES
   ('s_dt', 'Deutsches Theater', 'html',
    '{"url":"https://www.deutschestheater.de/programm/spielplan/","venue":{"name":"Deutsches Theater","address":"Schumannstraße 13a, 10117 Berlin"},"category":"theatre","lang":"de","chunkChars":10000,"maxChunks":5}', 1440),
   ('s_staatsoper', 'Staatsoper Unter den Linden', 'html',
-   '{"url":"https://www.staatsoper-berlin.de/de/spielplan/","venue":{"name":"Staatsoper Unter den Linden","address":"Unter den Linden 7, 10117 Berlin"},"category":"opera","lang":"de","chunkChars":10000,"maxChunks":5}', 1440);
+   '{"url":"https://www.staatsoper-berlin.de/de/spielplan/","venue":{"name":"Staatsoper Unter den Linden","address":"Unter den Linden 7, 10117 Berlin"},"category":"opera","lang":"de","chunkChars":10000,"maxChunks":5}', 1440),
+  ('s_silentgreen', 'silent green Kulturquartier', 'html',
+   '{"url":"https://www.silent-green.net/programm","venue":{"name":"silent green Kulturquartier","address":"Gerichtstraße 35, 13347 Berlin"},"lang":"de","chunkChars":10000,"maxChunks":5}', 1440);
