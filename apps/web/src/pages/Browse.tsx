@@ -2,6 +2,8 @@ import {
   CATEGORY_LABELS,
   Category,
   DISTRICTS,
+  LANG_CATEGORIES,
+  LangChoice,
   berlinToday,
   formatDay,
   hiddenCategories,
@@ -29,6 +31,16 @@ import { toast } from '@/lib/toast';
 import { WHEN_LABELS, whenRange, type When } from '@/lib/dates';
 import { PER_DAY } from '@/lib/highlights';
 import { useVisitorOptIn } from '@/lib/visitorSources';
+import {
+  activeCount,
+  FILTER_KEYS,
+  filterQuery,
+  filterSearch,
+  NO_FILTERS,
+  parseFilters,
+  viaAllowed,
+  type Filters,
+} from '@/lib/browseFilters';
 
 /**
  * Filter chips: every category but `other`; opt-in ones only for users (or visitors, in their browser) who turned
@@ -40,12 +52,7 @@ const listCategories = (prefs?: Pick<Prefs, 'categoriesOn'>) => {
   return Category.options.filter((c) => c !== 'other' && !hidden.includes(c));
 };
 
-/** Within a group, choices add up: any of them matches (concert or theatre, Wedding or Mitte). */
-type Filters = { when: When; category: Category[]; district: string[]; via: Via[] };
-const NO_FILTERS: Filters = { when: 'all', category: [], district: [], via: [] };
 const toggle = <T,>(list: T[], v: T) => (list.includes(v) ? list.filter((x) => x !== v) : [...list, v]);
-const list = (s?: string) => (s ? s.split(',').filter(Boolean) : []);
-const joined = (a: string[]) => (a.length ? a.join(',') : undefined);
 
 const VIEW_KEY = 'bln.browseView';
 /** Events per page. */
@@ -61,6 +68,11 @@ const VIA_LABELS: Record<Exclude<Via, Community>, string> = {
   telegram: 'Telegram channels',
   scans: 'Added from photos & text',
 };
+
+const LANG_LABELS: Record<LangChoice, string> = { de: 'German', en: 'English' };
+const LANG_HINT = `For ${LANG_CATEGORIES.map((c) => CATEGORY_LABELS[c].toLowerCase())
+  .join(', ')
+  .replace(/, ([^,]*)$/, ' and $1')}; other events always show.`;
 
 /** Collections: hand-picked venues, and communities (events from their own sources or about them; services/events.ts). */
 type Community = 'specials' | 'belarusian';
@@ -82,6 +94,7 @@ export const BrowseSearch = z.object({
   category: z.string().max(200).optional().catch(undefined),
   district: z.string().max(400).optional().catch(undefined),
   via: z.string().max(60).optional().catch(undefined),
+  lang: z.string().max(20).optional().catch(undefined),
   q: z.string().max(100).optional().catch(undefined),
 });
 export type BrowseSearch = z.infer<typeof BrowseSearch>;
@@ -96,21 +109,14 @@ export function BrowsePage() {
       search: Object.fromEntries(Object.entries(next).filter(([, v]) => v !== undefined && v !== '')) as BrowseSearch,
       replace: true,
     });
-  const filters: Filters = {
-    when: search.when ?? 'all',
-    category: list(search.category).filter((c): c is Category => Category.safeParse(c).success),
-    district: list(search.district),
-    via: list(search.via).filter((v): v is Via => Via.safeParse(v).success),
-  };
+  // Owner-only filters (Telegram channels, Berlin specials) are dropped for everyone else, also from links and
+  // saved defaults; the next filter change rewrites the address without them.
+  const me = useMe();
+  const isOwner = !!me.user?.isOwner;
+  const filters = parseFilters(search, isOwner);
   const setFilters = (f: Filters | ((prev: Filters) => Filters)) => {
     const n = typeof f === 'function' ? f(filters) : f;
-    setSearch({
-      when: n.when === 'all' ? undefined : n.when,
-      category: joined(n.category),
-      district: joined(n.district),
-      via: joined(n.via),
-      q: search.q,
-    });
+    setSearch({ ...filterSearch(n), q: search.q });
   };
   const [q, setQState] = useState(search.q ?? '');
   const setQ = (v: string) => {
@@ -122,10 +128,10 @@ export function BrowsePage() {
 
   // The user's saved default filters apply when Browse opens with none in the address (once per visit, so "Clear
   // all" still shows everything until the next visit).
-  const { user } = useMe();
+  const { user } = me;
   const profile = useQuery({ queryKey: ['profile'], queryFn: api.profile, enabled: !!user });
   const applied = useRef(false);
-  const noFilters = !search.when && !search.category && !search.district && !search.via;
+  const noFilters = FILTER_KEYS.every((k) => !search[k]);
   // Applying the default is a navigation, which lands a moment later: until it has, the list waits.
   const [awaitingDefault, setAwaitingDefault] = useState(false);
   useEffect(() => {
@@ -135,7 +141,7 @@ export function BrowsePage() {
     if (saved && noFilters) {
       const next = Object.fromEntries(new URLSearchParams(saved)) as BrowseSearch;
       // Only wait when the default sets a filter; otherwise nothing would ever land.
-      if (next.when || next.category || next.district || next.via) setAwaitingDefault(true);
+      if (FILTER_KEYS.some((k) => next[k])) setAwaitingDefault(true);
       setSearch({ ...next, q: search.q });
     }
   }, [profile.data, noFilters, search.q, setSearch]);
@@ -148,14 +154,17 @@ export function BrowsePage() {
     category: filters.category.length ? filters.category : undefined,
     district: filters.district.length ? filters.district : undefined,
     via: filters.via.length ? filters.via : undefined,
+    lang: filters.lang.length ? filters.lang : undefined,
     q: query || undefined,
   };
   // Wait for the switches (and a signed-in user's saved default filters) before asking for events: a list drawn
   // earlier would show rows that vanish a moment later, or an unfiltered page while the saved filters land.
   const savedDefault = new URLSearchParams(profile.data?.prefs.browseDefault ?? '');
-  const defaultFilters = ['when', 'category', 'district', 'via'].some((k) => savedDefault.get(k));
+  const defaultFilters = FILTER_KEYS.some((k) => savedDefault.get(k));
   const defaultPending = noFilters && (awaitingDefault || (!applied.current && defaultFilters));
-  const ready = useListFilterReady() && !defaultPending;
+  // An owner-only filter in the address waits for who is asking, so the owner never sees the list without it first.
+  const ownerPending = me.isPending && !!search.via?.split(',').some((v) => !viaAllowed(v as Via, false));
+  const ready = useListFilterReady() && !defaultPending && !ownerPending;
   const events = useInfiniteQuery({
     queryKey: ['events', params],
     // A big page covers several whole days, which matters when each day shows only its highlights.
@@ -229,8 +238,7 @@ export function BrowsePage() {
   const compact = plain && view === 'highlights';
 
   // How many filters are on, for the badge on the Filter button (the chips themselves live in the sheet).
-  const active =
-    (filters.when !== 'all' ? 1 : 0) + filters.category.length + filters.via.length + filters.district.length;
+  const active = activeCount(filters);
 
   const clear = () => {
     setQState('');
@@ -368,17 +376,6 @@ function Chip({ pressed, onClick, children }: { pressed: boolean; onClick: () =>
   );
 }
 
-/** These filters as the address query they live in, for saving as the default ("" when nothing is set). */
-const filterQuery = (f: Filters) =>
-  new URLSearchParams(
-    Object.entries({
-      when: f.when === 'all' ? undefined : f.when,
-      category: joined(f.category),
-      district: joined(f.district),
-      via: joined(f.via),
-    }).filter((e): e is [string, string] => !!e[1]),
-  ).toString();
-
 function FilterSheet({
   open,
   onOpenChange,
@@ -395,6 +392,7 @@ function FilterSheet({
   const label = 'mb-2.5 mt-5 text-xs font-extrabold tracking-[.1em] text-sub uppercase';
   // Opt-in categories appear as a filter only for signed-in users who switched them on.
   const { user } = useMe();
+  const isOwner = !!user?.isOwner;
   const profile = useQuery({ queryKey: ['profile'], queryFn: api.profile, enabled: !!user && open });
   const optIn = useVisitorOptIn();
   const categories = listCategories(user ? profile.data?.prefs : { categoriesOn: optIn.on });
@@ -413,11 +411,13 @@ function FilterSheet({
   });
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="mx-auto max-h-[88vh] max-w-[600px] overflow-y-auto border-x border-ink">
+      {/* Only the chips scroll; the buttons stay in view. In a sheet that scrolled as a whole, iOS Safari spent the
+          tap on the bottom button stopping the scroll (or showing its toolbar), so it seemed to do nothing. */}
+      <SheetContent side="bottom" className="mx-auto max-h-[88dvh] max-w-[600px] gap-0 border-x border-ink">
         <SheetHeader className="pb-0">
           <SheetTitle>Filters</SheetTitle>
         </SheetHeader>
-        <div className="px-4">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-5">
           <div className={label}>When</div>
           <div className="flex flex-wrap gap-2">
             {(Object.keys(WHEN_LABELS) as When[]).map((w) => (
@@ -439,10 +439,23 @@ function FilterSheet({
               </Chip>
             ))}
           </div>
+          <div className={label}>Language</div>
+          <div className="flex flex-wrap gap-2">
+            {LangChoice.options.map((l) => (
+              <Chip
+                key={l}
+                pressed={filters.lang.includes(l)}
+                onClick={() => onChange({ ...filters, lang: toggle(filters.lang, l) })}
+              >
+                {LANG_LABELS[l]}
+              </Chip>
+            ))}
+          </div>
+          <p className="mt-2 mb-0 text-xs text-sub">{LANG_HINT}</p>
           <div className={label}>Source</div>
           <div className="flex flex-wrap gap-2">
             {(Object.keys(VIA_LABELS) as (keyof typeof VIA_LABELS)[])
-              .filter((v) => !v.startsWith('spotify') || music)
+              .filter((v) => (!v.startsWith('spotify') || music) && viaAllowed(v, isOwner))
               .map((v) => (
                 <Chip
                   key={v}
@@ -455,7 +468,7 @@ function FilterSheet({
           </div>
           <div className={label}>Collections</div>
           <div className="flex flex-wrap gap-2">
-            {COMMUNITIES.map(({ via, label: name, Mark }) => (
+            {COMMUNITIES.filter(({ via }) => viaAllowed(via, isOwner)).map(({ via, label: name, Mark }) => (
               <Chip
                 key={via}
                 pressed={filters.via.includes(via)}
@@ -478,36 +491,48 @@ function FilterSheet({
               </Chip>
             ))}
           </div>
+          {user && (
+            <div className="flex flex-wrap items-center gap-2 pt-5 text-sm">
+              {saved && saved === current ? (
+                <span className="font-bold text-moss">These are your default filters</span>
+              ) : (
+                <Button
+                  size="sm"
+                  disabled={saveDefault.isPending || !current}
+                  onClick={() => saveDefault.mutate(current)}
+                >
+                  Save as my default
+                </Button>
+              )}
+              {saved && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={saveDefault.isPending}
+                  onClick={() => saveDefault.mutate('')}
+                >
+                  Clear default
+                </Button>
+              )}
+            </div>
+          )}
         </div>
-        {user && (
-          <div className="flex flex-wrap items-center gap-2 px-4 pt-5 text-sm">
-            {saved && saved === current ? (
-              <span className="font-bold text-moss">These are your default filters</span>
-            ) : (
-              <Button
-                size="sm"
-                disabled={saveDefault.isPending || !current}
-                onClick={() => saveDefault.mutate(current)}
-              >
-                Save as my default
-              </Button>
-            )}
-            {saved && (
-              <Button size="sm" variant="ghost" disabled={saveDefault.isPending} onClick={() => saveDefault.mutate('')}>
-                Clear default
-              </Button>
-            )}
-          </div>
-        )}
-        <SheetFooter className="flex-row gap-2 pb-[calc(16px+env(safe-area-inset-bottom,0px))]">
+        <SheetFooter className="mt-0 flex-row gap-2 border-t border-ink pb-[calc(16px+env(safe-area-inset-bottom,0px))]">
           <Button size="lg" className="w-28" onClick={() => onChange(NO_FILTERS)}>
             Reset
           </Button>
-          <Button size="lg" variant="default" className="flex-1" onClick={() => onOpenChange(false)}>
+          {/* Closes the sheet in every case; with nothing to show it is not the green call to action but says why,
+              and the list behind shows the empty state with "Clear search and filters". */}
+          <Button
+            size="lg"
+            variant={count?.n === 0 ? 'outline' : 'default'}
+            className="flex-1"
+            onClick={() => onOpenChange(false)}
+          >
             {count === undefined
               ? 'Show events'
               : count.n === 0
-                ? 'No events match'
+                ? 'No events match · Close'
                 : `Show ${count.n}${count.more ? '+' : ''} events`}
           </Button>
         </SheetFooter>

@@ -456,6 +456,27 @@ Format: date · decision · why · alternatives rejected. Newer entries supersed
   without the Worker. Old MCP tokens are bound to the old resource, so connected clients sign in once more; session
   cookies are per host, so people sign in again on the new domain. Rejected: serving both addresses as equals (two
   OAuth issuers, two cookie scopes, duplicate links).
+- **2026-11-21 · Browse filters by language where language matters.** A Language section (German, English) in the
+  filter sheet, `lang=de,en` on `GET /api/events` (EventsQuery), saved with "Save as my default". It applies only to
+  `LANG_CATEGORIES` (packages/shared): theatre, opera, talk and film, where not following the language spoils the
+  evening. Concerts, clubs, dance, exhibitions, festivals, markets and other pass whatever their language, and so do
+  events whose `lang` is `other`; the filter never hides them. `langMatches` and the SQL in `listEvents` share the
+  rule. Known limit: `lang` is the language of the listing, so an Italian opera listed in German counts as German.
+  Rejected: filtering every category (a German-titled concert is no reason to hide it), and `other` as a choice (it
+  is "neither", not a language).
+- **2026-11-21 · Telegram channels and Berlin specials are owner-only filters.** Both are the owner's own sources
+  (Telegram is read only for the owner's choice of channels, the specials are hand-picked), so their chips in the
+  filter sheet show only for `users.is_owner` (`Me.isOwner`). For anyone else a `via=telegram` or `via=specials` in a
+  link or saved default is dropped on the client (`parseFilters`, apps/web/src/lib/browseFilters.ts) and not sent; the
+  next filter change rewrites the address without it. The API still accepts them: the events are public anyway, and
+  deciding by user there would make the public, edge-cached list private.
+- **2026-11-21 · The filter sheet's buttons stay put.** The sheet scrolled as a whole, with Reset and the results
+  button at its very bottom. On an iPhone, tapping "No events match" after scrolling down left the sheet open (as if
+  the button did nothing), most likely because Safari spends a tap on stopping a momentum scroll or on showing its
+  toolbar at the bottom edge; desktop Chrome closed it. Now only the chips scroll and the footer is outside that
+  area. The button still closes the sheet in every case (the list then shows "No events match" with "Clear search
+  and filters"); with nothing to show it is outlined, not the green call to action, and reads "No events match ·
+  Close". Rejected: disabling it (a dead end on a phone).
 - **2026-11-21 · Staatsoper gets its own adapter (`staatsoper`), superseding its `html` source (2026-10-31).**
   The Spielplan page renders only today and tomorrow; later weeks load by infinite scroll as fragments
   (`/de/spielplan/_f/DD-MM-YYYY`, about a week each, linked by `data-pagination-fragment-url`, never across a month
