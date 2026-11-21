@@ -18,9 +18,9 @@
   ],
   "shortcuts": [
     {
-      "name": "For you",
-      "short_name": "For you",
-      "url": "/for-you",
+      "name": "Discover",
+      "short_name": "Discover",
+      "url": "/discover",
       "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
     },
     {

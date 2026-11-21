@@ -12,7 +12,7 @@ import { api } from '@/lib/api';
 import { useMe } from '@/lib/auth';
 import { relativeDay } from '@/lib/dates';
 import { useMark } from '@/lib/marks';
-import { SignedOut } from './Inbox';
+import { SignedOut } from '@/components/SignedOut';
 
 type Tab = 'all' | 'interested' | 'maybe';
 
@@ -76,11 +76,11 @@ function Agenda() {
           title="Nothing planned yet"
           action={
             <Button asChild variant="default">
-              <Link to="/for-you">Open For you</Link>
+              <Link to="/discover">Open Discover</Link>
             </Button>
           }
         >
-          Mark events as interested or maybe in your Inbox and they show up here by day.
+          Mark events as interested or maybe and they show up here by day.
         </EmptyState>
       ) : (
         <div className="grid grid-cols-[minmax(0,1fr)] gap-3">

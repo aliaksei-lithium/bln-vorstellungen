@@ -477,6 +477,11 @@ Format: date · decision · why · alternatives rejected. Newer entries supersed
   area. The button still closes the sheet in every case (the list then shows "No events match" with "Clear search
   and filters"); with nothing to show it is outlined, not the green call to action, and reads "No events match ·
   Close". Rejected: disabling it (a dead end on a phone).
+- **2026-11-21 · The For you tab is removed; Discover covers it.** Supersedes the "For you" page of 2026-11-02
+  (highlights + quick picks). The owner uses Discover instead and found the tab of no use. The nav is now Browse,
+  Discover, Scan, Agenda, Me; `/for-you` and `/inbox` redirect to `/discover`. The daily review is still built: Me's
+  rebuild box and the MCP `my_highlights`/`my_picks` tools read it, and the worker endpoints stay. Removed from the
+  web app only: the page, its highlights view and the inbox/highlights API clients.
 - **2026-11-21 · Staatsoper gets its own adapter (`staatsoper`), superseding its `html` source (2026-10-31).**
   The Spielplan page renders only today and tomorrow; later weeks load by infinite scroll as fragments
   (`/de/spielplan/_f/DD-MM-YYYY`, about a week each, linked by `data-pagination-fragment-url`, never across a month

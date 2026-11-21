@@ -255,7 +255,7 @@ export async function ask(env: Env, userId: string, turns: AskTurn[], now = new 
     throw new HTTPException(429, { message: `That's ${QUESTIONS_PER_DAY} questions today. Ask again tomorrow.` });
   }
   if ((await claudeUsdLeft(env)) < MIN_BUDGET_USD) {
-    throw new HTTPException(429, { message: "Today's AI budget is used up. Browse and For you still work." });
+    throw new HTTPException(429, { message: "Today's AI budget is used up. Browse and Discover still work." });
   }
   const searchesLeft = Math.max(0, SEARCHES_PER_DAY - used.s);
 

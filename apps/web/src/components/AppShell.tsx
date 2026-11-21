@@ -1,5 +1,5 @@
 import { Link, Outlet, useRouterState } from '@tanstack/react-router';
-import { CalendarDays, Camera, Compass, List, Telescope, User } from 'lucide-react';
+import { CalendarDays, Camera, List, Telescope, User } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { AskChat } from './AskBox';
 import { ScanSheet } from './ScanSheet';
@@ -48,7 +48,6 @@ export function TopBar({ right, children }: { right?: ReactNode; children?: Reac
 const NAV = [
   { to: '/', label: 'Browse', Icon: List },
   { to: '/discover', label: 'Discover', Icon: Telescope },
-  { to: '/for-you', label: 'For you', Icon: Compass },
   { to: '/agenda', label: 'Agenda', Icon: CalendarDays },
   { to: '/me', label: 'Me', Icon: User },
 ] as const;
@@ -113,7 +112,6 @@ export function AppShell() {
           <div className="mx-auto flex h-16 max-w-[600px] px-[env(safe-area-inset-left,0px)]">
             <NavLink {...NAV[0]} active={isActive('/')} />
             <NavLink {...NAV[1]} active={isActive('/discover')} />
-            <NavLink {...NAV[2]} active={isActive('/for-you')} />
             <button
               type="button"
               onClick={() => setScanOpen(true)}
@@ -123,8 +121,8 @@ export function AppShell() {
               <Camera className="size-6" strokeWidth={2} aria-hidden />
               Scan
             </button>
-            <NavLink {...NAV[3]} active={isActive('/agenda')} />
-            <NavLink {...NAV[4]} active={isActive('/me')} />
+            <NavLink {...NAV[2]} active={isActive('/agenda')} />
+            <NavLink {...NAV[3]} active={isActive('/me')} />
           </div>
         </nav>
       )}

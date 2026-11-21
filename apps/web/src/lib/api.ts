@@ -26,7 +26,6 @@ import {
   EventsList,
   EventsResponse,
   HealthResponse,
-  InboxResponse,
   LoginLink,
   MeResponse,
   MyEvent,
@@ -110,7 +109,6 @@ export const api = {
   loginLink: () => request('/api/me/login-link', LoginLink, { method: 'POST', body: {} }),
   profile: () => getJson('/api/me/profile', Profile),
   saveProfile: (p: ProfileUpdate) => request('/api/me/profile', Profile, { method: 'PUT', body: p }),
-  inbox: (range: 'week' | 'all') => getJson(`/api/me/inbox?range=${range}`, InboxResponse),
   myEvent: (slug: string) => getJson(`/api/me/events/${enc(slug)}`, MyEvent),
   setState: (slug: string, u: StateUpdate) =>
     request(`/api/me/events/${enc(slug)}/state`, z.unknown(), { method: 'PUT', body: u }),
@@ -142,7 +140,6 @@ export const api = {
     request(`/api/me/scans/${enc(id)}/playlist`, ScanPlaylistResult, { method: 'POST', body: { indexes } }),
   review: () => getJson('/api/me/review', InboxReview),
   prepareReview: () => request('/api/me/review', InboxReview, { method: 'POST', body: {} }),
-  highlights: () => getJson('/api/highlights', InboxReview),
   discover: () => getJson('/api/me/discover', DiscoverEdition),
   publicDiscover: () => getJson('/api/discover', DiscoverEdition),
   requestInvite: (body: InviteRequestCreate) =>

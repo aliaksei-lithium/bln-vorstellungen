@@ -5,7 +5,6 @@ import { BrowsePage, BrowseSearch } from '@/pages/Browse';
 import { EventPage } from '@/pages/EventPage';
 import { AgendaPage } from '@/pages/Agenda';
 import { DiscoverPage } from '@/pages/Discover';
-import { ForYouPage } from '@/pages/Inbox';
 import { LoginPage } from '@/pages/Login';
 import { MePage } from '@/pages/Me';
 import { ScanPage } from '@/pages/ScanPage';
@@ -33,7 +32,6 @@ const routes = [
       return <EventPage slug={slug} />;
     },
   }),
-  createRoute({ getParentRoute: () => rootRoute, path: '/for-you', component: ForYouPage }),
   createRoute({ getParentRoute: () => rootRoute, path: '/discover', component: DiscoverPage }),
   createRoute({ getParentRoute: () => rootRoute, path: '/agenda', component: AgendaPage }),
   createRoute({ getParentRoute: () => rootRoute, path: '/me', component: MePage }),
@@ -62,19 +60,21 @@ const routes = [
     },
   }),
   createRoute({ getParentRoute: () => rootRoute, path: '/scans', component: ScansPage }),
-  // The old name, for bookmarks and installed shortcuts.
-  createRoute({
-    getParentRoute: () => rootRoute,
-    path: '/inbox',
-    beforeLoad: () => {
-      throw redirect({ to: '/for-you', replace: true });
-    },
-  }),
+  // Old addresses (For you, once Inbox; removed 2026-11-21), for bookmarks and installed shortcuts.
+  ...['/for-you', '/inbox'].map((path) =>
+    createRoute({
+      getParentRoute: () => rootRoute,
+      path,
+      beforeLoad: () => {
+        throw redirect({ to: '/discover', replace: true });
+      },
+    }),
+  ),
 ] as const;
 const eventRoute = routes[1];
-const loginRoute = routes[6];
-const scanRoute = routes[7];
-const venueRoute = routes[8];
+const loginRoute = routes[5];
+const scanRoute = routes[6];
+const venueRoute = routes[7];
 
 export const router = createRouter({
   routeTree: rootRoute.addChildren([...routes]),

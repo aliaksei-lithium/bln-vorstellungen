@@ -225,7 +225,7 @@ function TasteForm() {
       <Box title="Categories">
         <p className="m-0 border-b border-line px-3 py-2.5 text-sm text-sub">
           <b className="text-ink">Less</b> and <b className="text-ink">Rarely</b> keep a category in your picks only for
-          strong matches, and Inbox never lets one category take more than a third of the places.{' '}
+          strong matches, and picks never let one category take more than a third of the places.{' '}
           <b className="text-ink">Off</b> also leaves it out of Browse, unless you pick it in the filter.
         </p>
         {[...Category.options.filter((c) => !OPT_IN_CATEGORIES.includes(c)), ...OPT_IN_CATEGORIES].map((c) => {
@@ -499,7 +499,7 @@ function YoutubeBox() {
 }
 
 /**
- * Rebuild Discover and For you now, with the latest taste and artists: the day's first one when there is none yet,
+ * Rebuild Discover now, with the latest taste and artists: the day's first one when there is none yet,
  * then a few a day. Connecting a music service starts one by itself, once the new scores are in.
  */
 function RebuildBox() {
@@ -522,7 +522,7 @@ function RebuildBox() {
   useEffect(() => {
     if (was.current === 'preparing' && status === 'ready') {
       void qc.invalidateQueries({ queryKey: ['discover'] });
-      toast('Discover and For you are rebuilt');
+      toast('Discover is rebuilt');
     }
     was.current = status;
   }, [status, qc]);
@@ -533,14 +533,14 @@ function RebuildBox() {
   const can = !!r && !preparing && (!today || left > 0);
   return (
     <Box
-      title="Discover and For you"
+      title="Discover"
       collapsed
       summary={r ? (preparing ? 'Rebuilding…' : today ? `${left} rebuilds left today` : 'Not built today') : undefined}
     >
       <div id="rebuild" className="grid gap-3 p-3">
         <p className="m-0 text-sm text-sub">
-          Both pages are written each morning. Rebuild them now to use your latest taste and artists. Connecting Spotify
-          or YouTube Music rebuilds them by itself once your events are re-ranked.
+          It is written each morning. Rebuild it now to use your latest taste and artists. Connecting Spotify or YouTube
+          Music rebuilds it by itself once your events are re-ranked.
         </p>
         {!r ? (
           <p className="m-0 text-sm text-sub">Loading…</p>
@@ -788,7 +788,7 @@ function SourcesBox({ visitor = false }: { visitor?: boolean }) {
           <p className="m-0 border-b border-line px-3 py-2.5 text-sm text-sub">
             {visitor
               ? 'Switch a source off to leave its events out of Browse. Saved in this browser; a few venues start off.'
-              : 'Switch a source off to leave its events out of your Browse and Inbox. Your Agenda keeps what you planned.'}
+              : 'Switch a source off to leave its events out of your Browse and picks. Your Agenda keeps what you planned.'}
           </p>
           <ul className="m-0 list-none p-0">
             {sources.map((s) => {
