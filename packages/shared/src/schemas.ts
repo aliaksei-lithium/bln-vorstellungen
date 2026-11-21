@@ -416,6 +416,10 @@ const anyOf = <T extends z.ZodType>(item: T) =>
 export const Via = z.enum(['telegram', 'scans', 'spotify', 'spotifylike', 'belarusian', 'specials']);
 export type Via = z.infer<typeof Via>;
 
+/** Languages Browse can filter by; `other` (or unknown) is never filtered out, see LANG_CATEGORIES. */
+export const LangChoice = z.enum(['de', 'en']);
+export type LangChoice = z.infer<typeof LangChoice>;
+
 export const EventsQuery = z.object({
   from: z.iso.date().optional(),
   to: z.iso.date().optional(),
@@ -427,6 +431,11 @@ export const EventsQuery = z.object({
    * close to my Spotify taste (by meaning).
    */
   via: anyOf(Via),
+  /**
+   * Only events in these languages, where language matters (LANG_CATEGORIES: theatre, opera, talk, cinema). Events
+   * of other categories, and in another or unknown language, are never filtered out by it.
+   */
+  lang: anyOf(LangChoice),
   /** One venue's events (the venue page). */
   venue: z.string().min(1).max(64).optional(),
   /** Events per page (default 40). Browse's compact view asks for more, so a page covers several whole days. */

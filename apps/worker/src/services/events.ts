@@ -1,6 +1,7 @@
 import {
   EventDetail,
   VenueDetail,
+  LANG_CATEGORIES,
   OPT_IN_CATEGORIES,
   type Category,
   berlinLocalToUtc,
@@ -144,6 +145,13 @@ export async function listEvents(
       }
     }
     filters.push(`(${ways.map((w) => `(${w})`).join(' OR ')})`);
+  }
+  if (q.lang?.length) {
+    // Same rule as langMatches (packages/shared): only language-bound categories, and `other` always passes.
+    filters.push(
+      `(e.category NOT IN (${marks(LANG_CATEGORIES.length)}) OR e.lang = 'other' OR e.lang IN (${marks(q.lang.length)}))`,
+    );
+    filterArgs.push(...LANG_CATEGORIES, ...q.lang);
   }
   if (q.venue) {
     filters.push('e.venue_id = ?');

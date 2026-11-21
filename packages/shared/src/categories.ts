@@ -1,4 +1,4 @@
-import type { Category, Prefs } from './schemas';
+import type { Category, Lang, LangChoice, Prefs } from './schemas';
 
 /** English UI labels. */
 export const CATEGORY_LABELS: Record<Category, string> = {
@@ -30,6 +30,23 @@ export const OPT_IN_CATEGORIES: readonly Category[] = ['kink'];
 /** The opt-in categories this user (or an anonymous visitor) does not see. */
 export const hiddenCategories = (prefs?: Pick<Prefs, 'categoriesOn'> | null): Category[] =>
   OPT_IN_CATEGORIES.filter((c) => !prefs?.categoriesOn.includes(c));
+
+/**
+ * Categories where the spoken language decides whether someone can follow the event (docs/09, 2026-11-21): a language
+ * filter applies only to these. Music, dance, exhibitions, clubs, markets and festivals pass whatever their language.
+ */
+export const LANG_CATEGORIES: readonly Category[] = ['theatre', 'opera', 'talk', 'cinema'];
+
+/**
+ * Whether an event passes a language filter: always when none is chosen, when its category is not language-bound,
+ * or when its language is `other` or unknown; otherwise when its language is one of the chosen. Mirrors the SQL in
+ * the worker's listEvents.
+ */
+export const langMatches = (
+  e: { category: Category; lang?: Lang | null },
+  langs?: readonly LangChoice[] | null,
+): boolean =>
+  !langs?.length || !LANG_CATEGORIES.includes(e.category) || !e.lang || e.lang === 'other' || langs.includes(e.lang);
 
 export type Frequency = 'often' | 'less' | 'rarely';
 /** Below these scores an event of a `less` or `rarely` category stays out of the inbox and picks. */

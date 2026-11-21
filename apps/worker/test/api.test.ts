@@ -29,9 +29,30 @@ beforeAll(async () => {
       ),
     ),
     env.DB.prepare(`INSERT INTO events_fts (event_id, title, venue) VALUES ('e1', 'Hamlet', 'Deutsches Theater')`),
+    // For the language filter: an English talk, a German concert and a play in another language.
+    ...(
+      [
+        ['e2', 'brexit-talk', 'Brexit Talk', 'en', 'talk'],
+        ['e3', 'orgelkonzert', 'Orgelkonzert', 'de', 'concert'],
+        ['e4', 'wesele', 'Wesele', 'other', 'theatre'],
+      ] as const
+    ).flatMap(([id, slug, title, lang, category]) => [
+      env.DB.prepare(
+        `INSERT INTO events (id, slug, title, lang, category, venue_id, dedup_key, created_by)
+         VALUES (?, ?, ?, ?, ?, 'v1', ?, 'test')`,
+      ).bind(id, slug, title, lang, category, `${slug}|v1|x`),
+      env.DB.prepare(`INSERT INTO occurrences (id, event_id, start_local, start_utc) VALUES (?, ?, ?, ?)`).bind(
+        `o_${id}`,
+        id,
+        dates[1],
+        berlinLocalToUtc(dates[1]!),
+      ),
+    ]),
   ]);
   await refreshAllNextDates(env.DB);
 });
+
+const dates0 = (days = 0) => new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10);
 
 describe('api', () => {
   it('reports health with a DB ping', async () => {
@@ -43,7 +64,7 @@ describe('api', () => {
   it('lists an event once, at its next date, with the count of further dates', async () => {
     const res = await exports.default.fetch('https://x/api/events');
     const body = EventsResponse.parse(await res.json());
-    expect(body.items).toHaveLength(1);
+    expect(body.items).toHaveLength(4);
     expect(body.items[0]).toMatchObject({ slug: 'hamlet', venueName: 'Deutsches Theater', priceMax: 64, moreDates: 2 });
     expect(body.items[0]?.next.startLocal).toBe(inDays(1, '19:30'));
   });
@@ -61,6 +82,23 @@ describe('api', () => {
     expect((await exports.default.fetch('https://x/api/events?category=opera,circus')).status).toBe(400);
     const hit = EventsResponse.parse(await (await exports.default.fetch('https://x/api/events?q=haml')).json());
     expect(hit.items.map((i) => i.slug)).toEqual(['hamlet']);
+  });
+
+  it('filters by language only where language matters', async () => {
+    const slugs = async (qs: string) =>
+      EventsResponse.parse(await (await exports.default.fetch(`https://x/api/events?${qs}`)).json())
+        .items.map((i) => i.slug)
+        .sort();
+    // German theatre is out for English; the German concert and the play in another language stay.
+    expect(await slugs('lang=en')).toEqual(['brexit-talk', 'orgelkonzert', 'wesele']);
+    expect(await slugs('lang=de')).toEqual(['hamlet', 'orgelkonzert', 'wesele']);
+    expect(await slugs('lang=de,en')).toEqual(['brexit-talk', 'hamlet', 'orgelkonzert', 'wesele']);
+    // Windowed plan too, and combined with a category.
+    expect(await slugs(`lang=en&category=theatre,talk&from=${dates0()}&to=${dates0(7)}`)).toEqual([
+      'brexit-talk',
+      'wesele',
+    ]);
+    expect((await exports.default.fetch('https://x/api/events?lang=other')).status).toBe(400);
   });
 
   it('returns detail with all occurrences and 404 for unknown slugs', async () => {
