@@ -98,6 +98,7 @@ The extractor is given the item's `publishedAt` and today's date, and must emit 
 | `jsonld` | fetch page, read `<script type="application/ld+json">` `Event` objects | – | Many ticket pages expose schema.org Event; cheap and exact. Try before `html`. |
 | `ticketshop` | fetch a ticket shop's product JSON (`/tickets.json`), one product = one show | – | Direct map, no LLM: date, doors, support acts, price, sold out, image. Config `city` drops tours elsewhere. SO36. |
 | `squarespace` | a Squarespace events page as JSON (`?format=json`): title, start, description, image, page | – | Direct map, no LLM. Many small venues use Squarespace (8MM Bar). |
+| `staatsoper` | Staatsoper Unter den Linden's Spielplan and its weekly fragments (`/de/spielplan/_f/DD-MM-YYYY`) | – | Direct map, no LLM: one event per production with all dates, room, price tiers, sold out. `maxPages` bounds CPU. |
 | `sitemap` | discover event pages from sitemap, then `jsonld`/`html` per page | – | For large venue sites. |
 | `spotify` | **not an event source**: imports the user's top artists/genres into the taste profile | user OAuth | Combined with `bandsintown`/`ra` lineups for matching. |
 | `facebook` | **no automated adapter.** Facebook blocks scraping and has no public events API. | – | Manual: screenshot → `photo`, or paste → `text`. Document this limitation in the UI. |

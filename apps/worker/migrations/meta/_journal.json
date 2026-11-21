@@ -134,6 +134,20 @@
       "when": 1794256388596,
       "tag": "0018_user_activity",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "6",
+      "when": 1795291008556,
+      "tag": "0019_staatsoper_adapter",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "6",
+      "when": 1795291632056,
+      "tag": "0020_source_schedules",
+      "breakpoints": true
     }
   ]
 }

@@ -477,6 +477,24 @@ Format: date · decision · why · alternatives rejected. Newer entries supersed
   area. The button still closes the sheet in every case (the list then shows "No events match" with "Clear search
   and filters"); with nothing to show it is outlined, not the green call to action, and reads "No events match ·
   Close". Rejected: disabling it (a dead end on a phone).
+- **2026-11-21 · Staatsoper gets its own adapter (`staatsoper`), superseding its `html` source (2026-10-31).**
+  The Spielplan page renders only today and tomorrow; later weeks load by infinite scroll as fragments
+  (`/de/spielplan/_f/DD-MM-YYYY`, about a week each, linked by `data-pagination-fragment-url`, never across a month
+  end, 404 past the season). The html adapter read one page, so the site showed ~4 Staatsoper events. Checked: no
+  iCal, JSON-LD, RSS, sitemap or API; the ticket shop's event list is a server-rendered page. The fragments are
+  clean markup (`<time datetime>`, room, production link, price tiers, sold-out flag), so the adapter walks them
+  and maps without an LLM: one event per production and venue with all its dates; rooms of the house become the
+  date's note, other halls (Philharmonie, Bode-Museum, Bebelplatz) the venue; school and Kita performances and
+  guest tours abroad are left out. Parsing is indexOf sections plus short regexes: ~6–9 ms for the whole season
+  (~30 pages, 2.3 MB) in Node, so `maxPages` defaults to 16 (~4 months ahead) to stay under 10 ms per step.
+- **2026-11-21 · Source schedules follow how fast a programme changes (migration 0020).** Telegram channels keep
+  2 h (posts announce events days ahead and scroll away). Everything else runs at most daily. Weekly: opera
+  (Staatsoper) and concert venues (Badehaus, Cassiopeia, KM28, Madame Claude, Panke, Schokoladen, field notes,
+  A-Trane, Privatclub, 8MM Bar, SO36), Radialsystem and Lab.oratory: they publish months ahead, so a week's delay
+  only lags sold-out notes and late additions. Every 3 days: theatres (BE, DT, HAU, Gorki, Bar jeder Vernunft),
+  silent green, Soulcat. Daily: short-notice listings (Luma, The Left Berlin, RAZAM calendar), Index gallery
+  openings, the Siegessäule calendar and the guides' RSS feeds. Supersedes the 6 h / 12 h intervals in the
+  2026-10-31 starter sources.
 - **2026-10-02 · React + Vite + TanStack + Tailwind + shadcn/ui.** Best coverage by design tools and implementing
   models. Rejected: SvelteKit (good, but weaker design-tool output), Next.js on Workers via OpenNext (heavier than
   needed; no SSR requirement since public pages can be cached JSON + client render; revisit if SEO matters).
