@@ -456,6 +456,16 @@ Format: date · decision · why · alternatives rejected. Newer entries supersed
   without the Worker. Old MCP tokens are bound to the old resource, so connected clients sign in once more; session
   cookies are per host, so people sign in again on the new domain. Rejected: serving both addresses as equals (two
   OAuth issuers, two cookie scopes, duplicate links).
+- **2026-11-21 · Staatsoper gets its own adapter (`staatsoper`), superseding its `html` source (2026-10-31).**
+  The Spielplan page renders only today and tomorrow; later weeks load by infinite scroll as fragments
+  (`/de/spielplan/_f/DD-MM-YYYY`, about a week each, linked by `data-pagination-fragment-url`, never across a month
+  end, 404 past the season). The html adapter read one page, so the site showed ~4 Staatsoper events. Checked: no
+  iCal, JSON-LD, RSS, sitemap or API; the ticket shop's event list is a server-rendered page. The fragments are
+  clean markup (`<time datetime>`, room, production link, price tiers, sold-out flag), so the adapter walks them
+  and maps without an LLM: one event per production and venue with all its dates; rooms of the house become the
+  date's note, other halls (Philharmonie, Bode-Museum, Bebelplatz) the venue; school and Kita performances and
+  guest tours abroad are left out. Parsing is indexOf sections plus short regexes: ~6–9 ms for the whole season
+  (~30 pages, 2.3 MB) in Node, so `maxPages` defaults to 16 (~4 months ahead) to stay under 10 ms per step.
 - **2026-10-02 · React + Vite + TanStack + Tailwind + shadcn/ui.** Best coverage by design tools and implementing
   models. Rejected: SvelteKit (good, but weaker design-tool output), Next.js on Workers via OpenNext (heavier than
   needed; no SSR requirement since public pages can be cached JSON + client render; revisit if SEO matters).

@@ -32,5 +32,5 @@ INSERT OR IGNORE INTO sources (id, name, type, config, schedule_minutes) VALUES
    '{"url":"https://www.berliner-ensemble.de/spielplan","venue":{"name":"Berliner Ensemble","address":"Bertolt-Brecht-Platz 1, 10117 Berlin"},"category":"theatre","lang":"de","chunkChars":10000,"maxChunks":5}', 1440),
   ('s_dt', 'Deutsches Theater', 'html',
    '{"url":"https://www.deutschestheater.de/programm/spielplan/","venue":{"name":"Deutsches Theater","address":"Schumannstraße 13a, 10117 Berlin"},"category":"theatre","lang":"de","chunkChars":10000,"maxChunks":5}', 1440),
-  ('s_staatsoper', 'Staatsoper Unter den Linden', 'html',
-   '{"url":"https://www.staatsoper-berlin.de/de/spielplan/","venue":{"name":"Staatsoper Unter den Linden","address":"Unter den Linden 7, 10117 Berlin"},"category":"opera","lang":"de","chunkChars":10000,"maxChunks":5}', 1440);
+  ('s_staatsoper', 'Staatsoper Unter den Linden', 'staatsoper',
+   '{"url":"https://www.staatsoper-berlin.de/de/spielplan/","venue":{"name":"Staatsoper Unter den Linden","address":"Unter den Linden 7, 10117 Berlin"},"category":"opera","lang":"de","maxPages":16}', 1440);

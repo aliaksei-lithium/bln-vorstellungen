@@ -27,6 +27,7 @@ describe('admin api', () => {
       'jsonld',
       'rss',
       'squarespace',
+      'staatsoper',
       'telegram',
       'ticketshop',
     ]);
