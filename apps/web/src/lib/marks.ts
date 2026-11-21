@@ -16,7 +16,7 @@ export function useMyStates() {
 const MESSAGES: Record<UserState, string> = {
   interested: 'Added to Agenda',
   maybe: 'Saved as maybe',
-  skipped: 'Skipped. It won’t come back to your Inbox',
+  skipped: 'Skipped. It won’t come back to your picks',
   hidden: 'Hidden',
   went: 'Marked as went',
 };

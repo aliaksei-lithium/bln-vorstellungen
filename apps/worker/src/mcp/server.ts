@@ -369,7 +369,7 @@ export function buildServer(
         const r = await getReview(env, userId);
         if (!r.day)
           return text(
-            `No highlights yet; they are prepared each morning. The user can ask for them at ${origin}/for-you.`,
+            `No highlights yet; they are prepared each morning. The user can rebuild them from the Me page at ${origin}/me.`,
           );
         return text(
           `${r.summary}\n\n` +
