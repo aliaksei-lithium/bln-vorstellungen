@@ -9,6 +9,8 @@ describe('old address', () => {
     const res = await exports.default.fetch(`${OLD}/api/events?from=2026-11-21`, { redirect: 'manual' });
     expect(res.status).toBe(301);
     expect(res.headers.get('location')).toBe('http://localhost/api/events?from=2026-11-21');
+    // Workers Caching keys by path, not host: a cached redirect would be served on the new domain too.
+    expect(res.headers.get('cache-control')).toBe('no-store');
   });
 
   it('keeps the method for POSTs', async () => {

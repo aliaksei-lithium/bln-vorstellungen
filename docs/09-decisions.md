@@ -451,7 +451,8 @@ Format: date · decision · why · alternatives rejected. Newer entries supersed
   `bln-vorstellungen.aliaksei-zhynhiarouski.workers.dev` to `events.aliaksei.xyz` (registered at Cloudflare, Worker
   custom domain). `PUBLIC_ORIGIN` follows, so the OAuth issuer, the MCP resource and the Spotify and YouTube callbacks
   are on the new domain. workers.dev stays on and redirects: the Worker sends its routes there (301 for GET/HEAD, 308
-  otherwise, path and query kept) and an inline script in `index.html` moves the app shell, which assets serve
+  otherwise, path and query kept, `no-store` because Workers Caching keys by path and not host, so a cached
+  redirect looped on the new domain on the first deploy) and an inline script in `index.html` moves the app shell, which assets serve
   without the Worker. Old MCP tokens are bound to the old resource, so connected clients sign in once more; session
   cookies are per host, so people sign in again on the new domain. Rejected: serving both addresses as equals (two
   OAuth issuers, two cookie scopes, duplicate links).
