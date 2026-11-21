@@ -37,6 +37,11 @@ in a sentence what you like, and it ranks every upcoming event for you and says 
   <img src="docs/images/screen-dark.jpg" alt="Event page in dark mode" width="200">
 </p>
 
+## Use it from Claude
+
+Add a custom connector with the URL `https://events.aliaksei.xyz/mcp` and sign in. Claude can then show your
+highlights and picks, search the programme, and mark events for your agenda.
+
 ## Where the events come from
 
 **Theatre and performance:** Berliner Ensemble · Deutsches Theater · Maxim Gorki Theater · HAU Hebbel am Ufer ·
