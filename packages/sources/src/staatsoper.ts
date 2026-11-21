@@ -208,7 +208,7 @@ function categoryOf(p: Production): Category | null {
 export const staatsoperAdapter: SourceAdapter<StaatsoperConfig> = {
   type: 'staatsoper',
   configSchema: StaatsoperConfig,
-  defaultScheduleMinutes: 24 * 60,
+  defaultScheduleMinutes: 7 * 24 * 60, // the programme is published months ahead (docs/09, 2026-11-21)
 
   async fetch(ctx, config) {
     const first = await getPage(ctx, config.url);
