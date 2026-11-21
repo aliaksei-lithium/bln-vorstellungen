@@ -11,6 +11,7 @@ import { MePage } from '@/pages/Me';
 import { ScanPage } from '@/pages/ScanPage';
 import { ScansPage } from '@/pages/ScansPage';
 import { VenuePage } from '@/pages/VenuePage';
+import { startTracking } from '@/lib/track';
 
 const rootRoute = createRootRoute({
   component: AppShell,
@@ -80,6 +81,8 @@ export const router = createRouter({
   scrollRestoration: true,
   defaultPreload: 'intent',
 });
+
+startTracking(router);
 
 declare module '@tanstack/react-router' {
   interface Register {

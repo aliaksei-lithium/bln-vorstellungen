@@ -604,3 +604,21 @@ export const usageCounters = sqliteTable(
   },
   (t) => [primaryKey({ columns: [t.day, t.metric] })],
 );
+
+/**
+ * App usage counts per signed-in user and Berlin day (docs/09, 2026-11-09). `kind` is open|view|click|ask, `name`
+ * the page kind (or "question" for ask). Counts only: no text, no event ids.
+ */
+export const userActivity = sqliteTable(
+  'user_activity',
+  {
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    day: text('day').notNull(),
+    kind: text('kind').notNull(),
+    name: text('name').notNull(),
+    count: integer('count').notNull().default(0),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.day, t.kind, t.name] }), index('user_activity_day_idx').on(t.day)],
+);

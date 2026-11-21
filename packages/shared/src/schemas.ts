@@ -243,6 +243,56 @@ export const UsageOverview = z.object({
 });
 export type UsageOverview = z.infer<typeof UsageOverview>;
 
+/**
+ * App usage by signed-in people (docs/09, 2026-11-09): counts per user and Berlin day, nothing else. No questions,
+ * no searches, no event or venue ids: a page is its kind ("event"), a click is the page it happened on.
+ */
+export const TRACK_PAGES = [
+  'browse',
+  'event',
+  'venue',
+  'discover',
+  'for-you',
+  'agenda',
+  'me',
+  'scan',
+  'scans',
+  'other',
+] as const;
+export const TrackPage = z.enum(TRACK_PAGES);
+export type TrackPage = z.infer<typeof TrackPage>;
+/** `open`: the app was loaded. `view`: a page was shown. `click`: a link or button was pressed on a page. */
+export const TrackItem = z.object({
+  kind: z.enum(['open', 'view', 'click']),
+  page: TrackPage,
+  count: z.number().int().min(1).max(500),
+});
+export type TrackItem = z.infer<typeof TrackItem>;
+export const TrackBatch = z.object({ items: z.array(TrackItem).min(1).max(40) });
+export type TrackBatch = z.infer<typeof TrackBatch>;
+
+export const ActivityUser = z.object({
+  id: z.string(),
+  name: z.string(),
+  lastSeenAt: z.string().nullable(),
+  /** Berlin days with any activity in the range. */
+  activeDays: z.number(),
+  opens: z.number(),
+  views: z.number(),
+  clicks: z.number(),
+  /** Questions sent to Ask (counted on the server). */
+  asks: z.number(),
+  /** Page views by page kind. */
+  pages: z.record(z.string(), z.number()),
+});
+export type ActivityUser = z.infer<typeof ActivityUser>;
+export const ActivityOverview = z.object({
+  days: z.number(),
+  /** Most active first; users without activity in the range come last. */
+  users: z.array(ActivityUser),
+});
+export type ActivityOverview = z.infer<typeof ActivityOverview>;
+
 /** Read-only overview of where events come from (Me page; public at /api/sources). No feed URLs or settings. */
 export const SourceSummary = z.object({
   id: z.string(),

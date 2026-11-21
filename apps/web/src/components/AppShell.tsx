@@ -6,6 +6,7 @@ import { ScanSheet } from './ScanSheet';
 import { Tower } from './Tower';
 import { useMe } from '@/lib/auth';
 import { Toaster } from '@/lib/toast';
+import { setTrackingUser } from '@/lib/track';
 import { cn } from '@/lib/utils';
 
 function useScrolled() {
@@ -86,7 +87,8 @@ export function AppShell() {
   const wide = path.startsWith('/discover');
   const isActive = (to: string) => (to === '/' ? path === '/' : path.startsWith(to));
   // Ask is for signed-in users, everywhere but the scan review and sign-in pages.
-  const { user } = useMe();
+  const { user, isPending } = useMe();
+  useEffect(() => setTrackingUser(isPending ? null : !!user), [user, isPending]);
   const ask = !!user && !path.startsWith('/scan/') && !path.startsWith('/login/');
 
   return (
