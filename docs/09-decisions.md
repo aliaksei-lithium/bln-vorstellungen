@@ -470,6 +470,13 @@ Format: date · decision · why · alternatives rejected. Newer entries supersed
   link or saved default is dropped on the client (`parseFilters`, apps/web/src/lib/browseFilters.ts) and not sent; the
   next filter change rewrites the address without it. The API still accepts them: the events are public anyway, and
   deciding by user there would make the public, edge-cached list private.
+- **2026-11-21 · The filter sheet's buttons stay put.** The sheet scrolled as a whole, with Reset and the results
+  button at its very bottom. On an iPhone, tapping "No events match" after scrolling down left the sheet open (as if
+  the button did nothing), most likely because Safari spends a tap on stopping a momentum scroll or on showing its
+  toolbar at the bottom edge; desktop Chrome closed it. Now only the chips scroll and the footer is outside that
+  area. The button still closes the sheet in every case (the list then shows "No events match" with "Clear search
+  and filters"); with nothing to show it is outlined, not the green call to action, and reads "No events match ·
+  Close". Rejected: disabling it (a dead end on a phone).
 - **2026-10-02 · React + Vite + TanStack + Tailwind + shadcn/ui.** Best coverage by design tools and implementing
   models. Rejected: SvelteKit (good, but weaker design-tool output), Next.js on Workers via OpenNext (heavier than
   needed; no SSR requirement since public pages can be cached JSON + client render; revisit if SEO matters).

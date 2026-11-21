@@ -411,11 +411,13 @@ function FilterSheet({
   });
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="mx-auto max-h-[88vh] max-w-[600px] overflow-y-auto border-x border-ink">
+      {/* Only the chips scroll; the buttons stay in view. In a sheet that scrolled as a whole, iOS Safari spent the
+          tap on the bottom button stopping the scroll (or showing its toolbar), so it seemed to do nothing. */}
+      <SheetContent side="bottom" className="mx-auto max-h-[88dvh] max-w-[600px] gap-0 border-x border-ink">
         <SheetHeader className="pb-0">
           <SheetTitle>Filters</SheetTitle>
         </SheetHeader>
-        <div className="px-4">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-5">
           <div className={label}>When</div>
           <div className="flex flex-wrap gap-2">
             {(Object.keys(WHEN_LABELS) as When[]).map((w) => (
@@ -515,15 +517,22 @@ function FilterSheet({
             </div>
           )}
         </div>
-        <SheetFooter className="flex-row gap-2 pb-[calc(16px+env(safe-area-inset-bottom,0px))]">
+        <SheetFooter className="mt-0 flex-row gap-2 border-t border-ink pb-[calc(16px+env(safe-area-inset-bottom,0px))]">
           <Button size="lg" className="w-28" onClick={() => onChange(NO_FILTERS)}>
             Reset
           </Button>
-          <Button size="lg" variant="default" className="flex-1" onClick={() => onOpenChange(false)}>
+          {/* Closes the sheet in every case; with nothing to show it is not the green call to action but says why,
+              and the list behind shows the empty state with "Clear search and filters". */}
+          <Button
+            size="lg"
+            variant={count?.n === 0 ? 'outline' : 'default'}
+            className="flex-1"
+            onClick={() => onOpenChange(false)}
+          >
             {count === undefined
               ? 'Show events'
               : count.n === 0
-                ? 'No events match'
+                ? 'No events match · Close'
                 : `Show ${count.n}${count.more ? '+' : ''} events`}
           </Button>
         </SheetFooter>
