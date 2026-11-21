@@ -116,7 +116,7 @@ export function AppShell() {
               type="button"
               onClick={() => setScanOpen(true)}
               aria-label="Scan or upload a photo"
-              className="my-1.5 flex w-16 shrink-0 flex-col min-[420px]:w-[78px] items-center justify-center gap-[3px] border-2 border-moss text-[11px] font-extrabold tracking-[.03em] text-moss uppercase"
+              className="my-1.5 flex w-16 shrink-0 flex-col min-[420px]:w-[78px] items-center justify-center gap-[3px] text-[11px] font-extrabold tracking-[.03em] text-moss uppercase"
             >
               <Camera className="size-6" strokeWidth={2} aria-hidden />
               Scan
