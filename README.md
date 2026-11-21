@@ -2,7 +2,7 @@
 
 **What's on in Berlin tonight, read from the venues' own programmes, ranked for your taste.**
 
-### → [bln-vorstellungen.aliaksei-zhynhiarouski.workers.dev](https://bln-vorstellungen.aliaksei-zhynhiarouski.workers.dev)
+### → [events.aliaksei.xyz](https://events.aliaksei.xyz)
 
 <p align="center">
   <img src="docs/images/screen-discover.jpg" alt="Discover: today's edition, led by three post-punk nights" width="200">

@@ -438,6 +438,14 @@ Format: date · decision · why · alternatives rejected. Newer entries supersed
   - Scan limits stay: 40 scans per user and UTC day, 3 reads per scan, inside the $0.50 daily cap.
   Also fixed: the review started after a music connect had a workflow id over the 100-character limit, so that
   rebuild never ran.
+- **2026-11-21 · Own domain: events.aliaksei.xyz.** The site moves from
+  `bln-vorstellungen.aliaksei-zhynhiarouski.workers.dev` to `events.aliaksei.xyz` (registered at Cloudflare, Worker
+  custom domain). `PUBLIC_ORIGIN` follows, so the OAuth issuer, the MCP resource and the Spotify and YouTube callbacks
+  are on the new domain. workers.dev stays on and redirects: the Worker sends its routes there (301 for GET/HEAD, 308
+  otherwise, path and query kept) and an inline script in `index.html` moves the app shell, which assets serve
+  without the Worker. Old MCP tokens are bound to the old resource, so connected clients sign in once more; session
+  cookies are per host, so people sign in again on the new domain. Rejected: serving both addresses as equals (two
+  OAuth issuers, two cookie scopes, duplicate links).
 - **2026-10-02 · React + Vite + TanStack + Tailwind + shadcn/ui.** Best coverage by design tools and implementing
   models. Rejected: SvelteKit (good, but weaker design-tool output), Next.js on Workers via OpenNext (heavier than
   needed; no SSR requirement since public pages can be cached JSON + client render; revisit if SEO matters).
