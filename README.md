@@ -2,7 +2,7 @@
 
 **What's on in Berlin tonight, read from the venues' own programmes, ranked for your taste.**
 
-### → [bln-vorstellungen.aliaksei-zhynhiarouski.workers.dev](https://bln-vorstellungen.aliaksei-zhynhiarouski.workers.dev)
+### → [events.aliaksei.xyz](https://events.aliaksei.xyz)
 
 <p align="center">
   <img src="docs/images/screen-discover.jpg" alt="Discover: today's edition, led by three post-punk nights" width="200">
@@ -36,6 +36,11 @@ in a sentence what you like, and it ranks every upcoming event for you and says 
   <img src="docs/images/screen-search.jpg" alt="Search by meaning: no keyword match, closest events by meaning" width="200">
   <img src="docs/images/screen-dark.jpg" alt="Event page in dark mode" width="200">
 </p>
+
+## Use it from Claude
+
+Add a custom connector with the URL `https://events.aliaksei.xyz/mcp` and sign in. Claude can then show your
+highlights and picks, search the programme, and mark events for your agenda.
 
 ## Where the events come from
 

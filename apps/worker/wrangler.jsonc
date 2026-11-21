@@ -62,10 +62,15 @@
 
   "triggers": { "crons": ["*/15 * * * *"] },
 
+  // The site lives on its own domain since 2026-11-21 (docs/09). workers.dev stays on so old links, bookmarks and
+  // calendar subscriptions keep working: the Worker and index.html redirect them to the domain.
+  "routes": [{ "pattern": "events.aliaksei.xyz", "custom_domain": true }],
+  "workers_dev": true,
+
   "vars": {
     "APP_ENV": "production",
     // The site's public origin: OAuth issuer, and `<origin>/mcp` is the MCP resource tokens are bound to.
-    "PUBLIC_ORIGIN": "https://bln-vorstellungen.aliaksei-zhynhiarouski.workers.dev",
+    "PUBLIC_ORIGIN": "https://events.aliaksei.xyz",
     // Extraction model: "workers-ai" (free) or a Claude id such as "anthropic/claude-haiku-5.5". Claude needs an
     // Anthropic key stored on the `default` AI Gateway (Provider Keys, alias "default"); without it, it falls back.
     // Claude since 2026-11-01: 3.6x faster and keeps per-date notes (room, premiere) at ~$0.003 per chunk.

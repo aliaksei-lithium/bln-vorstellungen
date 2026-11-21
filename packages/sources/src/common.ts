@@ -26,8 +26,7 @@ export const baseConfig = {
   lang: Lang.optional(),
 };
 
-export const USER_AGENT =
-  'Mozilla/5.0 (compatible; BLN-Vorstellungen/0.1; +https://bln-vorstellungen.aliaksei-zhynhiarouski.workers.dev)';
+export const USER_AGENT = 'Mozilla/5.0 (compatible; BLN-Vorstellungen/0.1; +https://events.aliaksei.xyz)';
 const MAX_BYTES = 4_000_000;
 
 type HttpCursor = { etag?: string; lastModified?: string };

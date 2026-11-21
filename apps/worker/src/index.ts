@@ -28,6 +28,20 @@ export { DailyReviewWorkflow, EnrichEventWorkflow, ExtractItemWorkflow, PhotoIng
 
 const app = new Hono<AppEnv>();
 
+/** The site's address before it moved to its own domain (docs/09, 2026-11-21). */
+const OLD_HOST = 'bln-vorstellungen.aliaksei-zhynhiarouski.workers.dev';
+
+// Everything the Worker serves on the old address moves to PUBLIC_ORIGIN, path and query kept. 308 keeps the method
+// and body for POSTs (MCP clients); pages served straight from assets are redirected by index.html. Never cached:
+// Workers Caching keys by path, not host, so a cached redirect would loop on the new domain.
+app.use('*', async (c, next) => {
+  const url = new URL(c.req.url);
+  if (url.hostname !== OLD_HOST) return next();
+  const to = `${c.env.PUBLIC_ORIGIN.replace(/\/$/, '')}${url.pathname}${url.search}`;
+  c.header('Cache-Control', 'no-store');
+  return c.redirect(to, ['GET', 'HEAD'].includes(c.req.method) ? 301 : 308);
+});
+
 // Workers Caching stores any GET without an explicit policy (heuristically, for hours). Only routes that opt in
 // with their own Cache-Control are cacheable; everything else under /api is no-store.
 app.use('/api/*', async (c, next) => {

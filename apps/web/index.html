@@ -20,6 +20,12 @@
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400..800&display=swap" />
     <title>BLN Vorstellungen</title>
     <script>
+      // The site moved to its own domain (docs/09, 2026-11-21); the app shell is served without the Worker, so the
+      // old address is redirected here. The Worker redirects its own routes.
+      if (location.hostname === 'bln-vorstellungen.aliaksei-zhynhiarouski.workers.dev')
+        location.replace('https://events.aliaksei.xyz' + location.pathname + location.search + location.hash);
+    </script>
+    <script>
       // Apply the saved theme before first paint to avoid a flash.
       try {
         const t = localStorage.getItem('bln-theme');

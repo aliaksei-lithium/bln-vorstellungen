@@ -447,6 +447,15 @@ Format: date · decision · why · alternatives rejected. Newer entries supersed
   hidden, signed-in only; Ask is counted in its API route. No question text, searches, event or venue ids are
   stored. The owner reads it in Me → People (`GET /api/admin/activity?days=`). Counters are dropped after 180 days
   by the cron and go with the account. MCP use is not counted (it already moves `users.last_seen_at`).
+- **2026-11-21 · Own domain: events.aliaksei.xyz.** The site moves from
+  `bln-vorstellungen.aliaksei-zhynhiarouski.workers.dev` to `events.aliaksei.xyz` (registered at Cloudflare, Worker
+  custom domain). `PUBLIC_ORIGIN` follows, so the OAuth issuer, the MCP resource and the Spotify and YouTube callbacks
+  are on the new domain. workers.dev stays on and redirects: the Worker sends its routes there (301 for GET/HEAD, 308
+  otherwise, path and query kept, `no-store` because Workers Caching keys by path and not host, so a cached
+  redirect looped on the new domain on the first deploy) and an inline script in `index.html` moves the app shell, which assets serve
+  without the Worker. Old MCP tokens are bound to the old resource, so connected clients sign in once more; session
+  cookies are per host, so people sign in again on the new domain. Rejected: serving both addresses as equals (two
+  OAuth issuers, two cookie scopes, duplicate links).
 - **2026-10-02 · React + Vite + TanStack + Tailwind + shadcn/ui.** Best coverage by design tools and implementing
   models. Rejected: SvelteKit (good, but weaker design-tool output), Next.js on Workers via OpenNext (heavier than
   needed; no SSR requirement since public pages can be cached JSON + client render; revisit if SEO matters).
