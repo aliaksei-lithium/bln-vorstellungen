@@ -456,6 +456,20 @@ Format: date · decision · why · alternatives rejected. Newer entries supersed
   without the Worker. Old MCP tokens are bound to the old resource, so connected clients sign in once more; session
   cookies are per host, so people sign in again on the new domain. Rejected: serving both addresses as equals (two
   OAuth issuers, two cookie scopes, duplicate links).
+- **2026-11-21 · Browse filters by language where language matters.** A Language section (German, English) in the
+  filter sheet, `lang=de,en` on `GET /api/events` (EventsQuery), saved with "Save as my default". It applies only to
+  `LANG_CATEGORIES` (packages/shared): theatre, opera, talk and film, where not following the language spoils the
+  evening. Concerts, clubs, dance, exhibitions, festivals, markets and other pass whatever their language, and so do
+  events whose `lang` is `other`; the filter never hides them. `langMatches` and the SQL in `listEvents` share the
+  rule. Known limit: `lang` is the language of the listing, so an Italian opera listed in German counts as German.
+  Rejected: filtering every category (a German-titled concert is no reason to hide it), and `other` as a choice (it
+  is "neither", not a language).
+- **2026-11-21 · Telegram channels and Berlin specials are owner-only filters.** Both are the owner's own sources
+  (Telegram is read only for the owner's choice of channels, the specials are hand-picked), so their chips in the
+  filter sheet show only for `users.is_owner` (`Me.isOwner`). For anyone else a `via=telegram` or `via=specials` in a
+  link or saved default is dropped on the client (`parseFilters`, apps/web/src/lib/browseFilters.ts) and not sent; the
+  next filter change rewrites the address without it. The API still accepts them: the events are public anyway, and
+  deciding by user there would make the public, edge-cached list private.
 - **2026-10-02 · React + Vite + TanStack + Tailwind + shadcn/ui.** Best coverage by design tools and implementing
   models. Rejected: SvelteKit (good, but weaker design-tool output), Next.js on Workers via OpenNext (heavier than
   needed; no SSR requirement since public pages can be cached JSON + client render; revisit if SEO matters).
